@@ -9,6 +9,9 @@ app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(progress.router, prefix="/api/progress", tags=["progress"])
 
+@app.get("/")
+def root():
+    return {"message": "Welcome to the AI-Agent API!"}
 
 @app.get("/api/health")
 def health_check():
