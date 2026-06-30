@@ -27,6 +27,7 @@ app/index.html
 
 - 通用成长学习助手App简单版PRD.md
 - docs/两人协作开发分工文档.md
+- docs/第一版功能开发边界与分工.md
 
 ## 版本控制
 
