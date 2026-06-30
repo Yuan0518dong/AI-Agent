@@ -6,12 +6,25 @@ const defaultState = {
   tasks: [],
   flashcards: [],
   quizzes: [],
-  chat: [
+  activeConversationId: "default-conversation",
+  aiConversations: [
     {
-      role: "agent",
-      text: "你好，我会根据你的目标和资料帮你学习。先创建一个成长目标，或添加一份资料。"
+      id: "default-conversation",
+      goalId: "",
+      relatedMaterialIds: [],
+      messages: [
+        {
+          id: "welcome-message",
+          role: "assistant",
+          content: "你好，我会根据你的目标和资料帮你学习。先创建一个成长目标，或添加一份资料。",
+          createdAt: new Date().toISOString()
+        }
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
-  ]
+  ],
+  chat: []
 };
 
 const state = loadState();
@@ -54,14 +67,22 @@ document.getElementById("material-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const content = data.get("content").trim();
-  const summary = summarizeContent(content);
+  const timestamp = new Date().toISOString();
+  const materialId = makeId();
+  const summary = summarizeContent(content, {
+    materialId,
+    timestamp
+  });
   const material = {
-    id: makeId(),
+    id: materialId,
+    goalId: "",
     title: data.get("title").trim(),
     type: data.get("type"),
     content,
+    url: data.get("type") === "网页链接" ? content : "",
     summary,
-    createdAt: new Date().toISOString()
+    createdAt: timestamp,
+    updatedAt: timestamp
   };
 
   state.materials.unshift(material);
@@ -74,8 +95,24 @@ document.getElementById("chat-form").addEventListener("submit", (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const question = data.get("question").trim();
-  state.chat.push({ role: "user", text: question });
-  state.chat.push({ role: "agent", text: answerQuestion(question) });
+  const timestamp = new Date().toISOString();
+  const answer = answerQuestion(question);
+  const conversation = getActiveConversation();
+  conversation.messages.push({
+    id: makeId(),
+    role: "user",
+    content: question,
+    createdAt: timestamp
+  });
+  conversation.messages.push({
+    id: makeId(),
+    role: "assistant",
+    content: answer.text,
+    relatedMaterialIds: answer.relatedMaterialIds,
+    createdAt: new Date().toISOString()
+  });
+  conversation.relatedMaterialIds = mergeUniqueIds(conversation.relatedMaterialIds, answer.relatedMaterialIds);
+  conversation.updatedAt = new Date().toISOString();
   saveAndRender();
   event.currentTarget.reset();
 });
@@ -114,7 +151,7 @@ document.getElementById("reset-data").addEventListener("click", () => {
   const confirmed = window.confirm("确认清空所有本地学习数据吗？");
   if (!confirmed) return;
   localStorage.removeItem(STORAGE_KEY);
-  Object.assign(state, structuredClone(defaultState));
+  Object.assign(state, normalizeState(structuredClone(defaultState)));
   activeCardIndex = 0;
   saveAndRender();
 });
@@ -123,13 +160,171 @@ render();
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return structuredClone(defaultState);
+  if (!raw) return normalizeState(structuredClone(defaultState));
 
   try {
-    return { ...structuredClone(defaultState), ...JSON.parse(raw) };
+    const normalized = normalizeState({ ...structuredClone(defaultState), ...JSON.parse(raw) });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    return normalized;
   } catch {
-    return structuredClone(defaultState);
+    return normalizeState(structuredClone(defaultState));
   }
+}
+
+function normalizeState(nextState) {
+  const materialsByTitle = new Map();
+
+  nextState.materials = nextState.materials.map((material) => {
+    const timestamp = material.createdAt || new Date().toISOString();
+    const normalized = {
+      ...material,
+      goalId: material.goalId || "",
+      url: material.url || "",
+      createdAt: timestamp,
+      updatedAt: material.updatedAt || timestamp
+    };
+    normalized.summary = normalizeSummary(normalized);
+    materialsByTitle.set(normalized.title, normalized.id);
+    return normalized;
+  });
+
+  nextState.flashcards = nextState.flashcards.map((card) => {
+    const timestamp = card.createdAt || new Date().toISOString();
+    return {
+      ...card,
+      materialId: card.materialId || materialsByTitle.get(card.source) || "",
+      status: card.status || "new",
+      createdAt: timestamp,
+      updatedAt: card.updatedAt || timestamp
+    };
+  });
+
+  nextState.quizzes = nextState.quizzes.map((quiz) => {
+    const timestamp = quiz.createdAt || new Date().toISOString();
+    return {
+      ...quiz,
+      materialId: quiz.materialId || "",
+      type: quiz.type || "short",
+      options: quiz.options || [],
+      explanation: quiz.explanation || "回到资料摘要和关键知识点中核对答案。",
+      createdAt: timestamp,
+      updatedAt: quiz.updatedAt || timestamp
+    };
+  });
+
+  nextState.chat = nextState.chat.map((message) => {
+    const timestamp = message.createdAt || new Date().toISOString();
+    return {
+      id: message.id || makeId(),
+      role: message.role === "agent" ? "assistant" : message.role,
+      content: message.content || message.text || "",
+      relatedMaterialIds: message.relatedMaterialIds || [],
+      createdAt: timestamp
+    };
+  });
+
+  nextState.aiConversations = normalizeConversations(nextState.aiConversations, nextState.chat);
+  const activeExists = nextState.aiConversations.some((conversation) => {
+    return conversation.id === nextState.activeConversationId;
+  });
+  nextState.activeConversationId = activeExists
+    ? nextState.activeConversationId
+    : nextState.aiConversations[0].id;
+  nextState.chat = getConversationMessages(nextState, nextState.activeConversationId);
+
+  return nextState;
+}
+
+function normalizeConversations(conversations, legacyChat) {
+  const hasLegacyChat = Array.isArray(legacyChat) && legacyChat.length;
+  const hasRealConversations = Array.isArray(conversations)
+    && conversations.some((conversation) => {
+      const messageCount = Array.isArray(conversation.messages) ? conversation.messages.length : 0;
+      return conversation.id !== "default-conversation" || messageCount > 1;
+    });
+  const source = hasRealConversations
+    ? conversations
+    : [conversationFromMessages(hasLegacyChat ? legacyChat : [])];
+
+  return source.map((conversation) => {
+    const timestamp = conversation.createdAt || new Date().toISOString();
+    const messages = Array.isArray(conversation.messages) && conversation.messages.length
+      ? conversation.messages
+      : createWelcomeMessages(timestamp);
+
+    return {
+      id: conversation.id || makeId(),
+      goalId: conversation.goalId || "",
+      relatedMaterialIds: conversation.relatedMaterialIds || [],
+      messages: messages.map(normalizeMessage),
+      createdAt: timestamp,
+      updatedAt: conversation.updatedAt || timestamp
+    };
+  });
+}
+
+function conversationFromMessages(messages) {
+  const timestamp = new Date().toISOString();
+  return {
+    id: "default-conversation",
+    goalId: "",
+    relatedMaterialIds: collectRelatedMaterialIds(messages),
+    messages: Array.isArray(messages) && messages.length ? messages : createWelcomeMessages(timestamp),
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function normalizeMessage(message) {
+  const timestamp = message.createdAt || new Date().toISOString();
+  return {
+    id: message.id || makeId(),
+    role: message.role === "agent" ? "assistant" : message.role,
+    content: message.content || message.text || "",
+    relatedMaterialIds: message.relatedMaterialIds || [],
+    createdAt: timestamp
+  };
+}
+
+function createWelcomeMessages(timestamp) {
+  return [
+    {
+      id: "welcome-message",
+      role: "assistant",
+      content: "你好，我会根据你的目标和资料帮你学习。先创建一个成长目标，或添加一份资料。",
+      createdAt: timestamp
+    }
+  ];
+}
+
+function collectRelatedMaterialIds(messages) {
+  if (!Array.isArray(messages)) return [];
+  return [...new Set(messages.flatMap((message) => message.relatedMaterialIds || []))];
+}
+
+function normalizeSummary(material) {
+  const timestamp = material.createdAt || new Date().toISOString();
+  const fallback = summarizeContent(material.content || "", {
+    materialId: material.id,
+    timestamp
+  });
+  const summary = material.summary || {};
+
+  return {
+    materialId: summary.materialId || material.id,
+    overview: summary.overview || fallback.overview,
+    keyPoints: normalizeArray(summary.keyPoints, fallback.keyPoints),
+    difficulties: normalizeArray(summary.difficulties, fallback.difficulties),
+    studyOrder: normalizeArray(summary.studyOrder, fallback.studyOrder),
+    actionItems: normalizeArray(summary.actionItems, fallback.actionItems),
+    aiMode: summary.aiMode || "mock",
+    createdAt: summary.createdAt || timestamp,
+    updatedAt: summary.updatedAt || material.updatedAt || timestamp
+  };
+}
+
+function normalizeArray(value, fallback) {
+  return Array.isArray(value) && value.length ? value : fallback;
 }
 
 function saveAndRender() {
@@ -248,18 +443,29 @@ function renderMaterials() {
   state.materials.forEach((material) => {
     const item = document.createElement("article");
     item.className = "item";
+    const summary = material.summary;
+    const points = summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const difficulties = summary.difficulties.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     item.innerHTML = `
       <div class="item-head">
         <div>
           <h3>${escapeHtml(material.title)}</h3>
-          <p>${escapeHtml(material.summary.overview)}</p>
+          <p>${escapeHtml(summary.overview)}</p>
         </div>
         <button class="ghost-button" title="删除资料">×</button>
       </div>
       <div class="tag-row">
         <span class="tag">${escapeHtml(material.type)}</span>
-        <span class="tag">${material.summary.keyPoints.length} 个知识点</span>
+        <span class="tag">${summary.keyPoints.length} 个知识点</span>
+        <span class="tag">${summary.aiMode}</span>
       </div>
+      <details class="material-detail">
+        <summary>查看整理详情</summary>
+        <strong>关键知识点</strong>
+        <ul>${points}</ul>
+        <strong>可能难点</strong>
+        <ul>${difficulties}</ul>
+      </details>
     `;
     item.querySelector("button").addEventListener("click", () => deleteMaterial(material.id));
     list.appendChild(item);
@@ -278,11 +484,22 @@ function renderSummaries() {
   state.materials.forEach((material) => {
     const item = document.createElement("article");
     item.className = "item";
-    const points = material.summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const summary = material.summary;
+    const points = summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const difficulties = summary.difficulties.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const studyOrder = summary.studyOrder.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const actionItems = summary.actionItems.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     item.innerHTML = `
       <h3>${escapeHtml(material.title)}</h3>
-      <p>${escapeHtml(material.summary.overview)}</p>
+      <p>${escapeHtml(summary.overview)}</p>
+      <h4>关键知识点</h4>
       <ul>${points}</ul>
+      <h4>可能难点</h4>
+      <ul>${difficulties}</ul>
+      <h4>学习顺序</h4>
+      <ul>${studyOrder}</ul>
+      <h4>行动建议</h4>
+      <ul>${actionItems}</ul>
     `;
     list.appendChild(item);
   });
@@ -291,10 +508,15 @@ function renderSummaries() {
 function renderChat() {
   const log = document.getElementById("chat-log");
   log.innerHTML = "";
-  state.chat.forEach((message) => {
+  getActiveConversation().messages.forEach((message) => {
     const node = document.createElement("div");
-    node.className = `message ${message.role}`;
-    node.textContent = message.text;
+    node.className = `message ${message.role === "user" ? "user" : "agent"}`;
+    node.textContent = message.content;
+
+    if (message.role === "assistant" && message.relatedMaterialIds.length) {
+      node.appendChild(referenceNode(message.relatedMaterialIds));
+    }
+
     log.appendChild(node);
   });
   log.scrollTop = log.scrollHeight;
@@ -310,7 +532,7 @@ function renderFlashcard() {
   }
 
   card.innerHTML = `
-    <span>${escapeHtml(flashcard.source)}</span>
+    <span>${escapeHtml(getMaterialTitle(flashcard.materialId))}</span>
     <strong>${escapeHtml(flashcard.front)}</strong>
     <p>${escapeHtml(flashcard.back)}</p>
   `;
@@ -331,6 +553,11 @@ function renderQuizzes() {
     item.innerHTML = `
       <h3>${escapeHtml(quiz.question)}</h3>
       <p>参考答案：${escapeHtml(quiz.answer)}</p>
+      <p>解释：${escapeHtml(quiz.explanation)}</p>
+      <div class="tag-row">
+        <span class="tag">${escapeHtml(getMaterialTitle(quiz.materialId))}</span>
+        <span class="tag">${escapeHtml(quiz.type)}</span>
+      </div>
     `;
     list.appendChild(item);
   });
@@ -389,47 +616,100 @@ function collectTopics(goal) {
   return base.length ? base : [goal.subject || "核心知识点"];
 }
 
-function summarizeContent(content) {
+function summarizeContent(content, options = {}) {
   const sentences = splitSentences(content);
   const keyPoints = sentences.slice(0, 6).map((text) => text.slice(0, 60));
+  const points = keyPoints.length ? keyPoints : ["提炼资料中的核心概念", "复习关键定义和例子"];
+  const timestamp = options.timestamp || new Date().toISOString();
+
   return {
+    materialId: options.materialId || "",
     overview: sentences.slice(0, 2).join("。").slice(0, 140) || "这份资料已保存，可用于成长问答和记忆训练。",
-    keyPoints: keyPoints.length ? keyPoints : ["提炼资料中的核心概念", "复习关键定义和例子"]
+    keyPoints: points,
+    difficulties: points.slice(0, 3).map((point) => `容易卡住：${point}。先用自己的话复述，再回到原文核对。`),
+    studyOrder: [
+      "先快速通读资料，标出不熟悉的词句。",
+      `再重点理解：${points[0]}。`,
+      "最后用闪卡和测试题检查是否能独立复述。"
+    ],
+    actionItems: [
+      "用 3 句话写下资料摘要。",
+      "完成 1 轮闪卡复习。",
+      "任选 1 个知识点做简答自测。"
+    ],
+    aiMode: "mock",
+    createdAt: timestamp,
+    updatedAt: timestamp
   };
 }
 
 function createMemoryItems(material) {
+  const timestamp = new Date().toISOString();
   material.summary.keyPoints.forEach((point) => {
     state.flashcards.push({
       id: makeId(),
-      source: material.title,
+      materialId: material.id,
       front: `请解释：${point}`,
       back: `围绕“${point}”进行复述，并补充一个例子。`,
-      status: "new"
+      status: "new",
+      createdAt: timestamp,
+      updatedAt: timestamp
     });
     state.quizzes.push({
       id: makeId(),
+      materialId: material.id,
+      type: "short",
+      options: [],
       question: `简答：${point} 的核心含义是什么？`,
-      answer: `先说明定义，再结合资料中的例子解释。`
+      answer: "先说明定义，再结合资料中的例子解释。",
+      explanation: `这道题对应资料《${material.title}》中的知识点“${point}”。`,
+      createdAt: timestamp,
+      updatedAt: timestamp
     });
   });
 }
 
 function answerQuestion(question) {
-  const text = question.toLowerCase();
-  const allPoints = state.materials.flatMap((item) => item.summary.keyPoints);
-  const matched = allPoints.find((point) => text.includes(point.slice(0, 4).toLowerCase()));
-  const fallback = allPoints.slice(0, 3).join("；");
+  const relevant = findRelevantMaterials(question);
 
-  if (matched) {
-    return `可以。这个问题和“${matched}”有关。建议你先用一句话说出定义，再写一个例子，最后做一道题确认自己是否掌握。`;
+  if (relevant.length) {
+    const material = relevant[0];
+    const points = material.summary.keyPoints.slice(0, 3).join("；");
+    return {
+      text: `我先参考《${material.title}》来回答。它的核心线索是：${points}。建议你先复述摘要，再挑一个知识点举例，最后用测试题检查是否真正理解。`,
+      relatedMaterialIds: relevant.map((item) => item.id)
+    };
   }
 
-  if (fallback) {
-    return `我根据当前资料先抓到这些重点：${fallback}。你可以继续追问其中一个点，我会帮你拆成定义、例子和记忆方法。`;
-  }
+  return {
+    text: "现在还没有可参考的资料。你可以先添加一份成长资料，我再基于资料帮你解释和出题。",
+    relatedMaterialIds: []
+  };
+}
 
-  return "现在还没有可参考的资料。你可以先添加一份成长资料，我再基于资料帮你解释和出题。";
+function findRelevantMaterials(question) {
+  const query = question.toLowerCase();
+  const scored = state.materials
+    .map((material) => {
+      const summary = material.summary;
+      const haystack = [
+        material.title,
+        summary.overview,
+        ...summary.keyPoints,
+        ...summary.difficulties
+      ]
+        .join(" ")
+        .toLowerCase();
+      const score = splitSentences(question).reduce((total, part) => {
+        return haystack.includes(part.toLowerCase()) ? total + 1 : total;
+      }, haystack.includes(query.slice(0, 6)) ? 1 : 0);
+      return { material, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.material);
+
+  return scored.length ? scored.slice(0, 2) : state.materials.slice(0, 1);
 }
 
 function deleteGoal(id) {
@@ -441,12 +721,19 @@ function deleteGoal(id) {
 
 function deleteMaterial(id) {
   if (!window.confirm("确认删除这份资料吗？")) return;
-  const material = state.materials.find((item) => item.id === id);
   state.materials = state.materials.filter((item) => item.id !== id);
-  if (material) {
-    state.flashcards = state.flashcards.filter((card) => card.source !== material.title);
-    state.quizzes = state.quizzes.filter((quiz) => !quiz.question.includes(material.title));
-  }
+  state.flashcards = state.flashcards.filter((card) => card.materialId !== id);
+  state.quizzes = state.quizzes.filter((quiz) => quiz.materialId !== id);
+  state.aiConversations = state.aiConversations.map((conversation) => ({
+    ...conversation,
+    relatedMaterialIds: conversation.relatedMaterialIds.filter((materialId) => materialId !== id),
+    messages: conversation.messages.map((message) => ({
+      ...message,
+      relatedMaterialIds: (message.relatedMaterialIds || []).filter((materialId) => materialId !== id)
+    })),
+    updatedAt: new Date().toISOString()
+  }));
+  state.chat = getActiveConversation().messages;
   activeCardIndex = 0;
   saveAndRender();
 }
@@ -455,8 +742,46 @@ function rateCard(status) {
   const card = state.flashcards[activeCardIndex];
   if (!card) return;
   card.status = status;
+  card.updatedAt = new Date().toISOString();
   activeCardIndex = state.flashcards.length ? (activeCardIndex + 1) % state.flashcards.length : 0;
   saveAndRender();
+}
+
+function getMaterialTitle(materialId) {
+  const material = state.materials.find((item) => item.id === materialId);
+  return material ? material.title : "未关联资料";
+}
+
+function getActiveConversation() {
+  const conversation = state.aiConversations.find((item) => item.id === state.activeConversationId);
+  return conversation || state.aiConversations[0];
+}
+
+function getConversationMessages(sourceState, conversationId) {
+  const conversation = sourceState.aiConversations.find((item) => item.id === conversationId);
+  return conversation ? conversation.messages : [];
+}
+
+function mergeUniqueIds(currentIds, nextIds) {
+  return [...new Set([...(currentIds || []), ...(nextIds || [])])];
+}
+
+function referenceNode(materialIds) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "message-references";
+  const label = document.createElement("span");
+  label.textContent = "参考资料";
+  wrapper.appendChild(label);
+
+  materialIds.forEach((materialId) => {
+    const material = state.materials.find((item) => item.id === materialId);
+    if (!material) return;
+    const tag = document.createElement("strong");
+    tag.textContent = material.title;
+    wrapper.appendChild(tag);
+  });
+
+  return wrapper;
 }
 
 function emptyNode(title, body) {
