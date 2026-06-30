@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>学生助手 App 原型</title>
+    <title>通用成长学习助手 App 原型</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -15,8 +15,8 @@
             <span></span>
           </div>
           <div>
-            <strong>学生助手</strong>
-            <small>学习智能体</small>
+            <strong>成长学习助手</strong>
+            <small>成长智能体</small>
           </div>
         </div>
 
@@ -34,7 +34,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">MVP Prototype</p>
-            <h1 id="page-title">今日学习</h1>
+            <h1 id="page-title">今日行动</h1>
           </div>
           <div class="top-actions">
             <button class="ghost-button" id="export-data" title="导出本地数据">⇩</button>
@@ -80,7 +80,7 @@
                   <span></span>
                 </div>
                 <div>
-                  <h3 id="focus-title">先创建一个学习目标</h3>
+                  <h3 id="focus-title">先创建一个成长目标</h3>
                   <p id="focus-text">设置目标后，系统会根据资料和截止时间生成学习计划。</p>
                 </div>
               </div>
@@ -91,7 +91,7 @@
         <section class="view" id="view-goals">
           <div class="workspace two-columns">
             <section class="panel">
-              <h2>新建学习目标</h2>
+              <h2>新建成长目标</h2>
               <form id="goal-form" class="form">
                 <label>
                   目标名称
@@ -143,7 +143,7 @@
         <section class="view" id="view-materials">
           <div class="workspace two-columns">
             <section class="panel">
-              <h2>添加学习资料</h2>
+              <h2>添加成长资料</h2>
               <form id="material-form" class="form">
                 <label>
                   资料标题
@@ -175,7 +175,7 @@
         <section class="view" id="view-study">
           <div class="workspace two-columns study-layout">
             <section class="panel">
-              <h2>学习问答</h2>
+              <h2>成长问答</h2>
               <div class="chat" id="chat-log"></div>
               <form id="chat-form" class="chat-form">
                 <input name="question" required placeholder="问一个知识点，例如：帮我解释重点内容" />
@@ -217,7 +217,7 @@
         <section class="view" id="view-progress">
           <div class="workspace">
             <section class="panel">
-              <h2>学习进度</h2>
+              <h2>成长进度</h2>
               <div class="progress-list" id="progress-list"></div>
             </section>
           </div>
@@ -235,3 +235,4 @@
     <script src="./app.js"></script>
   </body>
 </html>
+

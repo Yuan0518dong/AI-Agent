@@ -1,4 +1,4 @@
-const STORAGE_KEY = "student-assistant-mvp";
+﻿const STORAGE_KEY = "student-assistant-mvp";
 
 const defaultState = {
   goals: [],
@@ -9,7 +9,7 @@ const defaultState = {
   chat: [
     {
       role: "agent",
-      text: "你好，我会根据你的目标和资料帮你学习。先创建一个学习目标，或添加一份资料。"
+      text: "你好，我会根据你的目标和资料帮你学习。先创建一个成长目标，或添加一份资料。"
     }
   ]
 };
@@ -18,12 +18,12 @@ const state = loadState();
 let activeCardIndex = 0;
 
 const views = {
-  today: "今日学习",
-  goals: "学习目标",
-  materials: "学习资料",
-  study: "学习问答",
+  today: "今日行动",
+  goals: "成长目标",
+  materials: "成长资料",
+  study: "成长问答",
   memory: "记忆训练",
-  progress: "学习进度"
+  progress: "成长进度"
 };
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -173,7 +173,7 @@ function renderToday() {
   list.innerHTML = "";
 
   if (state.tasks.length === 0) {
-    list.appendChild(emptyNode("还没有任务", "创建目标后会自动生成 7 天学习计划。"));
+    list.appendChild(emptyNode("还没有任务", "创建目标后会自动生成 7 天行动计划。"));
   } else {
     state.tasks.slice(0, 10).forEach((task) => {
       const item = document.createElement("article");
@@ -198,10 +198,10 @@ function renderToday() {
   const currentGoal = state.goals[0];
   document.getElementById("focus-title").textContent = currentGoal
     ? currentGoal.name
-    : "先创建一个学习目标";
+    : "先创建一个成长目标";
   document.getElementById("focus-text").textContent = currentGoal
     ? `${currentGoal.subject}｜${currentGoal.level}｜每天 ${currentGoal.dailyMinutes} 分钟`
-    : "设置目标后，系统会根据资料和截止时间生成学习计划。";
+    : "设置目标后，系统会根据资料和截止时间生成行动计划。";
 }
 
 function renderGoals() {
@@ -209,7 +209,7 @@ function renderGoals() {
   list.innerHTML = "";
 
   if (state.goals.length === 0) {
-    list.appendChild(emptyNode("暂无学习目标", "从左侧表单创建第一个目标。"));
+    list.appendChild(emptyNode("暂无成长目标", "从左侧表单创建第一个目标。"));
     return;
   }
 
@@ -393,7 +393,7 @@ function summarizeContent(content) {
   const sentences = splitSentences(content);
   const keyPoints = sentences.slice(0, 6).map((text) => text.slice(0, 60));
   return {
-    overview: sentences.slice(0, 2).join("。").slice(0, 140) || "这份资料已保存，可用于学习问答和记忆训练。",
+    overview: sentences.slice(0, 2).join("。").slice(0, 140) || "这份资料已保存，可用于成长问答和记忆训练。",
     keyPoints: keyPoints.length ? keyPoints : ["提炼资料中的核心概念", "复习关键定义和例子"]
   };
 }
@@ -429,11 +429,11 @@ function answerQuestion(question) {
     return `我根据当前资料先抓到这些重点：${fallback}。你可以继续追问其中一个点，我会帮你拆成定义、例子和记忆方法。`;
   }
 
-  return "现在还没有可参考的资料。你可以先添加一份学习资料，我再基于资料帮你解释和出题。";
+  return "现在还没有可参考的资料。你可以先添加一份成长资料，我再基于资料帮你解释和出题。";
 }
 
 function deleteGoal(id) {
-  if (!window.confirm("确认删除这个学习目标吗？")) return;
+  if (!window.confirm("确认删除这个成长目标吗？")) return;
   state.goals = state.goals.filter((goal) => goal.id !== id);
   state.tasks = state.tasks.filter((task) => task.goalId !== id);
   saveAndRender();
@@ -500,3 +500,4 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
