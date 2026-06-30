@@ -16,13 +16,13 @@ Progress statistics
 Install dependencies:
 
 ```bash
-pip install -r backend/requirements.txt
+python -m pip install -r backend/requirements.txt
 ```
 
 Start API server from project root:
 
 ```bash
-uvicorn backend.app.main:app --reload
+python -m uvicorn backend.app.main:app --reload
 ```
 
 Open API docs:
@@ -33,7 +33,14 @@ http://127.0.0.1:8000/docs
 
 ## Current State
 
-This backend uses in-memory storage only. Data will reset when the server restarts.
+This backend uses SQLite for local persistence.
 
-Next step is to replace `backend/app/services/store.py` with a real database layer.
+The local database file is created automatically at:
 
+```text
+backend/data/ai_agent.db
+```
+
+The database file is ignored by Git. It is for local development only.
+
+Next step is to connect the frontend prototype to these APIs.
