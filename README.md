@@ -30,7 +30,8 @@ app/index.html
 - docs/6.30工作分工文档.md
 - docs/第一版功能开发边界与分工.md
 - docs/第一版技术实现方案.md
-- docs/项目进度与新窗口交接.md
+- docs/项目进度记录.md
+- docs/资料与AI模块字段和API草案.md
 
 ## 版本控制
 
