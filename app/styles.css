@@ -373,6 +373,11 @@ textarea {
   margin-bottom: 8px;
 }
 
+.item h4 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+}
+
 .item p,
 .empty p,
 .focus-card p {
@@ -393,6 +398,18 @@ textarea {
   color: #1746a2;
   background: #e8f1ff;
   font-size: 12px;
+}
+
+.material-detail {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.material-detail summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .check-row {
@@ -443,6 +460,28 @@ textarea {
   justify-self: start;
   background: #ffffff;
   border: 1px solid var(--line);
+}
+
+.message-references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.message-references span {
+  color: var(--muted);
+}
+
+.message-references strong {
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #1746a2;
+  background: #e8f1ff;
+  font-size: 12px;
 }
 
 .chat-form {
