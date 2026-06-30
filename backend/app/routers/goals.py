@@ -11,7 +11,7 @@ router = APIRouter()
 
 @router.get("")
 def list_goals():
-    return ok(list(store.goals.values()))
+    return ok(store.list_goals())
 
 
 @router.post("")
@@ -28,13 +28,12 @@ def create_goal(payload: GoalCreate):
         "created_at": now,
         "updated_at": now,
     }
-    store.goals[goal["id"]] = goal
-    return ok(goal)
+    return ok(store.create_goal(goal))
 
 
 @router.get("/{goal_id}")
 def get_goal(goal_id: str):
-    goal = store.goals.get(goal_id)
+    goal = store.get_goal(goal_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     return ok(goal)
@@ -42,7 +41,7 @@ def get_goal(goal_id: str):
 
 @router.put("/{goal_id}")
 def update_goal(goal_id: str, payload: GoalUpdate):
-    goal = store.goals.get(goal_id)
+    goal = store.get_goal(goal_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -52,25 +51,22 @@ def update_goal(goal_id: str, payload: GoalUpdate):
 
     if "deadline" in changes:
         changes["deadline"] = changes["deadline"].isoformat()
-    goal.update(changes)
-    goal["updated_at"] = store.now_iso()
-    return ok(goal)
+    changes["updated_at"] = store.now_iso()
+    updated_goal = store.update_goal(goal_id, changes)
+    return ok(updated_goal)
 
 
 @router.delete("/{goal_id}")
 def delete_goal(goal_id: str):
-    if goal_id not in store.goals:
+    if not store.delete_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    del store.goals[goal_id]
-    plan_service.delete_tasks_for_goal(goal_id)
-    store.checkins[:] = [item for item in store.checkins if item["goal_id"] != goal_id]
     return ok({"deleted": True, "goal_id": goal_id})
 
 
 @router.post("/{goal_id}/plans")
 def generate_plan(goal_id: str, payload: PlanGenerateRequest):
-    goal = store.goals.get(goal_id)
+    goal = store.get_goal(goal_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -84,8 +80,7 @@ def generate_plan(goal_id: str, payload: PlanGenerateRequest):
 
 @router.get("/{goal_id}/tasks")
 def list_goal_tasks(goal_id: str):
-    if goal_id not in store.goals:
+    if not store.get_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    tasks = [task for task in store.tasks.values() if task["goal_id"] == goal_id]
-    return ok(tasks)
+    return ok(store.list_tasks_for_goal(goal_id))

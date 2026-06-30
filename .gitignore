@@ -9,3 +9,5 @@ build/
 .env.local
 __pycache__/
 *.py[cod]
+backend/data/*.db
+backend/data/*.db-*
