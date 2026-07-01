@@ -1,9 +1,18 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.routers import goals, progress, tasks
 
 
 app = FastAPI(title="AI-Agent API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
