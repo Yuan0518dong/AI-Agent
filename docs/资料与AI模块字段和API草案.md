@@ -1,10 +1,10 @@
 # 资料与 AI 模块字段和 API 草案
 
-更新时间：2026-06-30
+更新时间：2026-07-01
 
 ## 1. 模块范围
 
-本文件记录赵负责模块的字段和 API 草案，用于先强化静态原型，后续再迁移到后端和数据库。
+本文件记录赵负责模块的字段和 API 草案。当前赵模块的 MVP-0 静态原型已完成并合入 dev，后续重点是从前端 localStorage/mock AI 迁移到后端 API、SQLite 和可替换 AI service。
 
 赵负责主线：
 
@@ -12,7 +12,7 @@
 资料管理 -> AI 整理 -> 闪卡 / 测试题 -> 成长问答
 ```
 
-当前阶段先使用：
+当前已完成的 MVP-0 原型使用：
 
 ```text
 localStorage
@@ -227,7 +227,7 @@ aiAgent.aiConversations
 
 ## 5. 静态原型优先改动
 
-第一批优先：
+第一批已完成：
 
 ```text
 1. Material 增加 updatedAt。
@@ -237,13 +237,22 @@ aiAgent.aiConversations
 5. 删除资料时，同步删除对应闪卡和测试题。
 ```
 
-第二批再补：
+第二批已完成或基本完成：
 
 ```text
 1. 资料详情展示。
 2. 成长问答记录保存。
 3. 成长问答回答尽量基于已有资料摘要和知识点。
 4. 真实 AI prompt 输入输出草案。
+```
+
+当前仍需迁移：
+
+```text
+1. 资料、整理结果、闪卡、测试题和问答仍保存于前端 localStorage。
+2. 当前 AI 整理和成长问答仍是 mock AI。
+3. 后端已存在目标/计划/打卡/进度模块骨架，但资料与 AI 模块 API 尚未实现。
+4. 下一步应先实现资料 API 和 summarize mock service，再迁移闪卡、测试题和问答 API。
 ```
 
 ## 6. API 草案
@@ -414,4 +423,26 @@ GET  /api/conversations/:id
 5. 删除资料时，对应闪卡和测试题同步删除。
 6. 成长问答能基于已有资料给出 mock 回答。
 7. 页面刷新后资料、摘要、闪卡、测试题和问答记录不丢失。
+```
+
+当前验收状态：
+
+```text
+MVP-0 静态原型已通过本地 smoke test：
+1. 添加资料后生成结构化整理结果。
+2. 闪卡和测试题均通过 materialId 关联资料。
+3. 成长问答消息和会话能记录 relatedMaterialIds。
+4. 删除资料后，关联闪卡、测试题和问答引用同步清理。
+5. 刷新后资料、整理结果、闪卡、测试题和问答记录仍可保留。
+6. 该模块已合入 dev，等待和陈模块一起跑完整演示流程。
+```
+
+## 9. 下一步迁移建议
+
+```text
+1. 在 backend/app 下补 materials router、schemas 和 store 方法。
+2. 先实现 GET /api/materials、POST /api/materials、GET /api/materials/:id、DELETE /api/materials/:id。
+3. 再实现 POST /api/materials/:id/summarize，先使用 mock AI service。
+4. 最后迁移 flashcards、quiz 和 ask/conversations。
+5. 前端保留 localStorage fallback，逐步切换到 API。
 ```
