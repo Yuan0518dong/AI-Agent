@@ -1,70 +1,81 @@
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-DB_PATH = DATA_DIR / "ai_agent.db"
+DEFAULT_DB_PATH = DATA_DIR / "ai_agent.db"
+DB_PATH = DEFAULT_DB_PATH
+
+
+def set_db_path(path: str | Path | None) -> None:
+    global DB_PATH
+    DB_PATH = Path(path) if path else DEFAULT_DB_PATH
+    init_db()
 
 
 def init_db() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    try:
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = OFF")
-        if _schema_needs_rebuild(conn):
-            _drop_tables(conn)
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS materials (
-                id TEXT PRIMARY KEY,
-                goal_id TEXT,
-                title TEXT NOT NULL,
-                type TEXT NOT NULL,
-                content TEXT NOT NULL DEFAULT '',
-                url TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
+        with conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS materials (
+                    id TEXT PRIMARY KEY,
+                    goal_id TEXT,
+                    title TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    content TEXT NOT NULL DEFAULT '',
+                    url TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
 
-            CREATE TABLE IF NOT EXISTS material_summaries (
-                material_id TEXT PRIMARY KEY,
-                overview TEXT NOT NULL,
-                key_points TEXT NOT NULL,
-                difficulties TEXT NOT NULL,
-                study_order TEXT NOT NULL,
-                action_items TEXT NOT NULL,
-                ai_mode TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-            );
+                CREATE TABLE IF NOT EXISTS material_summaries (
+                    material_id TEXT PRIMARY KEY,
+                    overview TEXT NOT NULL,
+                    key_points TEXT NOT NULL,
+                    difficulties TEXT NOT NULL,
+                    study_order TEXT NOT NULL,
+                    action_items TEXT NOT NULL,
+                    ai_mode TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+                );
 
-            CREATE TABLE IF NOT EXISTS flashcards (
-                id TEXT PRIMARY KEY,
-                material_id TEXT NOT NULL,
-                front TEXT NOT NULL,
-                back TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-            );
+                CREATE TABLE IF NOT EXISTS flashcards (
+                    id TEXT PRIMARY KEY,
+                    material_id TEXT NOT NULL,
+                    front TEXT NOT NULL,
+                    back TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+                );
 
-            CREATE TABLE IF NOT EXISTS quiz_questions (
-                id TEXT PRIMARY KEY,
-                material_id TEXT NOT NULL,
-                question TEXT NOT NULL,
-                type TEXT NOT NULL,
-                options TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                explanation TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-            );
-            """
-        )
+                CREATE TABLE IF NOT EXISTS quiz_questions (
+                    id TEXT PRIMARY KEY,
+                    material_id TEXT NOT NULL,
+                    question TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    options TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    explanation TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+                );
+                """
+            )
+            _ensure_columns(conn)
+    finally:
+        conn.close()
 
 
 def clear_material_data() -> None:
@@ -264,45 +275,43 @@ def replace_quiz_questions_for_material(
     return list_quiz_questions_for_material(material_id)
 
 
-def _connect() -> sqlite3.Connection:
+@contextmanager
+def _connect():
+    init_db()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
-def _schema_needs_rebuild(conn: sqlite3.Connection) -> bool:
-    material_row = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'materials'"
-    ).fetchone()
-    if not material_row:
-        return False
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    summary_columns = _column_names(conn, "material_summaries")
+    summary_defaults = {
+        "overview": "''",
+        "key_points": "'[]'",
+        "difficulties": "'[]'",
+        "study_order": "'[]'",
+        "action_items": "'[]'",
+        "ai_mode": "'mock'",
+        "created_at": "''",
+        "updated_at": "''",
+    }
+    for column, default in summary_defaults.items():
+        if column not in summary_columns:
+            conn.execute(
+                f"ALTER TABLE material_summaries ADD COLUMN {column} TEXT NOT NULL DEFAULT {default}"
+            )
 
-    material_foreign_keys = conn.execute("PRAGMA foreign_key_list(materials)").fetchall()
-    if material_foreign_keys:
-        return True
 
-    summary_columns = {
+def _column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    return {
         row["name"]
-        for row in conn.execute("PRAGMA table_info(material_summaries)").fetchall()
+        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     }
-    expected_summary_columns = {
-        "difficulties",
-        "study_order",
-        "action_items",
-    }
-    return bool(summary_columns) and not expected_summary_columns.issubset(summary_columns)
-
-
-def _drop_tables(conn: sqlite3.Connection) -> None:
-    conn.executescript(
-        """
-        DROP TABLE IF EXISTS quiz_questions;
-        DROP TABLE IF EXISTS flashcards;
-        DROP TABLE IF EXISTS material_summaries;
-        DROP TABLE IF EXISTS materials;
-        """
-    )
 
 
 def _material_from_row(row: sqlite3.Row) -> dict:

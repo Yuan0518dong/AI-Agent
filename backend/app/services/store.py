@@ -12,15 +12,12 @@ DATA_DIR = BASE_DIR / "data"
 DEFAULT_DB_PATH = DATA_DIR / "ai_agent.db"
 DB_PATH = DEFAULT_DB_PATH
 
-goals: dict[str, dict] = {}
-tasks: dict[str, dict] = {}
-checkins: list[dict] = []
-
 
 def set_db_path(path: str | Path | None) -> None:
     global DB_PATH
     DB_PATH = Path(path) if path else DEFAULT_DB_PATH
     init_db()
+    material_store.set_db_path(DB_PATH)
 
 
 def get_connection() -> sqlite3.Connection:
