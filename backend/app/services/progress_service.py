@@ -2,12 +2,15 @@ from backend.app.services import store
 
 
 def get_all_progress() -> list[dict]:
-    return [get_goal_progress(goal_id) for goal_id in store.goals]
+    return [get_goal_progress(goal["id"]) for goal in store.list_goals()]
 
 
 def get_goal_progress(goal_id: str) -> dict:
-    goal = store.goals[goal_id]
-    goal_tasks = [task for task in store.tasks.values() if task["goal_id"] == goal_id]
+    goal = store.get_goal(goal_id)
+    if not goal:
+        return {}
+
+    goal_tasks = store.list_goal_tasks(goal_id)
     completed = [task for task in goal_tasks if task["done"]]
     today = store.today_iso()
     today_tasks = [task for task in goal_tasks if task["date"] == today]

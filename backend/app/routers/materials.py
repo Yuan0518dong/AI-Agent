@@ -23,7 +23,7 @@ def list_materials(goalId: str | None = Query(default=None)):
 @router.post("")
 def create_material(payload: MaterialCreate):
     goal_id = _normalize_goal_id(payload.goalId)
-    if goal_id and goal_id not in store.goals:
+    if goal_id and not store.get_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     now = store.now_iso()
@@ -65,7 +65,7 @@ def update_material(material_id: str, payload: MaterialUpdate):
 
     if "goalId" in changes:
         goal_id = _normalize_goal_id(changes["goalId"])
-        if goal_id and goal_id not in store.goals:
+        if goal_id and not store.get_goal(goal_id):
             raise HTTPException(status_code=404, detail="Goal not found")
         changes["goalId"] = goal_id
 

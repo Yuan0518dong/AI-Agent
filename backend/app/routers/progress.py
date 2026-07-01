@@ -14,7 +14,7 @@ def list_progress():
 
 @router.get("/{goal_id}")
 def get_goal_progress(goal_id: str):
-    if goal_id not in store.goals:
+    if not store.get_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
     return ok(progress_service.get_goal_progress(goal_id))
 

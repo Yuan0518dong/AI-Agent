@@ -39,7 +39,13 @@ python backend/smoke_api.py
 
 ## Current State
 
-This backend uses in-memory storage only. Data will reset when the server restarts.
+This backend uses SQLite storage for Chen's goal module data.
 
-Next step is to replace `backend/app/services/store.py` with a real database layer.
+Default database path:
+
+```text
+backend/data/ai_agent.db
+```
+
+The database file is ignored by Git. Automated tests use a temporary SQLite database and will not clear local app data.
 
