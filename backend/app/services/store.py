@@ -59,6 +59,21 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS materials (
+                id TEXT PRIMARY KEY,
+                goal_id TEXT,
+                title TEXT NOT NULL,
+                type TEXT NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
+            )
+            """
+        )
 
 
 def get_connection() -> sqlite3.Connection:
@@ -192,6 +207,62 @@ def create_checkin(checkin: dict) -> dict:
     return checkin
 
 
+def list_materials(goal_id: str | None = None) -> list[dict]:
+    with get_connection() as conn:
+        if goal_id:
+            rows = conn.execute(
+                "SELECT * FROM materials WHERE goal_id = ? ORDER BY created_at DESC",
+                (goal_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM materials ORDER BY created_at DESC"
+            ).fetchall()
+    return [_material_from_row(row) for row in rows]
+
+
+def create_material(material: dict) -> dict:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO materials (
+                id, goal_id, title, type, content, url, created_at, updated_at
+            ) VALUES (
+                :id, :goal_id, :title, :type, :content, :url, :created_at, :updated_at
+            )
+            """,
+            material,
+        )
+    return _material_from_mapping(material)
+
+
+def get_material(material_id: str) -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM materials WHERE id = ?", (material_id,)).fetchone()
+    return _material_from_row(row) if row else None
+
+
+def update_material(material_id: str, changes: dict) -> dict | None:
+    if not changes:
+        return get_material(material_id)
+
+    assignments = ", ".join(f"{key} = ?" for key in changes)
+    values = list(changes.values())
+    values.append(material_id)
+
+    with get_connection() as conn:
+        conn.execute(f"UPDATE materials SET {assignments} WHERE id = ?", values)
+
+    return get_material(material_id)
+
+
+def delete_material(material_id: str) -> bool:
+    with get_connection() as conn:
+        _delete_material_children(conn, material_id)
+        cursor = conn.execute("DELETE FROM materials WHERE id = ?", (material_id,))
+    return cursor.rowcount > 0
+
+
 def make_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
@@ -231,4 +302,36 @@ def _task_from_row(row: sqlite3.Row) -> dict:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
+
+
+def _material_from_row(row: sqlite3.Row) -> dict:
+    return _material_from_mapping(dict(row))
+
+
+def _material_from_mapping(material: dict) -> dict:
+    return {
+        "id": material["id"],
+        "goalId": material["goal_id"],
+        "title": material["title"],
+        "type": material["type"],
+        "content": material["content"],
+        "url": material["url"],
+        "createdAt": material["created_at"],
+        "updatedAt": material["updated_at"],
+    }
+
+
+def _delete_material_children(conn: sqlite3.Connection, material_id: str) -> None:
+    child_tables = ("material_summaries", "flashcards", "quiz_questions")
+    existing_tables = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (?, ?, ?)",
+            child_tables,
+        ).fetchall()
+    }
+
+    for table in child_tables:
+        if table in existing_tables:
+            conn.execute(f"DELETE FROM {table} WHERE material_id = ?", (material_id,))
 
