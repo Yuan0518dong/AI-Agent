@@ -41,11 +41,12 @@ python backend/smoke_api.py
 
 This backend uses SQLite storage for Chen's goal module data.
 
-Default database path:
+Material data also uses SQLite in `backend/data/ai_agent.db`:
 
-```text
-backend/data/ai_agent.db
-```
+- materials
+- material_summaries
+- flashcards
+- quiz_questions
 
 The database file is ignored by Git. Automated tests use a temporary SQLite database and will not clear local app data.
 
