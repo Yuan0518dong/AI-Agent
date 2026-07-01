@@ -175,6 +175,8 @@ h3 {
 
 .top-actions,
 .panel-head,
+.form-actions,
+.inline-actions,
 .segmented {
   display: flex;
   gap: 10px;
@@ -183,6 +185,16 @@ h3 {
 
 .panel-head {
   justify-content: space-between;
+}
+
+.form-actions,
+.inline-actions {
+  flex-wrap: wrap;
+}
+
+.form-actions button,
+.inline-actions button {
+  flex: 0 0 auto;
 }
 
 .view {
@@ -400,6 +412,58 @@ textarea {
   font-size: 12px;
 }
 
+.detail-panel {
+  margin-top: 18px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.detail-stat {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.detail-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.detail-stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.task-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.24fr) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.task-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .material-detail {
   margin-top: 12px;
   color: var(--muted);
@@ -584,7 +648,9 @@ textarea {
 
   .summary-grid,
   .two-columns,
-  .study-layout {
+  .study-layout,
+  .detail-grid,
+  .task-row {
     grid-template-columns: 1fr;
   }
 }

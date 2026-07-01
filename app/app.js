@@ -1,9 +1,14 @@
-﻿const STORAGE_KEY = "student-assistant-mvp";
+const STORAGE_KEY = "student-assistant-mvp";
+const API_BASE_URL = "http://127.0.0.1:8000/api";
 
 const defaultState = {
   goals: [],
   materials: [],
   tasks: [],
+  progress: [],
+  selectedGoal: null,
+  selectedGoalTasks: [],
+  selectedGoalProgress: null,
   flashcards: [],
   quizzes: [],
   activeConversationId: "default-conversation",
@@ -29,6 +34,8 @@ const defaultState = {
 
 const state = loadState();
 let activeCardIndex = 0;
+let editingGoalId = "";
+let selectedGoalId = "";
 
 const views = {
   today: "今日行动",
@@ -43,24 +50,52 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
 });
 
-document.getElementById("goal-form").addEventListener("submit", (event) => {
+document.getElementById("goal-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
   const data = new FormData(event.currentTarget);
-  const goal = {
-    id: makeId(),
+  const payload = {
     name: data.get("name").trim(),
     subject: data.get("subject").trim(),
     level: data.get("level"),
     deadline: data.get("deadline"),
-    dailyMinutes: Number(data.get("dailyMinutes")),
-    notes: data.get("notes").trim(),
-    createdAt: new Date().toISOString()
+    daily_minutes: Number(data.get("dailyMinutes")),
+    notes: data.get("notes").trim()
   };
 
-  state.goals.push(goal);
-  generatePlanForGoal(goal);
-  saveAndRender();
-  event.currentTarget.reset();
+  try {
+    if (editingGoalId) {
+      await request(`/goals/${editingGoalId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+      selectedGoalId = editingGoalId;
+      editingGoalId = "";
+    } else {
+      const goal = await request("/goals", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      selectedGoalId = goal.id;
+      await generatePlanForGoalApi(goal.id);
+    }
+
+    form.reset();
+    await loadGoalDataFromApi();
+    render();
+  } catch (error) {
+    showError(error);
+  }
+});
+
+document.getElementById("cancel-goal-edit").addEventListener("click", () => {
+  cancelGoalEdit();
+});
+
+document.getElementById("clear-goal-detail").addEventListener("click", () => {
+  clearSelectedGoal();
+  render();
 });
 
 document.getElementById("material-form").addEventListener("submit", (event) => {
@@ -117,15 +152,12 @@ document.getElementById("chat-form").addEventListener("submit", (event) => {
   event.currentTarget.reset();
 });
 
-document.getElementById("quick-plan").addEventListener("click", () => {
-  state.goals.forEach(generatePlanForGoal);
-  saveAndRender();
+document.getElementById("quick-plan").addEventListener("click", async () => {
+  await generatePlansForAllGoals();
 });
 
-document.getElementById("generate-all-plans").addEventListener("click", () => {
-  state.tasks = [];
-  state.goals.forEach(generatePlanForGoal);
-  saveAndRender();
+document.getElementById("generate-all-plans").addEventListener("click", async () => {
+  await generatePlansForAllGoals();
 });
 
 document.getElementById("shuffle-cards").addEventListener("click", () => {
@@ -156,7 +188,188 @@ document.getElementById("reset-data").addEventListener("click", () => {
   saveAndRender();
 });
 
-render();
+init();
+
+async function init() {
+  try {
+    await loadGoalDataFromApi();
+  } catch (error) {
+    showError(error);
+  } finally {
+    render();
+  }
+}
+
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(result.detail || result.message || "请求失败");
+  }
+
+  return result.data;
+}
+
+async function loadGoalDataFromApi() {
+  const [goals, todayTasks, progress] = await Promise.all([
+    request("/goals"),
+    request("/tasks/today"),
+    request("/progress")
+  ]);
+
+  state.goals = goals.map(goalFromApi);
+  state.tasks = todayTasks.map(taskFromApi);
+  state.progress = progress.map(progressFromApi);
+
+  if (selectedGoalId && state.goals.some((goal) => goal.id === selectedGoalId)) {
+    await loadSelectedGoalFromApi(selectedGoalId);
+  } else {
+    clearSelectedGoal();
+  }
+}
+
+async function loadSelectedGoalFromApi(goalId) {
+  const [goal, tasks, progress] = await Promise.all([
+    request(`/goals/${goalId}`),
+    request(`/goals/${goalId}/tasks`),
+    request(`/progress/${goalId}`)
+  ]);
+
+  selectedGoalId = goalId;
+  state.selectedGoal = goalFromApi(goal);
+  state.selectedGoalTasks = tasks.map(taskFromApi);
+  state.selectedGoalProgress = progressFromApi(progress);
+}
+
+function clearSelectedGoal() {
+  selectedGoalId = "";
+  state.selectedGoal = null;
+  state.selectedGoalTasks = [];
+  state.selectedGoalProgress = null;
+}
+
+async function generatePlanForGoalApi(goalId) {
+  return request(`/goals/${goalId}/plans`, {
+    method: "POST",
+    body: JSON.stringify({
+      days: 7,
+      regenerate: true
+    })
+  });
+}
+
+async function generatePlansForAllGoals() {
+  try {
+    for (const goal of state.goals) {
+      await generatePlanForGoalApi(goal.id);
+    }
+
+    await loadGoalDataFromApi();
+    render();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function regenerateGoalPlan(goalId) {
+  try {
+    selectedGoalId = goalId;
+    await generatePlanForGoalApi(goalId);
+    await loadGoalDataFromApi();
+    render();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function selectGoal(goalId) {
+  try {
+    await loadSelectedGoalFromApi(goalId);
+    render();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function startGoalEdit(goalId) {
+  const goal = state.goals.find((item) => item.id === goalId) || state.selectedGoal;
+  if (!goal) return;
+
+  editingGoalId = goalId;
+  selectedGoalId = goalId;
+  fillGoalForm(goal);
+  renderGoalFormMode();
+  switchView("goals");
+  document.getElementById("goal-form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelGoalEdit() {
+  editingGoalId = "";
+  document.getElementById("goal-form").reset();
+  renderGoalFormMode();
+}
+
+function fillGoalForm(goal) {
+  const form = document.getElementById("goal-form");
+  form.elements.name.value = goal.name || "";
+  form.elements.subject.value = goal.subject || "";
+  form.elements.level.value = goal.level || "刚开始";
+  form.elements.deadline.value = goal.deadline || "";
+  form.elements.dailyMinutes.value = String(goal.dailyMinutes || 60);
+  form.elements.notes.value = goal.notes || "";
+}
+
+function goalFromApi(goal) {
+  return {
+    id: goal.id,
+    name: goal.name,
+    subject: goal.subject,
+    level: goal.level,
+    deadline: goal.deadline,
+    dailyMinutes: goal.daily_minutes,
+    notes: goal.notes || "",
+    createdAt: goal.created_at,
+    updatedAt: goal.updated_at
+  };
+}
+
+function taskFromApi(task) {
+  return {
+    id: task.id,
+    goalId: task.goal_id,
+    title: task.title,
+    detail: task.detail,
+    date: task.date,
+    done: task.done,
+    completedAt: task.completed_at,
+    createdAt: task.created_at,
+    updatedAt: task.updated_at
+  };
+}
+
+function progressFromApi(progress) {
+  return {
+    goalId: progress.goal_id,
+    goalName: progress.goal_name,
+    totalTasks: progress.total_tasks,
+    completedTasks: progress.completed_tasks,
+    completionRate: progress.completion_rate,
+    todayTotal: progress.today_total,
+    todayCompleted: progress.today_completed
+  };
+}
+
+function showError(error) {
+  console.error(error);
+  window.alert(error.message || "操作失败，请确认后端服务已经启动。");
+}
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -345,7 +558,9 @@ function switchView(name) {
 function render() {
   renderMetrics();
   renderToday();
+  renderGoalFormMode();
   renderGoals();
+  renderGoalDetail();
   renderMaterials();
   renderSummaries();
   renderChat();
@@ -355,8 +570,9 @@ function render() {
 }
 
 function renderMetrics() {
-  const completed = state.tasks.filter((task) => task.done).length;
-  const rate = state.tasks.length ? Math.round((completed / state.tasks.length) * 100) : 0;
+  const total = state.progress.reduce((sum, item) => sum + item.totalTasks, 0);
+  const completed = state.progress.reduce((sum, item) => sum + item.completedTasks, 0);
+  const rate = total ? Math.round((completed / total) * 100) : 0;
   document.getElementById("metric-goals").textContent = state.goals.length;
   document.getElementById("metric-tasks").textContent = state.tasks.length;
   document.getElementById("metric-rate").textContent = `${rate}%`;
@@ -382,9 +598,20 @@ function renderToday() {
           </span>
         </label>
       `;
-      item.querySelector("input").addEventListener("change", (event) => {
-        task.done = event.currentTarget.checked;
-        saveAndRender();
+      item.querySelector("input").addEventListener("change", async (event) => {
+        try {
+          await request(`/tasks/${task.id}/checkin`, {
+            method: "POST",
+            body: JSON.stringify({
+              done: event.currentTarget.checked
+            })
+          });
+          await loadGoalDataFromApi();
+          render();
+        } catch (error) {
+          event.currentTarget.checked = task.done;
+          showError(error);
+        }
       });
       list.appendChild(item);
     });
@@ -417,7 +644,12 @@ function renderGoals() {
           <h3>${escapeHtml(goal.name)}</h3>
           <p>${escapeHtml(goal.notes || "暂无重点难点说明")}</p>
         </div>
-        <button class="ghost-button" title="删除目标">×</button>
+        <div class="inline-actions">
+          <button class="ghost-button" data-action="detail" title="查看目标详情">详情</button>
+          <button class="ghost-button" data-action="edit" title="编辑目标">编辑</button>
+          <button class="ghost-button" data-action="plan" title="重新生成计划">计划</button>
+          <button class="ghost-button" data-action="delete" title="删除目标">×</button>
+        </div>
       </div>
       <div class="tag-row">
         <span class="tag">${escapeHtml(goal.subject)}</span>
@@ -426,9 +658,91 @@ function renderGoals() {
         <span class="tag">截止 ${escapeHtml(goal.deadline)}</span>
       </div>
     `;
-    item.querySelector("button").addEventListener("click", () => deleteGoal(goal.id));
+    item.querySelector('[data-action="detail"]').addEventListener("click", () => selectGoal(goal.id));
+    item.querySelector('[data-action="edit"]').addEventListener("click", () => startGoalEdit(goal.id));
+    item.querySelector('[data-action="plan"]').addEventListener("click", () => regenerateGoalPlan(goal.id));
+    item.querySelector('[data-action="delete"]').addEventListener("click", () => deleteGoal(goal.id));
     list.appendChild(item);
   });
+}
+
+function renderGoalFormMode() {
+  const title = document.getElementById("goal-form-title");
+  const submitButton = document.getElementById("goal-submit-button");
+  const cancelButton = document.getElementById("cancel-goal-edit");
+
+  if (editingGoalId) {
+    title.textContent = "编辑成长目标";
+    submitButton.textContent = "保存修改";
+    cancelButton.hidden = false;
+  } else {
+    title.textContent = "新建成长目标";
+    submitButton.textContent = "＋ 创建目标";
+    cancelButton.hidden = true;
+  }
+}
+
+function renderGoalDetail() {
+  const panel = document.getElementById("goal-detail-panel");
+  const detail = document.getElementById("goal-detail");
+
+  if (!state.selectedGoal) {
+    panel.hidden = true;
+    detail.innerHTML = "";
+    return;
+  }
+
+  panel.hidden = false;
+  const goal = state.selectedGoal;
+  const progress = state.selectedGoalProgress || {
+    completionRate: 0,
+    completedTasks: 0,
+    totalTasks: 0,
+    todayCompleted: 0,
+    todayTotal: 0
+  };
+  const tasks = state.selectedGoalTasks;
+  const taskRows = tasks.length
+    ? tasks.map((task) => `
+      <div class="task-row">
+        <span>${escapeHtml(task.date)}</span>
+        <strong>${escapeHtml(task.title)}</strong>
+        <span>${task.done ? "已完成" : "待完成"}</span>
+      </div>
+    `).join("")
+    : `<div class="empty"><strong>暂无任务</strong><p>点击目标卡片中的“计划”生成行动任务。</p></div>`;
+
+  detail.innerHTML = `
+    <article class="item">
+      <div class="item-head">
+        <div>
+          <h3>${escapeHtml(goal.name)}</h3>
+          <p>${escapeHtml(goal.notes || "暂无重点难点说明")}</p>
+        </div>
+        <div class="inline-actions">
+          <button class="ghost-button" id="detail-edit-goal">编辑</button>
+          <button class="ghost-button" id="detail-plan-goal">重新生成计划</button>
+        </div>
+      </div>
+      <div class="tag-row">
+        <span class="tag">${escapeHtml(goal.subject)}</span>
+        <span class="tag">${escapeHtml(goal.level)}</span>
+        <span class="tag">每天 ${goal.dailyMinutes} 分钟</span>
+        <span class="tag">截止 ${escapeHtml(goal.deadline)}</span>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-stat"><span>完成率</span><strong>${progress.completionRate}%</strong></div>
+        <div class="detail-stat"><span>总任务</span><strong>${progress.totalTasks}</strong></div>
+        <div class="detail-stat"><span>已完成</span><strong>${progress.completedTasks}</strong></div>
+        <div class="detail-stat"><span>今日进度</span><strong>${progress.todayCompleted}/${progress.todayTotal}</strong></div>
+      </div>
+      <h4>行动任务</h4>
+      <div class="task-list">${taskRows}</div>
+    </article>
+  `;
+
+  document.getElementById("detail-edit-goal").addEventListener("click", () => startGoalEdit(goal.id));
+  document.getElementById("detail-plan-goal").addEventListener("click", () => regenerateGoalPlan(goal.id));
 }
 
 function renderMaterials() {
@@ -567,24 +881,29 @@ function renderProgress() {
   const list = document.getElementById("progress-list");
   list.innerHTML = "";
 
-  if (state.goals.length === 0) {
+  if (state.progress.length === 0) {
     list.appendChild(emptyNode("暂无进度", "创建目标并完成任务后会生成进度。"));
     return;
   }
 
-  state.goals.forEach((goal) => {
-    const tasks = state.tasks.filter((task) => task.goalId === goal.id);
-    const done = tasks.filter((task) => task.done).length;
-    const rate = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+  state.progress.forEach((progress) => {
     const row = document.createElement("div");
     row.className = "progress-row";
     row.innerHTML = `
       <div class="progress-meta">
-        <strong>${escapeHtml(goal.name)}</strong>
-        <span>${rate}%</span>
+        <strong>${escapeHtml(progress.goalName)}</strong>
+        <span>${progress.completionRate}%</span>
       </div>
-      <div class="bar"><span style="width:${rate}%"></span></div>
+      <div class="bar"><span style="width:${progress.completionRate}%"></span></div>
+      <p>${progress.completedTasks}/${progress.totalTasks} 个任务已完成，今日 ${progress.todayCompleted}/${progress.todayTotal}</p>
+      <div class="inline-actions">
+        <button class="ghost-button" data-goal-id="${escapeHtml(progress.goalId)}">查看详情</button>
+      </div>
     `;
+    row.querySelector("button").addEventListener("click", () => {
+      selectGoal(progress.goalId);
+      switchView("goals");
+    });
     list.appendChild(row);
   });
 }
@@ -712,11 +1031,24 @@ function findRelevantMaterials(question) {
   return scored.length ? scored.slice(0, 2) : state.materials.slice(0, 1);
 }
 
-function deleteGoal(id) {
+async function deleteGoal(id) {
   if (!window.confirm("确认删除这个成长目标吗？")) return;
-  state.goals = state.goals.filter((goal) => goal.id !== id);
-  state.tasks = state.tasks.filter((task) => task.goalId !== id);
-  saveAndRender();
+
+  try {
+    await request(`/goals/${id}`, {
+      method: "DELETE"
+    });
+    if (selectedGoalId === id) {
+      clearSelectedGoal();
+    }
+    if (editingGoalId === id) {
+      cancelGoalEdit();
+    }
+    await loadGoalDataFromApi();
+    render();
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function deleteMaterial(id) {
@@ -825,4 +1157,3 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
