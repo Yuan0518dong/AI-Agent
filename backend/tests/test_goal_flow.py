@@ -9,7 +9,8 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clean_store():
+def clean_store(tmp_path):
+    store.set_db_path(tmp_path / "test_ai_agent.db")
     store.reset()
     yield
     store.reset()
@@ -154,3 +155,13 @@ def test_goal_validation_rejects_invalid_payload():
     )
 
     assert response.status_code == 422
+
+
+def test_sqlite_data_persists_with_same_database_file():
+    goal = create_goal({"name": "Persisted goal"})
+
+    with TestClient(app) as second_client:
+        response = second_client.get(f"/api/goals/{goal['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["name"] == "Persisted goal"

@@ -1,10 +1,19 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.routers import goals, progress, tasks
+from backend.app.services import store
 
 
-app = FastAPI(title="AI-Agent API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    store.init_db()
+    yield
+
+
+app = FastAPI(title="AI-Agent API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,6 +26,7 @@ app.add_middleware(
 app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(progress.router, prefix="/api/progress", tags=["progress"])
+
 
 @app.get("/")
 def root():

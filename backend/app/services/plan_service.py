@@ -4,9 +4,7 @@ from backend.app.services import store
 
 
 def delete_tasks_for_goal(goal_id: str) -> None:
-    task_ids = [task_id for task_id, task in store.tasks.items() if task["goal_id"] == goal_id]
-    for task_id in task_ids:
-        del store.tasks[task_id]
+    store.delete_tasks_for_goal(goal_id)
 
 
 def generate_plan_for_goal(goal: dict, days: int, regenerate: bool = True) -> list[dict]:
@@ -32,8 +30,7 @@ def generate_plan_for_goal(goal: dict, days: int, regenerate: bool = True) -> li
             "created_at": now,
             "updated_at": now,
         }
-        store.tasks[task["id"]] = task
-        created_tasks.append(task)
+        created_tasks.append(store.create_task(task))
 
     return created_tasks
 
