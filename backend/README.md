@@ -31,6 +31,12 @@ Open API docs:
 http://127.0.0.1:8000/docs
 ```
 
+Run API smoke check:
+
+```bash
+python backend/smoke_api.py
+```
+
 ## Current State
 
 This backend uses SQLite for local persistence.

@@ -26,12 +26,15 @@ app/index.html
 ## 重要文档
 
 - 通用成长学习助手App简单版PRD.md
-- docs/两人协作开发分工文档.md
-- docs/6.30工作分工文档.md
-- docs/第一版功能开发边界与分工.md
-- docs/第一版技术实现方案.md
-- docs/项目进度记录.md
-- docs/资料与AI模块字段和API草案.md
+- docs/README.md
+- docs/status/当前状态.md
+- docs/status/项目进度记录.md
+- docs/daily/2026-07-01工作安排.md
+- docs/planning/两人协作开发分工文档.md
+- docs/planning/第一版功能开发边界与分工.md
+- docs/planning/第一版技术实现方案.md
+- docs/planning/每日工作安排规则.md
+- docs/api/资料与AI模块字段和API草案.md
 
 ## 版本控制
 
