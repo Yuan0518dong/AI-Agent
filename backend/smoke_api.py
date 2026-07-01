@@ -12,7 +12,7 @@ from backend.app.services import store
 
 
 def main() -> None:
-    store.init_db()
+    store.reset()
     client = TestClient(app)
 
     health = client.get("/api/health")
