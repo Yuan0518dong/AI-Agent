@@ -139,6 +139,43 @@ def generate_material_flashcards(material_id: str):
     return ok(store.replace_flashcards_for_material(material_id, flashcards))
 
 
+@router.get("/{material_id}/quiz")
+def list_material_quiz(material_id: str):
+    material = store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    return ok(store.list_quiz_questions_for_material(material_id))
+
+
+@router.post("/{material_id}/quiz")
+def generate_material_quiz(material_id: str):
+    material = store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    summary = store.get_material_summary(material_id)
+    if not summary:
+        raise HTTPException(status_code=409, detail="Material summary required")
+
+    now = store.now_iso()
+    questions = [
+        {
+            "id": store.make_id("quiz"),
+            "material_id": material_id,
+            "question": question["question"],
+            "type": question["type"],
+            "options": question["options"],
+            "answer": question["answer"],
+            "explanation": question["explanation"],
+            "created_at": now,
+            "updated_at": now,
+        }
+        for question in material_ai_service.generate_quiz_questions(summary)
+    ]
+    return ok(store.replace_quiz_questions_for_material(material_id, questions))
+
+
 def _normalize_goal_id(goal_id: str | None) -> str | None:
     if goal_id is None:
         return None

@@ -41,6 +41,21 @@ def generate_flashcards(summary: dict) -> list[dict]:
     return cards
 
 
+def generate_quiz_questions(summary: dict) -> list[dict]:
+    questions = []
+    for point in summary["keyPoints"]:
+        questions.append(
+            {
+                "type": "short",
+                "question": f"简答：{point} 的核心含义是什么？",
+                "options": [],
+                "answer": "先说明核心含义，再结合资料中的例子解释。",
+                "explanation": f"这道题对应资料整理结果中的知识点“{point}”。",
+            }
+        )
+    return questions
+
+
 def _split_sentences(text: str) -> list[str]:
     normalized = re.sub(r"\s+", " ", text).strip()
     return [

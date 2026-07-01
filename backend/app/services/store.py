@@ -105,6 +105,22 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quiz_questions (
+                id TEXT PRIMARY KEY,
+                material_id TEXT NOT NULL,
+                question TEXT NOT NULL,
+                type TEXT NOT NULL,
+                options TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                explanation TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+            )
+            """
+        )
 
 
 def get_connection() -> sqlite3.Connection:
@@ -367,6 +383,32 @@ def list_flashcards_for_material(material_id: str) -> list[dict]:
     return [_flashcard_from_row(row) for row in rows]
 
 
+def replace_quiz_questions_for_material(material_id: str, questions: list[dict]) -> list[dict]:
+    db_questions = [_quiz_question_to_db(question) for question in questions]
+    with get_connection() as conn:
+        conn.execute("DELETE FROM quiz_questions WHERE material_id = ?", (material_id,))
+        conn.executemany(
+            """
+            INSERT INTO quiz_questions (
+                id, material_id, question, type, options, answer, explanation, created_at, updated_at
+            ) VALUES (
+                :id, :material_id, :question, :type, :options, :answer, :explanation, :created_at, :updated_at
+            )
+            """,
+            db_questions,
+        )
+    return list_quiz_questions_for_material(material_id)
+
+
+def list_quiz_questions_for_material(material_id: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM quiz_questions WHERE material_id = ? ORDER BY created_at, id",
+            (material_id,),
+        ).fetchall()
+    return [_quiz_question_from_row(row) for row in rows]
+
+
 def make_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
@@ -456,6 +498,27 @@ def _flashcard_from_row(row: sqlite3.Row) -> dict:
         "front": row["front"],
         "back": row["back"],
         "status": row["status"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def _quiz_question_to_db(question: dict) -> dict:
+    return {
+        **question,
+        "options": json.dumps(question["options"], ensure_ascii=False),
+    }
+
+
+def _quiz_question_from_row(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "materialId": row["material_id"],
+        "question": row["question"],
+        "type": row["type"],
+        "options": json.loads(row["options"]),
+        "answer": row["answer"],
+        "explanation": row["explanation"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }

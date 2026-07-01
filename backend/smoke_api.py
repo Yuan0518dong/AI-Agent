@@ -71,6 +71,13 @@ def main() -> None:
         f"/api/materials/{pending_material_id}/flashcards"
     )
 
+    empty_quiz_response = client.get(f"/api/materials/{pending_material_id}/quiz")
+    empty_quiz_response.raise_for_status()
+
+    quiz_without_summary_response = client.post(
+        f"/api/materials/{pending_material_id}/quiz"
+    )
+
     materials_response = client.get("/api/materials", params={"goalId": goal_id})
     materials_response.raise_for_status()
 
@@ -98,6 +105,14 @@ def main() -> None:
     flashcards_get_response = client.get(f"/api/materials/{material_id}/flashcards")
     flashcards_get_response.raise_for_status()
     flashcards_get = flashcards_get_response.json()["data"]
+
+    quiz_response = client.post(f"/api/materials/{material_id}/quiz")
+    quiz_response.raise_for_status()
+    quiz_questions = quiz_response.json()["data"]
+
+    quiz_get_response = client.get(f"/api/materials/{material_id}/quiz")
+    quiz_get_response.raise_for_status()
+    quiz_questions_get = quiz_get_response.json()["data"]
 
     plan_response = client.post(
         f"/api/goals/{goal_id}/plans",
@@ -134,11 +149,15 @@ def main() -> None:
         "missing_summary_status": missing_summary_response.status_code,
         "empty_flashcards_count": len(empty_flashcards_response.json()["data"]),
         "flashcards_without_summary_status": flashcards_without_summary_response.status_code,
+        "empty_quiz_count": len(empty_quiz_response.json()["data"]),
+        "quiz_without_summary_status": quiz_without_summary_response.status_code,
         "material_summary_mode": material_summary["aiMode"],
         "material_summary_readback": material_summary_get["materialId"] == material_id,
         "material_summary_points": len(material_summary["keyPoints"]),
         "flashcard_count": len(flashcards),
         "flashcard_readback": len(flashcards_get) == len(flashcards),
+        "quiz_count": len(quiz_questions),
+        "quiz_readback": len(quiz_questions_get) == len(quiz_questions),
         "plan_count": len(tasks),
         "today_status": today_response.status_code,
         "checkin_done": checkin_response.json()["data"]["done"],
