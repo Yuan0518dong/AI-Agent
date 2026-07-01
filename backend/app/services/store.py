@@ -7,6 +7,12 @@ tasks: dict[str, dict] = {}
 checkins: list[dict] = []
 
 
+def reset() -> None:
+    goals.clear()
+    tasks.clear()
+    checkins.clear()
+
+
 def make_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 

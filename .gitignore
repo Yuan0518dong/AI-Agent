@@ -9,3 +9,5 @@ build/
 .env.local
 __pycache__/
 *.py[cod]
+.pytest_cache/
+backend/data/
