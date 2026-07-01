@@ -16,13 +16,13 @@ Progress statistics
 Install dependencies:
 
 ```bash
-python -m pip install -r backend/requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 Start API server from project root:
 
 ```bash
-python -m uvicorn backend.app.main:app --reload
+uvicorn backend.app.main:app --reload
 ```
 
 Open API docs:
@@ -39,14 +39,7 @@ python backend/smoke_api.py
 
 ## Current State
 
-This backend uses SQLite for local persistence.
+This backend uses in-memory storage only. Data will reset when the server restarts.
 
-The local database file is created automatically at:
+Next step is to replace `backend/app/services/store.py` with a real database layer.
 
-```text
-backend/data/ai_agent.db
-```
-
-The database file is ignored by Git. It is for local development only.
-
-Next step is to connect the frontend prototype to these APIs.
