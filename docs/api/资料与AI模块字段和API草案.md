@@ -50,9 +50,134 @@ related_material_ids
 
 时间字段统一使用 ISO 字符串。
 
-## 3. 数据对象
+## 3. 数据库设计与演进原则
 
-### 3.1 Material
+赵模块后端迁移不要只按页面状态存数据，而要围绕学习链路设计：
+
+```text
+资料 -> AI 理解 -> 练习生成 -> 成长问答
+```
+
+### 3.1 原始数据和派生数据分离
+
+```text
+原始数据：
+materials
+
+派生数据：
+material_summaries
+flashcards
+quiz_questions
+ai_conversations / conversation_messages
+```
+
+`materials` 只保存用户输入或上传得到的资料本体。AI 整理、闪卡、测试题和问答记录都属于后续处理结果，应单独建表。这样资料可以保持稳定，派生结果可以重新生成、更新或替换 AI 实现。
+
+### 3.2 稳定关联优先使用 ID
+
+资料相关派生表统一优先使用 `material_id` 关联，不使用 `title`、`source` 或正文片段关联。
+
+原因：
+
+```text
+1. title 可能重复。
+2. title 可能被用户修改。
+3. source / content 不适合作为稳定外键。
+4. material_id 便于删除资料时清理派生数据。
+```
+
+闪卡和测试题后续也应优先基于 `material_summaries.key_points` 生成，而不是直接依赖 `materials.content`。原文适合保存事实来源，summary 的结构化字段更适合驱动练习和问答。
+
+### 3.3 当前有效结果用 upsert，历史版本另建表
+
+当前阶段默认只保留一份当前有效整理结果：
+
+```text
+material_summaries.material_id PRIMARY KEY
+```
+
+重复调用 `POST /api/materials/{id}/summarize` 时更新同一条 summary，而不是追加多条。只有后续明确需要比较历史版本时，再新增类似 `material_summary_versions` 的版本表。
+
+判断规则：
+
+```text
+当前状态：upsert
+历史记录：append
+```
+
+### 3.4 SQLite 数组字段用 JSON 字符串存储
+
+SQLite 当前没有单独的数组字段，以下字段在数据库中可用 JSON 字符串保存：
+
+```text
+key_points
+difficulties
+study_order
+action_items
+options
+related_material_ids
+messages
+```
+
+但 API 返回仍保持前端友好的数组或对象结构：
+
+```text
+数据库：snake_case + JSON string
+API：camelCase + array/object
+```
+
+### 3.5 删除主数据时清理派生数据
+
+删除资料时，后端必须同步处理派生数据，避免孤儿记录：
+
+```text
+materials
+  -> material_summaries
+  -> flashcards
+  -> quiz_questions
+  -> AI conversations 中的 relatedMaterialIds 引用
+```
+
+数据库层优先使用外键和 `ON DELETE CASCADE`；如果某些字段是 JSON 引用，则需要在 service 层显式清理或标记失效。
+
+### 3.6 MVP 阶段数据库维护方式
+
+MVP-1A 暂不引入复杂 migration 工具，先采用：
+
+```text
+1. 新表写入 store.init_db()。
+2. 新 store 方法配套 CRUD。
+3. smoke 覆盖关键路径。
+4. backend/data/ai_agent.db 只作为本地开发数据，不提交 Git。
+```
+
+如果后续给已存在的表新增字段，不能只改 `CREATE TABLE IF NOT EXISTS`，需要补兼容升级逻辑，例如检查列是否存在后再 `ALTER TABLE ADD COLUMN`。
+
+长期进入 MVP-2 或部署前，再考虑：
+
+```text
+1. 正式 migration 工具。
+2. 数据库版本号。
+3. 测试数据库和种子数据。
+4. 用户隔离字段 user_id。
+```
+
+### 3.7 新增表前的判断清单
+
+每次新增资料模块表或字段前，先判断：
+
+```text
+1. 这是原始数据，还是派生数据？
+2. 它属于 goal，还是属于 material？
+3. 删除 material 时，它要不要一起删除？
+4. 它会不会被重新生成？
+5. 前端刷新后，需要从哪个 API 重新读取它？
+6. smoke 如何验证它不会产生孤儿数据？
+```
+
+## 4. 数据对象
+
+### 4.1 Material
 
 资料对象。
 
@@ -82,7 +207,7 @@ Material = {
 | createdAt | 创建时间 |
 | updatedAt | 更新时间 |
 
-### 3.2 MaterialSummary
+### 4.2 MaterialSummary
 
 资料 AI 整理结果。
 
@@ -114,7 +239,7 @@ MaterialSummary = {
 | createdAt | 创建时间 |
 | updatedAt | 更新时间 |
 
-### 3.3 Flashcard
+### 4.3 Flashcard
 
 闪卡对象。
 
@@ -142,7 +267,7 @@ Flashcard = {
 | createdAt | 创建时间 |
 | updatedAt | 更新时间 |
 
-### 3.4 QuizQuestion
+### 4.4 QuizQuestion
 
 测试题对象。
 
@@ -174,7 +299,7 @@ QuizQuestion = {
 | createdAt | 创建时间 |
 | updatedAt | 更新时间 |
 
-### 3.5 AIConversation
+### 4.5 AIConversation
 
 成长问答记录。
 
@@ -213,7 +338,7 @@ Message = {
 | createdAt | 创建时间 |
 | updatedAt | 更新时间 |
 
-## 4. localStorage 建议 key
+## 5. localStorage 建议 key
 
 ```text
 aiAgent.materials
@@ -225,7 +350,7 @@ aiAgent.aiConversations
 
 如果当前原型已有旧 key，先兼容旧 key，再逐步迁移。
 
-## 5. 静态原型优先改动
+## 6. 静态原型优先改动
 
 第一批已完成：
 
@@ -255,9 +380,9 @@ aiAgent.aiConversations
 4. 下一步应先实现资料 API 和 summarize mock service，再迁移闪卡、测试题和问答 API。
 ```
 
-## 6. API 草案
+## 7. API 草案
 
-### 6.1 资料 API
+### 7.1 资料 API
 
 ```text
 GET    /api/materials?goalId=:goalId
@@ -287,7 +412,7 @@ flashcards
 quiz_questions
 ```
 
-### 6.2 AI 整理 API
+### 7.2 AI 整理 API
 
 ```text
 POST /api/materials/:id/summarize
@@ -307,7 +432,7 @@ POST /api/materials/:id/summarize
 }
 ```
 
-### 6.3 闪卡 API
+### 7.3 闪卡 API
 
 ```text
 GET  /api/materials/:id/flashcards
@@ -329,7 +454,7 @@ PUT  /api/flashcards/:id
 }
 ```
 
-### 6.4 测试题 API
+### 7.4 测试题 API
 
 ```text
 GET  /api/materials/:id/quiz
@@ -353,7 +478,7 @@ POST /api/materials/:id/quiz
 }
 ```
 
-### 6.5 成长问答 API
+### 7.5 成长问答 API
 
 ```text
 POST /api/ask
@@ -381,9 +506,9 @@ GET  /api/conversations/:id
 }
 ```
 
-## 7. 真实 AI prompt 草案
+## 8. 真实 AI prompt 草案
 
-### 7.1 资料整理输入
+### 8.1 资料整理输入
 
 ```text
 用户目标：
@@ -398,7 +523,7 @@ GET  /api/conversations/:id
 请输出 JSON，包含 overview、keyPoints、difficulties、studyOrder、actionItems。
 ```
 
-### 7.2 成长问答输入
+### 8.2 成长问答输入
 
 ```text
 用户问题：
@@ -413,7 +538,7 @@ GET  /api/conversations/:id
 3. 给出一个可执行的下一步建议。
 ```
 
-## 8. 模块验收标准
+## 9. 模块验收标准
 
 ```text
 1. 资料可以添加、查看、删除。
@@ -437,7 +562,7 @@ MVP-0 静态原型已通过本地 smoke test：
 6. 该模块已合入 dev，等待和陈模块一起跑完整演示流程。
 ```
 
-## 9. 下一步迁移建议
+## 10. 下一步迁移建议
 
 ```text
 1. 在 backend/app 下补 materials router、schemas 和 store 方法。
