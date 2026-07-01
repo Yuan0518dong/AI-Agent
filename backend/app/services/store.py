@@ -91,6 +91,20 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS flashcards (
+                id TEXT PRIMARY KEY,
+                material_id TEXT NOT NULL,
+                front TEXT NOT NULL,
+                back TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'new',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+            )
+            """
+        )
 
 
 def get_connection() -> sqlite3.Connection:
@@ -328,6 +342,31 @@ def get_material_summary(material_id: str) -> dict | None:
     return _summary_from_row(row) if row else None
 
 
+def replace_flashcards_for_material(material_id: str, flashcards: list[dict]) -> list[dict]:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM flashcards WHERE material_id = ?", (material_id,))
+        conn.executemany(
+            """
+            INSERT INTO flashcards (
+                id, material_id, front, back, status, created_at, updated_at
+            ) VALUES (
+                :id, :material_id, :front, :back, :status, :created_at, :updated_at
+            )
+            """,
+            flashcards,
+        )
+    return list_flashcards_for_material(material_id)
+
+
+def list_flashcards_for_material(material_id: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM flashcards WHERE material_id = ? ORDER BY created_at, id",
+            (material_id,),
+        ).fetchall()
+    return [_flashcard_from_row(row) for row in rows]
+
+
 def make_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
@@ -405,6 +444,18 @@ def _summary_from_row(row: sqlite3.Row) -> dict:
         "studyOrder": json.loads(row["study_order"]),
         "actionItems": json.loads(row["action_items"]),
         "aiMode": row["ai_mode"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
+
+
+def _flashcard_from_row(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "materialId": row["material_id"],
+        "front": row["front"],
+        "back": row["back"],
+        "status": row["status"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }

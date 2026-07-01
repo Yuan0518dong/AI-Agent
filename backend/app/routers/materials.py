@@ -104,6 +104,41 @@ def get_material_summary(material_id: str):
     return ok(store.get_material_summary(material_id))
 
 
+@router.get("/{material_id}/flashcards")
+def list_material_flashcards(material_id: str):
+    material = store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    return ok(store.list_flashcards_for_material(material_id))
+
+
+@router.post("/{material_id}/flashcards")
+def generate_material_flashcards(material_id: str):
+    material = store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    summary = store.get_material_summary(material_id)
+    if not summary:
+        raise HTTPException(status_code=409, detail="Material summary required")
+
+    now = store.now_iso()
+    flashcards = [
+        {
+            "id": store.make_id("flashcard"),
+            "material_id": material_id,
+            "front": card["front"],
+            "back": card["back"],
+            "status": "new",
+            "created_at": now,
+            "updated_at": now,
+        }
+        for card in material_ai_service.generate_flashcards(summary)
+    ]
+    return ok(store.replace_flashcards_for_material(material_id, flashcards))
+
+
 def _normalize_goal_id(goal_id: str | None) -> str | None:
     if goal_id is None:
         return None

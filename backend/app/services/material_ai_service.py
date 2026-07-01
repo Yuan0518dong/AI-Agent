@@ -29,6 +29,18 @@ def summarize_material(material: dict) -> dict:
     }
 
 
+def generate_flashcards(summary: dict) -> list[dict]:
+    cards = []
+    for point in summary["keyPoints"]:
+        cards.append(
+            {
+                "front": f"请解释：{point}",
+                "back": f"围绕“{point}”进行复述，并补充一个例子。",
+            }
+        )
+    return cards
+
+
 def _split_sentences(text: str) -> list[str]:
     normalized = re.sub(r"\s+", " ", text).strip()
     return [
