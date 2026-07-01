@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.app.schemas.materials import MaterialCreate, MaterialUpdate
-from backend.app.services import store
+from backend.app.services import material_ai_service, store
 from backend.app.utils.responses import ok
 
 
@@ -76,6 +76,23 @@ def delete_material(material_id: str):
         raise HTTPException(status_code=404, detail="Material not found")
 
     return ok({"deleted": True, "material_id": material_id})
+
+
+@router.post("/{material_id}/summarize")
+def summarize_material(material_id: str):
+    material = store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    now = store.now_iso()
+    existing_summary = store.get_material_summary(material_id)
+    summary = {
+        "material_id": material_id,
+        **material_ai_service.summarize_material(material),
+        "created_at": existing_summary["createdAt"] if existing_summary else now,
+        "updated_at": now,
+    }
+    return ok(store.upsert_material_summary(summary))
 
 
 def _normalize_goal_id(goal_id: str | None) -> str | None:

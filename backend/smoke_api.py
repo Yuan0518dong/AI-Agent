@@ -58,6 +58,10 @@ def main() -> None:
     )
     material_update_response.raise_for_status()
 
+    material_summary_response = client.post(f"/api/materials/{material_id}/summarize")
+    material_summary_response.raise_for_status()
+    material_summary = material_summary_response.json()["data"]
+
     plan_response = client.post(
         f"/api/goals/{goal_id}/plans",
         json={"days": 3, "regenerate": True},
@@ -87,6 +91,8 @@ def main() -> None:
         "material_code": material_response.json()["code"],
         "material_count": len(materials_response.json()["data"]),
         "material_title": material_update_response.json()["data"]["title"],
+        "material_summary_mode": material_summary["aiMode"],
+        "material_summary_points": len(material_summary["keyPoints"]),
         "plan_count": len(tasks),
         "today_status": today_response.status_code,
         "checkin_done": checkin_response.json()["data"]["done"],

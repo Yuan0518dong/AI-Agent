@@ -1,4 +1,5 @@
 import sqlite3
+import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -71,6 +72,22 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS material_summaries (
+                material_id TEXT PRIMARY KEY,
+                overview TEXT NOT NULL,
+                key_points TEXT NOT NULL,
+                difficulties TEXT NOT NULL,
+                study_order TEXT NOT NULL,
+                action_items TEXT NOT NULL,
+                ai_mode TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
             )
             """
         )
@@ -263,6 +280,54 @@ def delete_material(material_id: str) -> bool:
     return cursor.rowcount > 0
 
 
+def upsert_material_summary(summary: dict) -> dict:
+    db_summary = _summary_to_db(summary)
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT material_id FROM material_summaries WHERE material_id = ?",
+            (summary["material_id"],),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE material_summaries
+                SET overview = :overview,
+                    key_points = :key_points,
+                    difficulties = :difficulties,
+                    study_order = :study_order,
+                    action_items = :action_items,
+                    ai_mode = :ai_mode,
+                    updated_at = :updated_at
+                WHERE material_id = :material_id
+                """,
+                db_summary,
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO material_summaries (
+                    material_id, overview, key_points, difficulties, study_order,
+                    action_items, ai_mode, created_at, updated_at
+                ) VALUES (
+                    :material_id, :overview, :key_points, :difficulties, :study_order,
+                    :action_items, :ai_mode, :created_at, :updated_at
+                )
+                """,
+                db_summary,
+            )
+
+    return get_material_summary(summary["material_id"])
+
+
+def get_material_summary(material_id: str) -> dict | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT * FROM material_summaries WHERE material_id = ?",
+            (material_id,),
+        ).fetchone()
+    return _summary_from_row(row) if row else None
+
+
 def make_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:12]}"
 
@@ -318,6 +383,30 @@ def _material_from_mapping(material: dict) -> dict:
         "url": material["url"],
         "createdAt": material["created_at"],
         "updatedAt": material["updated_at"],
+    }
+
+
+def _summary_to_db(summary: dict) -> dict:
+    return {
+        **summary,
+        "key_points": json.dumps(summary["key_points"], ensure_ascii=False),
+        "difficulties": json.dumps(summary["difficulties"], ensure_ascii=False),
+        "study_order": json.dumps(summary["study_order"], ensure_ascii=False),
+        "action_items": json.dumps(summary["action_items"], ensure_ascii=False),
+    }
+
+
+def _summary_from_row(row: sqlite3.Row) -> dict:
+    return {
+        "materialId": row["material_id"],
+        "overview": row["overview"],
+        "keyPoints": json.loads(row["key_points"]),
+        "difficulties": json.loads(row["difficulties"]),
+        "studyOrder": json.loads(row["study_order"]),
+        "actionItems": json.loads(row["action_items"]),
+        "aiMode": row["ai_mode"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
     }
 
 
