@@ -95,6 +95,15 @@ def summarize_material(material_id: str):
     return ok(store.upsert_material_summary(summary))
 
 
+@router.get("/{material_id}/summary")
+def get_material_summary(material_id: str):
+    material = store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    return ok(store.get_material_summary(material_id))
+
+
 def _normalize_goal_id(goal_id: str | None) -> str | None:
     if goal_id is None:
         return None

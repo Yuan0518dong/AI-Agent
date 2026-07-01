@@ -46,6 +46,24 @@ def main() -> None:
     material = material_response.json()["data"]
     material_id = material["id"]
 
+    pending_material_response = client.post(
+        "/api/materials",
+        json={
+            "goalId": goal_id,
+            "type": "text",
+            "title": "Pending summary material",
+            "content": "This material has no summary yet.",
+            "url": "",
+        },
+    )
+    pending_material_response.raise_for_status()
+    pending_material_id = pending_material_response.json()["data"]["id"]
+
+    empty_summary_response = client.get(f"/api/materials/{pending_material_id}/summary")
+    empty_summary_response.raise_for_status()
+
+    missing_summary_response = client.get("/api/materials/material_missing/summary")
+
     materials_response = client.get("/api/materials", params={"goalId": goal_id})
     materials_response.raise_for_status()
 
@@ -61,6 +79,10 @@ def main() -> None:
     material_summary_response = client.post(f"/api/materials/{material_id}/summarize")
     material_summary_response.raise_for_status()
     material_summary = material_summary_response.json()["data"]
+
+    material_summary_get_response = client.get(f"/api/materials/{material_id}/summary")
+    material_summary_get_response.raise_for_status()
+    material_summary_get = material_summary_get_response.json()["data"]
 
     plan_response = client.post(
         f"/api/goals/{goal_id}/plans",
@@ -84,6 +106,8 @@ def main() -> None:
 
     material_delete_response = client.delete(f"/api/materials/{material_id}")
     material_delete_response.raise_for_status()
+    pending_material_delete_response = client.delete(f"/api/materials/{pending_material_id}")
+    pending_material_delete_response.raise_for_status()
 
     result = {
         "health_code": health.json()["code"],
@@ -91,7 +115,10 @@ def main() -> None:
         "material_code": material_response.json()["code"],
         "material_count": len(materials_response.json()["data"]),
         "material_title": material_update_response.json()["data"]["title"],
+        "empty_summary": empty_summary_response.json()["data"],
+        "missing_summary_status": missing_summary_response.status_code,
         "material_summary_mode": material_summary["aiMode"],
+        "material_summary_readback": material_summary_get["materialId"] == material_id,
         "material_summary_points": len(material_summary["keyPoints"]),
         "plan_count": len(tasks),
         "today_status": today_response.status_code,
