@@ -1,6 +1,4 @@
 const STORAGE_KEY = "student-assistant-mvp";
-const API_BASE_URL = "http://127.0.0.1:8000/api";
-
 const defaultState = {
   goals: [],
   materials: [],
@@ -36,6 +34,7 @@ const state = loadState();
 let activeCardIndex = 0;
 let editingGoalId = "";
 let selectedGoalId = "";
+let selectedTaskDate = todayString();
 
 const views = {
   today: "今日行动",
@@ -53,6 +52,7 @@ document.querySelectorAll(".nav-item").forEach((button) => {
 document.getElementById("goal-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
+  const submitButton = document.getElementById("goal-submit-button");
   const data = new FormData(event.currentTarget);
   const payload = {
     name: data.get("name").trim(),
@@ -63,22 +63,20 @@ document.getElementById("goal-form").addEventListener("submit", async (event) =>
     notes: data.get("notes").trim()
   };
 
+  setButtonLoading(submitButton, true, editingGoalId ? "保存中" : "创建中");
+
   try {
     if (editingGoalId) {
-      await request(`/goals/${editingGoalId}`, {
-        method: "PUT",
-        body: JSON.stringify(payload)
-      });
+      await goalApi.updateGoal(editingGoalId, payload);
       selectedGoalId = editingGoalId;
       editingGoalId = "";
+      showSuccess("目标已更新");
     } else {
-      const goal = await request("/goals", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
+      const goal = await goalApi.createGoal(payload);
 
       selectedGoalId = goal.id;
-      await generatePlanForGoalApi(goal.id);
+      await generatePlanForGoalApi(goal.id, getPlanDays("goal-plan-days"));
+      showSuccess("目标已创建，并生成行动计划");
     }
 
     form.reset();
@@ -86,6 +84,8 @@ document.getElementById("goal-form").addEventListener("submit", async (event) =>
     render();
   } catch (error) {
     showError(error);
+  } finally {
+    setButtonLoading(submitButton, false);
   }
 });
 
@@ -96,6 +96,17 @@ document.getElementById("cancel-goal-edit").addEventListener("click", () => {
 document.getElementById("clear-goal-detail").addEventListener("click", () => {
   clearSelectedGoal();
   render();
+});
+
+document.getElementById("today-date-filter").addEventListener("change", async (event) => {
+  selectedTaskDate = event.currentTarget.value || todayString();
+  await refreshGoalData("任务日期已切换");
+});
+
+document.getElementById("reset-today-date").addEventListener("click", async () => {
+  selectedTaskDate = todayString();
+  document.getElementById("today-date-filter").value = selectedTaskDate;
+  await refreshGoalData("已回到今天");
 });
 
 document.getElementById("material-form").addEventListener("submit", (event) => {
@@ -152,12 +163,12 @@ document.getElementById("chat-form").addEventListener("submit", (event) => {
   event.currentTarget.reset();
 });
 
-document.getElementById("quick-plan").addEventListener("click", async () => {
-  await generatePlansForAllGoals();
+document.getElementById("quick-plan").addEventListener("click", async (event) => {
+  await generatePlansForAllGoals(getPlanDays("quick-plan-days"), event.currentTarget);
 });
 
-document.getElementById("generate-all-plans").addEventListener("click", async () => {
-  await generatePlansForAllGoals();
+document.getElementById("generate-all-plans").addEventListener("click", async (event) => {
+  await generatePlansForAllGoals(getPlanDays("goal-plan-days"), event.currentTarget);
 });
 
 document.getElementById("shuffle-cards").addEventListener("click", () => {
@@ -191,6 +202,8 @@ document.getElementById("reset-data").addEventListener("click", () => {
 init();
 
 async function init() {
+  document.getElementById("today-date-filter").value = selectedTaskDate;
+
   try {
     await loadGoalDataFromApi();
   } catch (error) {
@@ -200,28 +213,11 @@ async function init() {
   }
 }
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(result.detail || result.message || "请求失败");
-  }
-
-  return result.data;
-}
-
 async function loadGoalDataFromApi() {
   const [goals, todayTasks, progress] = await Promise.all([
-    request("/goals"),
-    request("/tasks/today"),
-    request("/progress")
+    goalApi.listGoals(),
+    goalApi.listTodayTasks(selectedTaskDate),
+    goalApi.listProgress()
   ]);
 
   state.goals = goals.map(goalFromApi);
@@ -237,9 +233,9 @@ async function loadGoalDataFromApi() {
 
 async function loadSelectedGoalFromApi(goalId) {
   const [goal, tasks, progress] = await Promise.all([
-    request(`/goals/${goalId}`),
-    request(`/goals/${goalId}/tasks`),
-    request(`/progress/${goalId}`)
+    goalApi.getGoal(goalId),
+    goalApi.listGoalTasks(goalId),
+    goalApi.getGoalProgress(goalId)
   ]);
 
   selectedGoalId = goalId;
@@ -255,37 +251,52 @@ function clearSelectedGoal() {
   state.selectedGoalProgress = null;
 }
 
-async function generatePlanForGoalApi(goalId) {
-  return request(`/goals/${goalId}/plans`, {
-    method: "POST",
-    body: JSON.stringify({
-      days: 7,
-      regenerate: true
-    })
-  });
+async function generatePlanForGoalApi(goalId, days = 7) {
+  return goalApi.generatePlan(goalId, days);
 }
 
-async function generatePlansForAllGoals() {
+async function generatePlansForAllGoals(days = 7, triggerButton = null) {
+  if (state.goals.length === 0) {
+    showError(new Error("请先创建目标"));
+    return;
+  }
+
+  if (!window.confirm(`将为所有目标重新生成 ${days} 天计划，已有任务会被覆盖。确认继续吗？`)) return;
+
+  setButtonLoading(triggerButton, true, "生成中");
+
   try {
     for (const goal of state.goals) {
-      await generatePlanForGoalApi(goal.id);
+      await generatePlanForGoalApi(goal.id, days);
     }
 
     await loadGoalDataFromApi();
     render();
+    showSuccess("计划已重新生成");
   } catch (error) {
     showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
   }
 }
 
-async function regenerateGoalPlan(goalId) {
+async function regenerateGoalPlan(goalId, triggerButton = null) {
+  const days = getPlanDays("goal-plan-days");
+  const hasTasks = selectedGoalId === goalId && state.selectedGoalTasks.length > 0;
+  if (hasTasks && !window.confirm(`将覆盖该目标已有任务，并重新生成 ${days} 天计划。确认继续吗？`)) return;
+
+  setButtonLoading(triggerButton, true, "生成中");
+
   try {
     selectedGoalId = goalId;
-    await generatePlanForGoalApi(goalId);
+    await generatePlanForGoalApi(goalId, days);
     await loadGoalDataFromApi();
     render();
+    showSuccess("目标计划已更新");
   } catch (error) {
     showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
   }
 }
 
@@ -368,7 +379,51 @@ function progressFromApi(progress) {
 
 function showError(error) {
   console.error(error);
-  window.alert(error.message || "操作失败，请确认后端服务已经启动。");
+  showToast(error.message || "操作失败，请确认后端服务已经启动。", "error");
+}
+
+function showSuccess(message) {
+  showToast(message, "success");
+}
+
+function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.className = `toast show ${type}`;
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => {
+    toast.className = "toast";
+  }, 2400);
+}
+
+function setButtonLoading(button, loading, loadingText = "处理中") {
+  if (!button) return;
+
+  if (loading) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = loadingText;
+    button.disabled = true;
+    return;
+  }
+
+  button.textContent = button.dataset.originalText || button.textContent;
+  button.disabled = false;
+  delete button.dataset.originalText;
+}
+
+function getPlanDays(elementId) {
+  const value = Number(document.getElementById(elementId)?.value || 7);
+  return Number.isFinite(value) ? value : 7;
+}
+
+async function refreshGoalData(successMessage = "") {
+  try {
+    await loadGoalDataFromApi();
+    render();
+    if (successMessage) showSuccess(successMessage);
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function loadState() {
@@ -581,10 +636,11 @@ function renderMetrics() {
 
 function renderToday() {
   const list = document.getElementById("today-task-list");
+  document.getElementById("today-date-filter").value = selectedTaskDate;
   list.innerHTML = "";
 
   if (state.tasks.length === 0) {
-    list.appendChild(emptyNode("还没有任务", "创建目标后会自动生成 7 天行动计划。"));
+    list.appendChild(emptyNode("还没有任务", `${selectedTaskDate} 暂无任务，可以创建目标或重新生成计划。`));
   } else {
     state.tasks.slice(0, 10).forEach((task) => {
       const item = document.createElement("article");
@@ -600,14 +656,10 @@ function renderToday() {
       `;
       item.querySelector("input").addEventListener("change", async (event) => {
         try {
-          await request(`/tasks/${task.id}/checkin`, {
-            method: "POST",
-            body: JSON.stringify({
-              done: event.currentTarget.checked
-            })
-          });
+          await goalApi.checkinTask(task.id, event.currentTarget.checked);
           await loadGoalDataFromApi();
           render();
+          showSuccess(event.currentTarget.checked ? "任务已打卡" : "已取消打卡");
         } catch (error) {
           event.currentTarget.checked = task.done;
           showError(error);
@@ -660,7 +712,9 @@ function renderGoals() {
     `;
     item.querySelector('[data-action="detail"]').addEventListener("click", () => selectGoal(goal.id));
     item.querySelector('[data-action="edit"]').addEventListener("click", () => startGoalEdit(goal.id));
-    item.querySelector('[data-action="plan"]').addEventListener("click", () => regenerateGoalPlan(goal.id));
+    item.querySelector('[data-action="plan"]').addEventListener("click", (event) => {
+      regenerateGoalPlan(goal.id, event.currentTarget);
+    });
     item.querySelector('[data-action="delete"]').addEventListener("click", () => deleteGoal(goal.id));
     list.appendChild(item);
   });
@@ -702,12 +756,20 @@ function renderGoalDetail() {
     todayTotal: 0
   };
   const tasks = state.selectedGoalTasks;
+  const remaining = getRemainingDays(goal.deadline);
   const taskRows = tasks.length
     ? tasks.map((task) => `
-      <div class="task-row">
+      <div class="task-row ${task.done ? "done" : ""}">
         <span>${escapeHtml(task.date)}</span>
-        <strong>${escapeHtml(task.title)}</strong>
-        <span>${task.done ? "已完成" : "待完成"}</span>
+        <div>
+          <strong>${escapeHtml(task.title)}</strong>
+          <p>${escapeHtml(task.detail || "")}</p>
+          ${task.completedAt ? `<p>完成时间：${escapeHtml(formatDateTime(task.completedAt))}</p>` : ""}
+        </div>
+        <label class="task-check">
+          <input class="detail-task-check" type="checkbox" data-task-id="${escapeHtml(task.id)}" ${task.done ? "checked" : ""} />
+          <span>${task.done ? "已完成" : "打卡"}</span>
+        </label>
       </div>
     `).join("")
     : `<div class="empty"><strong>暂无任务</strong><p>点击目标卡片中的“计划”生成行动任务。</p></div>`;
@@ -735,6 +797,7 @@ function renderGoalDetail() {
         <div class="detail-stat"><span>总任务</span><strong>${progress.totalTasks}</strong></div>
         <div class="detail-stat"><span>已完成</span><strong>${progress.completedTasks}</strong></div>
         <div class="detail-stat"><span>今日进度</span><strong>${progress.todayCompleted}/${progress.todayTotal}</strong></div>
+        <div class="detail-stat"><span>剩余天数</span><strong>${remaining}</strong></div>
       </div>
       <h4>行动任务</h4>
       <div class="task-list">${taskRows}</div>
@@ -742,7 +805,14 @@ function renderGoalDetail() {
   `;
 
   document.getElementById("detail-edit-goal").addEventListener("click", () => startGoalEdit(goal.id));
-  document.getElementById("detail-plan-goal").addEventListener("click", () => regenerateGoalPlan(goal.id));
+  document.getElementById("detail-plan-goal").addEventListener("click", (event) => {
+    regenerateGoalPlan(goal.id, event.currentTarget);
+  });
+  detail.querySelectorAll(".detail-task-check").forEach((checkbox) => {
+    checkbox.addEventListener("change", (event) => {
+      checkinTaskFromDetail(event.currentTarget.dataset.taskId, event.currentTarget.checked);
+    });
+  });
 }
 
 function renderMaterials() {
@@ -886,7 +956,11 @@ function renderProgress() {
     return;
   }
 
-  state.progress.forEach((progress) => {
+  [...state.progress]
+    .sort((a, b) => b.completionRate - a.completionRate)
+    .forEach((progress) => {
+    const goal = state.goals.find((item) => item.id === progress.goalId);
+    const remaining = goal ? getRemainingDays(goal.deadline) : "-";
     const row = document.createElement("div");
     row.className = "progress-row";
     row.innerHTML = `
@@ -896,6 +970,9 @@ function renderProgress() {
       </div>
       <div class="bar"><span style="width:${progress.completionRate}%"></span></div>
       <p>${progress.completedTasks}/${progress.totalTasks} 个任务已完成，今日 ${progress.todayCompleted}/${progress.todayTotal}</p>
+      <div class="tag-row">
+        <span class="tag">剩余 ${remaining} 天</span>
+      </div>
       <div class="inline-actions">
         <button class="ghost-button" data-goal-id="${escapeHtml(progress.goalId)}">查看详情</button>
       </div>
@@ -1035,9 +1112,7 @@ async function deleteGoal(id) {
   if (!window.confirm("确认删除这个成长目标吗？")) return;
 
   try {
-    await request(`/goals/${id}`, {
-      method: "DELETE"
-    });
+    await goalApi.deleteGoal(id);
     if (selectedGoalId === id) {
       clearSelectedGoal();
     }
@@ -1046,6 +1121,18 @@ async function deleteGoal(id) {
     }
     await loadGoalDataFromApi();
     render();
+    showSuccess("目标已删除");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function checkinTaskFromDetail(taskId, done) {
+  try {
+    await goalApi.checkinTask(taskId, done);
+    await loadGoalDataFromApi();
+    render();
+    showSuccess(done ? "任务已打卡" : "已取消打卡");
   } catch (error) {
     showError(error);
   }
@@ -1143,6 +1230,27 @@ function offsetDate(days) {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function todayString() {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+
+function getRemainingDays(dateString) {
+  if (!dateString) return "-";
+  return Math.max(0, daysUntil(dateString));
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function makeId() {

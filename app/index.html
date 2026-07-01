@@ -41,6 +41,7 @@
             <button class="danger-button" id="reset-data" title="清空本地数据">×</button>
           </div>
         </header>
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
         <section class="view active" id="view-today">
           <div class="summary-grid">
@@ -66,7 +67,16 @@
             <section class="panel">
               <div class="panel-head">
                 <h2>今日任务</h2>
-                <button class="primary-button" id="quick-plan">生成计划</button>
+                <div class="inline-actions">
+                  <input class="compact-input" type="date" id="today-date-filter" />
+                  <button class="ghost-button" id="reset-today-date" type="button">今天</button>
+                  <select class="compact-input" id="quick-plan-days" title="计划天数">
+                    <option value="3">3 天</option>
+                    <option value="7" selected>7 天</option>
+                    <option value="14">14 天</option>
+                  </select>
+                  <button class="primary-button" id="quick-plan">生成计划</button>
+                </div>
               </div>
               <div class="list" id="today-task-list"></div>
             </section>
@@ -136,7 +146,14 @@
             <section class="panel">
               <div class="panel-head">
                 <h2>目标列表</h2>
-                <button class="ghost-button" id="generate-all-plans" title="为所有目标生成计划">▦</button>
+                <div class="inline-actions">
+                  <select class="compact-input" id="goal-plan-days" title="计划天数">
+                    <option value="3">3 天</option>
+                    <option value="7" selected>7 天</option>
+                    <option value="14">14 天</option>
+                  </select>
+                  <button class="ghost-button" id="generate-all-plans" title="为所有目标生成计划">▦</button>
+                </div>
               </div>
               <div class="list" id="goal-list"></div>
             </section>
@@ -243,6 +260,7 @@
       </div>
     </template>
 
+    <script src="./api.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
