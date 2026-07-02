@@ -211,8 +211,10 @@ python -m http.server 5501 --directory app
 - docs/planning/第一版功能开发边界与分工.md
 - docs/planning/第一版技术实现方案.md
 - docs/planning/每日工作安排规则.md
+- docs/planning/第二版项目计划书.md
 - docs/api/资料与AI模块字段和API草案.md
-- docs/目标模块前后端接口对照.md
+- docs/modules/目标模块前后端接口对照.md
+- docs/modules/资料模块前后端接口对照.md
 
 ## 版本控制
 
