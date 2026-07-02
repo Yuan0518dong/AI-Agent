@@ -35,6 +35,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 232px 1fr;
@@ -175,6 +180,8 @@ h3 {
 
 .top-actions,
 .panel-head,
+.form-actions,
+.inline-actions,
 .segmented {
   display: flex;
   gap: 10px;
@@ -185,12 +192,54 @@ h3 {
   justify-content: space-between;
 }
 
+.form-actions,
+.inline-actions {
+  flex-wrap: wrap;
+}
+
+.form-actions button,
+.inline-actions button {
+  flex: 0 0 auto;
+}
+
 .view {
   display: none;
 }
 
 .view.active {
   display: block;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  top: 20px;
+  z-index: 5;
+  max-width: min(360px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--white);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.success {
+  border-color: rgba(19, 168, 137, 0.35);
+}
+
+.toast.error {
+  border-color: rgba(220, 38, 38, 0.35);
+  color: var(--rose);
 }
 
 .summary-grid {
@@ -400,6 +449,93 @@ textarea {
   font-size: 12px;
 }
 
+.compact-input {
+  width: auto;
+  min-width: 112px;
+  min-height: 40px;
+}
+
+.detail-panel {
+  margin-top: 18px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.detail-stat {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.detail-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.detail-stat strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 18px;
+}
+
+.task-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.24fr) 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.task-row.done {
+  background: #f7fbf9;
+}
+
+.task-row.done strong {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.task-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.task-row p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.task-check {
+  display: flex;
+  grid-template-columns: none;
+  gap: 6px;
+  align-items: center;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.task-check input {
+  width: 18px;
+  min-height: 18px;
+}
+
 .material-detail {
   margin-top: 12px;
   color: var(--muted);
@@ -584,7 +720,9 @@ textarea {
 
   .summary-grid,
   .two-columns,
-  .study-layout {
+  .study-layout,
+  .detail-grid,
+  .task-row {
     grid-template-columns: 1fr;
   }
 }

@@ -10,50 +10,46 @@ def summarize_material(material: dict) -> dict:
 
     return {
         "overview": _build_overview(sentences),
-        "key_points": key_points,
+        "keyPoints": key_points,
         "difficulties": [
             f"容易卡住：{point}。先用自己的话复述，再回到资料核对。"
             for point in key_points[:3]
         ],
-        "study_order": [
+        "studyOrder": [
             "先快速通读资料，标出不熟悉的词句。",
             f"再重点理解：{key_points[0]}。",
             "最后用闪卡和测试题检查是否能独立复述。",
         ],
-        "action_items": [
+        "actionItems": [
             "用 3 句话写下资料摘要。",
             "完成 1 轮闪卡复习。",
             "任选 1 个知识点做简答自测。",
         ],
-        "ai_mode": "mock",
+        "aiMode": "mock",
     }
 
 
 def generate_flashcards(summary: dict) -> list[dict]:
-    cards = []
-    for point in summary["keyPoints"]:
-        cards.append(
-            {
-                "front": f"请解释：{point}",
-                "back": f"围绕“{point}”进行复述，并补充一个例子。",
-            }
-        )
-    return cards
+    return [
+        {
+            "front": f"请解释：{point}",
+            "back": f"围绕“{point}”进行复述，并补充一个例子。",
+        }
+        for point in summary["keyPoints"]
+    ]
 
 
 def generate_quiz_questions(summary: dict) -> list[dict]:
-    questions = []
-    for point in summary["keyPoints"]:
-        questions.append(
-            {
-                "type": "short",
-                "question": f"简答：{point} 的核心含义是什么？",
-                "options": [],
-                "answer": "先说明核心含义，再结合资料中的例子解释。",
-                "explanation": f"这道题对应资料整理结果中的知识点“{point}”。",
-            }
-        )
-    return questions
+    return [
+        {
+            "type": "short",
+            "question": f"简答：{point} 的核心含义是什么？",
+            "options": [],
+            "answer": "先说明核心含义，再结合资料中的例子解释。",
+            "explanation": f"这道题对应资料整理结果中的知识点“{point}”。",
+        }
+        for point in summary["keyPoints"]
+    ]
 
 
 def _split_sentences(text: str) -> list[str]:

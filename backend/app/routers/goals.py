@@ -46,12 +46,10 @@ def update_goal(goal_id: str, payload: GoalUpdate):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
-    if not changes:
-        return ok(goal)
-
     if "deadline" in changes:
         changes["deadline"] = changes["deadline"].isoformat()
-    changes["updated_at"] = store.now_iso()
+    if changes:
+        changes["updated_at"] = store.now_iso()
     updated_goal = store.update_goal(goal_id, changes)
     return ok(updated_goal)
 
@@ -83,4 +81,4 @@ def list_goal_tasks(goal_id: str):
     if not store.get_goal(goal_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    return ok(store.list_tasks_for_goal(goal_id))
+    return ok(store.list_goal_tasks(goal_id))

@@ -7,7 +7,10 @@ def get_all_progress() -> list[dict]:
 
 def get_goal_progress(goal_id: str) -> dict:
     goal = store.get_goal(goal_id)
-    goal_tasks = store.list_tasks_for_goal(goal_id)
+    if not goal:
+        return {}
+
+    goal_tasks = store.list_goal_tasks(goal_id)
     completed = [task for task in goal_tasks if task["done"]]
     today = store.today_iso()
     today_tasks = [task for task in goal_tasks if task["date"] == today]
