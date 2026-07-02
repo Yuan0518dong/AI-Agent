@@ -200,13 +200,15 @@ function renderToday() {
         </label>
       `;
       item.querySelector("input").addEventListener("change", async (event) => {
+        const checkbox = event.currentTarget;
+        const checked = checkbox.checked;
         try {
-          await goalApi.checkinTask(task.id, event.currentTarget.checked);
+          await goalApi.checkinTask(task.id, checked);
           await loadGoalDataFromApi();
           render();
-          showSuccess(event.currentTarget.checked ? "任务已打卡" : "已取消打卡");
+          showSuccess(checked ? "任务已打卡" : "已取消打卡");
         } catch (error) {
-          event.currentTarget.checked = task.done;
+          checkbox.checked = task.done;
           showError(error);
         }
       });
