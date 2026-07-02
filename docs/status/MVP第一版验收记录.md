@@ -124,9 +124,8 @@ P1：
 P2：
 
 ```text
-1. favicon 404 控制台噪声。
-2. 资料编辑时暂未单独编辑 goalId 归属。
-3. 真实 AI / LangChain / RAG 放到第二版。
+1. 资料编辑时暂未单独编辑 goalId 归属。
+2. 真实 AI / LangChain / RAG 放到第二版。
 ```
 
 ## 6. 结论
