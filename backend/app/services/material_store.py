@@ -60,6 +60,22 @@ def init_db() -> None:
                     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
                 );
 
+                CREATE TABLE IF NOT EXISTS material_qa_records (
+                    id TEXT PRIMARY KEY,
+                    material_id TEXT NOT NULL,
+                    goal_id TEXT,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    basis TEXT NOT NULL,
+                    suggestion TEXT NOT NULL,
+                    source_title TEXT NOT NULL,
+                    is_from_material INTEGER NOT NULL,
+                    confidence TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+                );
+
                 CREATE TABLE IF NOT EXISTS flashcards (
                     id TEXT PRIMARY KEY,
                     material_id TEXT NOT NULL,
@@ -94,6 +110,7 @@ def clear_material_data() -> None:
     with _connect() as conn:
         conn.execute("DELETE FROM quiz_questions")
         conn.execute("DELETE FROM flashcards")
+        conn.execute("DELETE FROM material_qa_records")
         conn.execute("DELETE FROM material_chunks")
         conn.execute("DELETE FROM material_summaries")
         conn.execute("DELETE FROM materials")
@@ -281,6 +298,47 @@ def search_chunks(query: str, limit: int = 5) -> list[dict]:
 
     scored.sort(key=lambda item: item[0], reverse=True)
     return [chunk for _, chunk in scored[:limit]]
+
+
+def save_qa_record(record: dict) -> dict:
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO material_qa_records (
+                id, material_id, goal_id, question, answer, basis, suggestion, source_title,
+                is_from_material, confidence, mode, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record["id"],
+                record["materialId"],
+                record["goalId"],
+                record["question"],
+                record["answer"],
+                record["basis"],
+                record["suggestion"],
+                record["sourceTitle"],
+                1 if record["isFromMaterial"] else 0,
+                record["confidence"],
+                record["mode"],
+                record["createdAt"],
+            ),
+        )
+    return record
+
+
+def list_qa_records_for_material(material_id: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM material_qa_records
+            WHERE material_id = ?
+            ORDER BY created_at ASC
+            """,
+            (material_id,),
+        ).fetchall()
+    return [_qa_record_from_row(row) for row in rows]
 
 
 def get_material_summary(material_id: str) -> dict | None:
@@ -516,6 +574,23 @@ def _chunk_from_row(row: sqlite3.Row) -> dict:
         "keywords": json.loads(row["keywords"]),
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
+    }
+
+
+def _qa_record_from_row(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "materialId": row["material_id"],
+        "goalId": row["goal_id"],
+        "question": row["question"],
+        "answer": row["answer"],
+        "basis": row["basis"],
+        "suggestion": row["suggestion"],
+        "sourceTitle": row["source_title"],
+        "isFromMaterial": bool(row["is_from_material"]),
+        "confidence": row["confidence"],
+        "mode": row["mode"],
+        "createdAt": row["created_at"],
     }
 
 

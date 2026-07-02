@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 class AgentAskRequest(BaseModel):
     question: str = Field(min_length=1)
     goalId: str | None = None
+    materialId: str | None = None
     limit: int = Field(default=3, ge=1, le=10)
 
     @field_validator("question")
@@ -24,10 +25,16 @@ class AgentReference(BaseModel):
 
 
 class AgentAskResponse(BaseModel):
+    id: str | None = None
+    materialId: str | None = None
+    goalId: str | None = None
+    question: str
     answer: str
     basis: str
     suggestion: str
+    sourceTitle: str
     references: list[AgentReference]
     isFromMaterial: bool
     confidence: str
+    createdAt: str | None = None
     mode: str = "mock"

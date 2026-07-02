@@ -4,9 +4,12 @@ from backend.app.services import material_store
 def answer_question(
     question: str,
     goal: dict | None = None,
+    material_id: str | None = None,
     limit: int = 3,
 ) -> dict:
     matches = material_store.search_chunks(question, limit=20)
+    if material_id:
+        matches = [chunk for chunk in matches if chunk["materialId"] == material_id]
     if goal:
         matches = [chunk for chunk in matches if chunk["goalId"] == goal["id"]]
 
@@ -24,25 +27,38 @@ def answer_question(
     if not references:
         suggestion = _build_fallback_suggestion(goal)
         return {
+            "id": None,
+            "materialId": material_id,
+            "goalId": goal["id"] if goal else None,
+            "question": question,
             "answer": "当前资料不足以直接回答这个问题。我不会把没有依据的内容当成资料结论。",
             "basis": "没有检索到与问题明显相关的资料片段。",
             "suggestion": suggestion,
+            "sourceTitle": "",
             "references": [],
             "isFromMaterial": False,
             "confidence": "low",
+            "createdAt": None,
             "mode": "mock",
         }
 
     context_preview = "；".join(reference["content"] for reference in references)
     basis = _build_basis(references)
     suggestion = _build_material_suggestion(goal)
+    answer_material_id = material_id or references[0]["materialId"]
     return {
+        "id": None,
+        "materialId": answer_material_id,
+        "goalId": goal["id"] if goal else None,
+        "question": question,
         "answer": f"我先根据已检索到的资料片段回答：{context_preview}",
         "basis": basis,
         "suggestion": suggestion,
+        "sourceTitle": references[0]["materialTitle"],
         "references": references,
         "isFromMaterial": True,
         "confidence": _estimate_confidence(references),
+        "createdAt": None,
         "mode": "mock",
     }
 
