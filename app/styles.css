@@ -417,6 +417,12 @@ textarea {
   align-items: flex-start;
 }
 
+.item-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .item h3,
 .item p {
   margin-bottom: 8px;

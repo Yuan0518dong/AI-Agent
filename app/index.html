@@ -171,7 +171,7 @@
         <section class="view" id="view-materials">
           <div class="workspace two-columns">
             <section class="panel">
-              <h2>添加成长资料</h2>
+              <h2 id="material-form-title">添加成长资料</h2>
               <form id="material-form" class="form">
                 <label>
                   资料标题
@@ -189,7 +189,8 @@
                   内容
                   <textarea name="content" rows="8" required placeholder="粘贴资料正文或网页链接"></textarea>
                 </label>
-                <button class="primary-button" type="submit">▣ 保存并整理</button>
+                <button class="primary-button" id="material-submit-button" type="submit">▣ 保存并整理</button>
+                <button class="ghost-button" id="cancel-material-edit" type="button" hidden>取消编辑</button>
               </form>
             </section>
 

@@ -33,6 +33,7 @@ const defaultState = {
 var state = loadState();
 var activeCardIndex = 0;
 var editingGoalId = "";
+var editingMaterialId = "";
 var selectedGoalId = "";
 var selectedTaskDate = todayString();
 
@@ -112,7 +113,7 @@ document.getElementById("reset-today-date").addEventListener("click", async () =
 document.getElementById("material-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
-  const submitButton = form.querySelector("button[type='submit']");
+  const submitButton = document.getElementById("material-submit-button");
   const data = new FormData(event.currentTarget);
   const content = data.get("content").trim();
   const type = data.get("type");
@@ -127,10 +128,14 @@ document.getElementById("material-form").addEventListener("submit", async (event
   setButtonLoading(submitButton, true, "保存中");
 
   try {
-    const material = await materialApi.createMaterial(payload);
+    const material = editingMaterialId
+      ? await materialApi.updateMaterial(editingMaterialId, payload)
+      : await materialApi.createMaterial(payload);
+
     await materialApi.summarizeMaterial(material.id);
     await materialApi.generateFlashcards(material.id);
     await materialApi.generateQuiz(material.id);
+    editingMaterialId = "";
     await loadMaterialDataFromApi();
     render();
     form.reset();
@@ -140,6 +145,10 @@ document.getElementById("material-form").addEventListener("submit", async (event
   } finally {
     setButtonLoading(submitButton, false);
   }
+});
+
+document.getElementById("cancel-material-edit").addEventListener("click", () => {
+  cancelMaterialEdit();
 });
 
 document.getElementById("chat-form").addEventListener("submit", (event) => {
@@ -348,6 +357,7 @@ function render() {
   renderMetrics();
   renderToday();
   renderGoalFormMode();
+  renderMaterialFormMode();
   renderGoals();
   renderGoalDetail();
   renderMaterials();

@@ -42,7 +42,10 @@ function renderMaterials() {
           <h3>${escapeHtml(material.title)}</h3>
           <p>${escapeHtml(summary.overview)}</p>
         </div>
-        <button class="ghost-button" title="删除资料">×</button>
+        <div class="item-actions">
+          <button class="ghost-button" data-action="edit" title="编辑资料">编辑</button>
+          <button class="ghost-button" data-action="delete" title="删除资料">×</button>
+        </div>
       </div>
       <div class="tag-row">
         <span class="tag">${escapeHtml(getMaterialTypeLabel(material.type))}</span>
@@ -57,7 +60,8 @@ function renderMaterials() {
         <ul>${difficulties}</ul>
       </details>
     `;
-    item.querySelector("button").addEventListener("click", () => deleteMaterial(material.id));
+    item.querySelector('[data-action="edit"]').addEventListener("click", () => startMaterialEdit(material.id));
+    item.querySelector('[data-action="delete"]').addEventListener("click", () => deleteMaterial(material.id));
     list.appendChild(item);
   });
 }
@@ -189,11 +193,54 @@ function createMemoryItems(material) {
   });
 }
 
+function startMaterialEdit(id) {
+  const material = state.materials.find((item) => item.id === id);
+  if (!material) return;
+
+  editingMaterialId = id;
+  fillMaterialForm(material);
+  renderMaterialFormMode();
+  switchView("materials");
+  document.getElementById("material-form").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function cancelMaterialEdit() {
+  editingMaterialId = "";
+  document.getElementById("material-form").reset();
+  renderMaterialFormMode();
+}
+
+function fillMaterialForm(material) {
+  const form = document.getElementById("material-form");
+  form.elements.title.value = material.title || "";
+  form.elements.type.value = material.type || "text";
+  form.elements.content.value = material.type === "link" ? material.url || material.content || "" : material.content || "";
+}
+
+function renderMaterialFormMode() {
+  const title = document.getElementById("material-form-title");
+  const submitButton = document.getElementById("material-submit-button");
+  const cancelButton = document.getElementById("cancel-material-edit");
+
+  if (editingMaterialId) {
+    title.textContent = "编辑成长资料";
+    submitButton.textContent = "保存修改";
+    cancelButton.hidden = false;
+  } else {
+    title.textContent = "添加成长资料";
+    submitButton.textContent = "▣ 保存并整理";
+    cancelButton.hidden = true;
+  }
+}
+
 async function deleteMaterial(id) {
   if (!window.confirm("确认删除这份资料吗？")) return;
 
   try {
     await materialApi.deleteMaterial(id);
+    if (editingMaterialId === id) {
+      cancelMaterialEdit();
+    }
     await loadMaterialDataFromApi();
     state.aiConversations = state.aiConversations.map((conversation) => ({
       ...conversation,
