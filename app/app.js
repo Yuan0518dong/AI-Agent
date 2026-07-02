@@ -156,12 +156,15 @@ document.getElementById("cancel-material-edit").addEventListener("click", () => 
   cancelMaterialEdit();
 });
 
-document.getElementById("chat-form").addEventListener("submit", (event) => {
+document.getElementById("chat-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
   const data = new FormData(event.currentTarget);
   const question = data.get("question").trim();
+  const submitButton = form.querySelector("button[type='submit']");
+  if (!question) return;
+
   const timestamp = new Date().toISOString();
-  const answer = answerQuestion(question);
   const conversation = getActiveConversation();
   conversation.messages.push({
     id: makeId(),
@@ -169,17 +172,38 @@ document.getElementById("chat-form").addEventListener("submit", (event) => {
     content: question,
     createdAt: timestamp
   });
-  conversation.messages.push({
-    id: makeId(),
-    role: "assistant",
-    content: answer.text,
-    relatedMaterialIds: answer.relatedMaterialIds,
-    createdAt: new Date().toISOString()
-  });
-  conversation.relatedMaterialIds = mergeUniqueIds(conversation.relatedMaterialIds, answer.relatedMaterialIds);
-  conversation.updatedAt = new Date().toISOString();
   saveAndRender();
-  event.currentTarget.reset();
+  setButtonLoading(submitButton, true, "发送中");
+
+  try {
+    const answer = await agentApi.ask({
+      question,
+      goalId: selectedGoalId || undefined,
+      limit: 3
+    });
+    const relatedMaterialIds = collectReferenceMaterialIds(answer.references);
+    conversation.messages.push({
+      id: makeId(),
+      role: "assistant",
+      content: answer.answer,
+      basis: answer.basis,
+      suggestion: answer.suggestion,
+      references: answer.references || [],
+      relatedMaterialIds,
+      isFromMaterial: answer.isFromMaterial,
+      confidence: answer.confidence,
+      mode: answer.mode,
+      createdAt: new Date().toISOString()
+    });
+    conversation.relatedMaterialIds = mergeUniqueIds(conversation.relatedMaterialIds, relatedMaterialIds);
+    conversation.updatedAt = new Date().toISOString();
+    saveAndRender();
+    form.reset();
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
 });
 
 document.getElementById("chunk-search-form").addEventListener("submit", async (event) => {

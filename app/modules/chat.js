@@ -46,7 +46,13 @@ function normalizeMessage(message) {
     id: message.id || makeId(),
     role: message.role === "agent" ? "assistant" : message.role,
     content: message.content || message.text || "",
+    basis: message.basis || "",
+    suggestion: message.suggestion || "",
+    references: message.references || [],
     relatedMaterialIds: message.relatedMaterialIds || [],
+    isFromMaterial: message.isFromMaterial,
+    confidence: message.confidence || "",
+    mode: message.mode || "",
     createdAt: timestamp
   };
 }
@@ -73,10 +79,10 @@ function renderChat() {
   getActiveConversation().messages.forEach((message) => {
     const node = document.createElement("div");
     node.className = `message ${message.role === "user" ? "user" : "agent"}`;
-    node.textContent = message.content;
+    node.appendChild(messageContentNode(message));
 
-    if (message.role === "assistant" && message.relatedMaterialIds.length) {
-      node.appendChild(referenceNode(message.relatedMaterialIds));
+    if (message.role === "assistant") {
+      node.appendChild(agentAnswerMetaNode(message));
     }
 
     log.appendChild(node);
@@ -127,6 +133,11 @@ function findRelevantMaterials(question) {
   return scored.length ? scored.slice(0, 2) : state.materials.slice(0, 1);
 }
 
+function collectReferenceMaterialIds(references) {
+  if (!Array.isArray(references)) return [];
+  return [...new Set(references.map((reference) => reference.materialId).filter(Boolean))];
+}
+
 function getActiveConversation() {
   const conversation = state.aiConversations.find((item) => item.id === state.activeConversationId);
   return conversation || state.aiConversations[0];
@@ -139,6 +150,80 @@ function getConversationMessages(sourceState, conversationId) {
 
 function mergeUniqueIds(currentIds, nextIds) {
   return [...new Set([...(currentIds || []), ...(nextIds || [])])];
+}
+
+function messageContentNode(message) {
+  const content = document.createElement("p");
+  content.className = "message-content";
+  content.textContent = message.content;
+  return content;
+}
+
+function agentAnswerMetaNode(message) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "message-answer-meta";
+
+  if (message.confidence || message.mode) {
+    const status = document.createElement("div");
+    status.className = "message-status";
+    const confidence = message.confidence || "unknown";
+    status.innerHTML = `
+      <span>${message.isFromMaterial === false ? "资料不足" : "基于资料"}</span>
+      <span>confidence: ${escapeHtml(confidence)}</span>
+      ${message.mode ? `<span>${escapeHtml(message.mode)}</span>` : ""}
+    `;
+    wrapper.appendChild(status);
+  }
+
+  if (message.basis) {
+    wrapper.appendChild(answerDetailNode("回答依据", message.basis));
+  }
+
+  if (message.suggestion) {
+    wrapper.appendChild(answerDetailNode("学习建议", message.suggestion));
+  }
+
+  if (message.references && message.references.length) {
+    wrapper.appendChild(referenceChunksNode(message.references));
+  } else if (message.relatedMaterialIds.length) {
+    wrapper.appendChild(referenceNode(message.relatedMaterialIds));
+  }
+
+  return wrapper;
+}
+
+function answerDetailNode(title, text) {
+  const detail = document.createElement("div");
+  detail.className = "message-detail";
+  const label = document.createElement("strong");
+  label.textContent = title;
+  const body = document.createElement("p");
+  body.textContent = text;
+  detail.append(label, body);
+  return detail;
+}
+
+function referenceChunksNode(references) {
+  const detail = document.createElement("details");
+  detail.className = "message-reference-chunks";
+  const summary = document.createElement("summary");
+  summary.textContent = `来源片段 ${references.length} 条`;
+  detail.appendChild(summary);
+
+  references.forEach((reference) => {
+    const item = document.createElement("article");
+    item.className = "reference-chunk";
+    item.innerHTML = `
+      <div class="chunk-meta">
+        <span>${escapeHtml(reference.materialTitle)}</span>
+        <span>片段 ${Number(reference.chunkIndex) + 1} / score ${escapeHtml(reference.score)}</span>
+      </div>
+      <p>${escapeHtml(reference.content)}</p>
+    `;
+    detail.appendChild(item);
+  });
+
+  return detail;
 }
 
 function referenceNode(materialIds) {

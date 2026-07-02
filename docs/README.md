@@ -42,6 +42,8 @@ docs/planning/每日工作安排规则.md
 ```text
 docs/api/第一阶段数据对象与API草案.md
 docs/api/资料与AI模块字段和API草案.md
+docs/api/RAG-chunks接口说明.md
+docs/api/第二版AI问答接口交接.md
 ```
 
 ## modules

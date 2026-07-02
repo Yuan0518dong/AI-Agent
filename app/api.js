@@ -81,6 +81,15 @@ const goalApi = {
   }
 };
 
+const agentApi = {
+  ask(payload) {
+    return request("/agent/ask", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+};
+
 const materialApi = {
   listMaterials(goalId = "") {
     const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
