@@ -91,6 +91,35 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
     assert summary_read_response.status_code == 200
     assert summary_read_response.json()["data"]["materialId"] == material_id
 
+    empty_chunks_response = client.get(f"/api/materials/{material_id}/chunks")
+    assert empty_chunks_response.status_code == 200
+    assert empty_chunks_response.json()["data"] == []
+
+    chunks_response = client.post(f"/api/materials/{material_id}/chunks")
+    assert chunks_response.status_code == 200
+    chunks = chunks_response.json()["data"]
+    assert len(chunks) >= 1
+    assert chunks[0]["materialId"] == material_id
+    assert chunks[0]["chunkIndex"] == 0
+    assert "review" in chunks[0]["content"]
+    assert len(chunks[0]["keywords"]) >= 1
+
+    chunks_read_response = client.get(f"/api/materials/{material_id}/chunks")
+    assert chunks_read_response.status_code == 200
+    assert chunks_read_response.json()["data"] == chunks
+
+    search_response = client.get("/api/materials/search", params={"query": "review tasks"})
+    assert search_response.status_code == 200
+    search_results = search_response.json()["data"]
+    assert len(search_results) >= 1
+    assert search_results[0]["materialId"] == material_id
+    assert search_results[0]["materialTitle"] == "Updated material"
+    assert search_results[0]["score"] > 0
+
+    empty_search_response = client.get("/api/materials/search", params={"query": "unrelated biology topic"})
+    assert empty_search_response.status_code == 200
+    assert empty_search_response.json()["data"] == []
+
     flashcards_response = client.post(f"/api/materials/{material_id}/flashcards")
     assert flashcards_response.status_code == 200
     flashcards = flashcards_response.json()["data"]
@@ -115,6 +144,7 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
 
     assert client.get(f"/api/materials/{material_id}").status_code == 404
     assert client.get(f"/api/materials/{material_id}/summary").status_code == 404
+    assert client.get(f"/api/materials/{material_id}/chunks").status_code == 404
     assert client.get(f"/api/materials/{material_id}/flashcards").status_code == 404
     assert client.get(f"/api/materials/{material_id}/quiz").status_code == 404
 
@@ -154,6 +184,8 @@ def test_material_validation_and_missing_resources():
     assert client.get("/api/materials/material_missing").status_code == 404
     assert client.put("/api/materials/material_missing", json={"title": "new"}).status_code == 404
     assert client.delete("/api/materials/material_missing").status_code == 404
+    assert client.get("/api/materials/material_missing/chunks").status_code == 404
+    assert client.post("/api/materials/material_missing/chunks").status_code == 404
     assert client.post("/api/materials/material_missing/summarize").status_code == 404
 
 

@@ -101,6 +101,21 @@ def main() -> None:
             material_summary_get_response.raise_for_status()
             material_summary_get = material_summary_get_response.json()["data"]
 
+            chunks_response = client.post(f"/api/materials/{material_id}/chunks")
+            chunks_response.raise_for_status()
+            chunks = chunks_response.json()["data"]
+
+            chunks_get_response = client.get(f"/api/materials/{material_id}/chunks")
+            chunks_get_response.raise_for_status()
+            chunks_get = chunks_get_response.json()["data"]
+
+            chunks_search_response = client.get(
+                "/api/materials/search",
+                params={"query": "material CRUD"},
+            )
+            chunks_search_response.raise_for_status()
+            chunks_search = chunks_search_response.json()["data"]
+
             flashcards_response = client.post(f"/api/materials/{material_id}/flashcards")
             flashcards_response.raise_for_status()
             flashcards = flashcards_response.json()["data"]
@@ -157,6 +172,9 @@ def main() -> None:
                 "material_summary_mode": material_summary["aiMode"],
                 "material_summary_readback": material_summary_get["materialId"] == material_id,
                 "material_summary_points": len(material_summary["keyPoints"]),
+                "chunk_count": len(chunks),
+                "chunk_readback": len(chunks_get) == len(chunks),
+                "chunk_search_count": len(chunks_search),
                 "flashcard_count": len(flashcards),
                 "flashcard_readback": len(flashcards_get) == len(flashcards),
                 "quiz_count": len(quiz_questions),

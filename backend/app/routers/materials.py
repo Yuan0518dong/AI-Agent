@@ -34,6 +34,14 @@ def create_material(payload: MaterialCreate):
     return ok(material_store.save_material(material))
 
 
+@router.get("/search")
+def search_material_chunks(
+    query: str = Query(min_length=1),
+    limit: int = Query(default=5, ge=1, le=20),
+):
+    return ok(material_store.search_chunks(query, limit))
+
+
 @router.get("/{material_id}")
 def get_material(material_id: str):
     material = material_store.get_material(material_id)
@@ -76,6 +84,38 @@ def delete_material(material_id: str):
     if not material_store.delete_material(material_id):
         raise HTTPException(status_code=404, detail="Material not found")
     return ok({"deleted": True, "material_id": material_id})
+
+
+@router.post("/{material_id}/chunks")
+def generate_material_chunks(material_id: str):
+    material = material_store.get_material(material_id)
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    source_text = material["content"] or material["url"]
+    chunk_texts = material_store.split_material_content(source_text)
+    now = store.now_iso()
+    chunks = [
+        {
+            "id": store.make_id("chunk"),
+            "materialId": material_id,
+            "chunkIndex": index,
+            "content": chunk,
+            "keywords": material_store.extract_keywords(f"{material['title']} {chunk}"),
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        for index, chunk in enumerate(chunk_texts)
+    ]
+    return ok(material_store.replace_chunks_for_material(material_id, chunks))
+
+
+@router.get("/{material_id}/chunks")
+def list_material_chunks(material_id: str):
+    if not material_store.get_material(material_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    return ok(material_store.list_chunks_for_material(material_id))
 
 
 @router.post("/{material_id}/summarize")
