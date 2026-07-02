@@ -4,6 +4,11 @@ const defaultState = {
   materials: [],
   tasks: [],
   progress: [],
+  materialChunks: {},
+  chunkSearch: {
+    query: "",
+    results: []
+  },
   selectedGoal: null,
   selectedGoalTasks: [],
   selectedGoalProgress: null,
@@ -177,6 +182,29 @@ document.getElementById("chat-form").addEventListener("submit", (event) => {
   event.currentTarget.reset();
 });
 
+document.getElementById("chunk-search-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const query = data.get("query").trim();
+  const submitButton = document.getElementById("chunk-search-button");
+
+  if (!query) return;
+
+  setButtonLoading(submitButton, true, "搜索中");
+
+  try {
+    const results = await materialApi.searchChunks(query, 5);
+    state.chunkSearch = { query, results };
+    renderSummaries();
+    showSuccess(results.length ? "已找到相关片段" : "没有命中相关片段");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
+});
+
 document.getElementById("quick-plan").addEventListener("click", async (event) => {
   await generatePlansForAllGoals(getPlanDays("quick-plan-days"), event.currentTarget);
 });
@@ -250,6 +278,7 @@ async function loadMaterialDataFromApi() {
         materialApi.listFlashcards(material.id),
         materialApi.listQuiz(material.id)
       ]);
+      const chunks = await materialApi.listChunks(material.id);
 
       const normalizedMaterial = {
         ...material,
@@ -260,7 +289,8 @@ async function loadMaterialDataFromApi() {
       return {
         material: normalizedMaterial,
         flashcards,
-        quizzes
+        quizzes,
+        chunks
       };
     })
   );
@@ -268,6 +298,10 @@ async function loadMaterialDataFromApi() {
   state.materials = materialDetails.map((item) => item.material).reverse();
   state.flashcards = materialDetails.flatMap((item) => item.flashcards);
   state.quizzes = materialDetails.flatMap((item) => item.quizzes);
+  state.materialChunks = materialDetails.reduce((chunksByMaterial, item) => {
+    chunksByMaterial[item.material.id] = item.chunks;
+    return chunksByMaterial;
+  }, {});
   if (activeCardIndex >= state.flashcards.length) {
     activeCardIndex = 0;
   }
@@ -276,6 +310,8 @@ async function loadMaterialDataFromApi() {
 
 function normalizeState(nextState) {
   const materialsByTitle = new Map();
+  nextState.materialChunks = nextState.materialChunks || {};
+  nextState.chunkSearch = nextState.chunkSearch || { query: "", results: [] };
 
   nextState.materials = nextState.materials.map((material) => {
     const timestamp = material.createdAt || new Date().toISOString();

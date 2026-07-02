@@ -68,7 +68,9 @@ function renderMaterials() {
 
 function renderSummaries() {
   const list = document.getElementById("summary-list");
+  const searchResults = document.getElementById("chunk-search-results");
   list.innerHTML = "";
+  renderChunkSearchResults(searchResults);
 
   if (state.materials.length === 0) {
     list.appendChild(emptyNode("等待资料", "资料整理结果会显示在这里。"));
@@ -83,6 +85,7 @@ function renderSummaries() {
     const difficulties = summary.difficulties.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     const studyOrder = summary.studyOrder.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     const actionItems = summary.actionItems.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const chunks = state.materialChunks[material.id] || [];
     item.innerHTML = `
       <h3>${escapeHtml(material.title)}</h3>
       <p>${escapeHtml(summary.overview)}</p>
@@ -94,9 +97,93 @@ function renderSummaries() {
       <ul>${studyOrder}</ul>
       <h4>行动建议</h4>
       <ul>${actionItems}</ul>
+      <div class="chunk-panel">
+        <div class="chunk-panel-head">
+          <h4>学习片段</h4>
+          <button class="ghost-button" data-action="generate-chunks" data-material-id="${escapeHtml(material.id)}" type="button">生成片段</button>
+        </div>
+        ${renderMaterialChunks(chunks)}
+      </div>
     `;
+    item.querySelector('[data-action="generate-chunks"]').addEventListener("click", (event) => {
+      generateChunksForMaterial(event.currentTarget.dataset.materialId, event.currentTarget);
+    });
     list.appendChild(item);
   });
+}
+
+function renderMaterialChunks(chunks) {
+  if (!chunks.length) {
+    return '<p class="muted-text">还没有生成学习片段。</p>';
+  }
+
+  return `
+    <div class="chunk-list">
+      ${chunks.slice(0, 4).map((chunk) => `
+        <article class="chunk-item">
+          <div class="chunk-meta">
+            <span>片段 ${chunk.chunkIndex + 1}</span>
+            <span>${chunk.keywords.map((keyword) => escapeHtml(keyword)).join(" / ")}</span>
+          </div>
+          <p>${escapeHtml(chunk.content)}</p>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderChunkSearchResults(container) {
+  if (!container) return;
+
+  const search = state.chunkSearch || { query: "", results: [] };
+  if (!search.query) {
+    container.innerHTML = "";
+    return;
+  }
+
+  if (!search.results.length) {
+    container.innerHTML = `
+      <div class="chunk-search-empty">
+        <strong>未找到相关片段</strong>
+        <p>关键词：${escapeHtml(search.query)}</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="chunk-search-head">
+      <strong>搜索结果：${escapeHtml(search.query)}</strong>
+      <span>${search.results.length} 条</span>
+    </div>
+    <div class="chunk-list">
+      ${search.results.map((chunk) => `
+        <article class="chunk-item">
+          <div class="chunk-meta">
+            <span>${escapeHtml(chunk.materialTitle)}</span>
+            <span>score ${chunk.score}</span>
+          </div>
+          <p>${escapeHtml(chunk.content)}</p>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function generateChunksForMaterial(materialId, button) {
+  setButtonLoading(button, true, "生成中");
+
+  try {
+    const chunks = await materialApi.generateChunks(materialId);
+    state.materialChunks[materialId] = chunks;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    renderSummaries();
+    showSuccess(chunks.length ? "学习片段已生成" : "资料内容不足，暂无片段");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 function renderFlashcard() {

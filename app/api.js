@@ -135,5 +135,23 @@ const materialApi = {
     return request(`/materials/${materialId}/quiz`, {
       method: "POST"
     });
+  },
+
+  generateChunks(materialId) {
+    return request(`/materials/${materialId}/chunks`, {
+      method: "POST"
+    });
+  },
+
+  listChunks(materialId) {
+    return request(`/materials/${materialId}/chunks`);
+  },
+
+  searchChunks(query, limit = 5) {
+    const params = new URLSearchParams({
+      query,
+      limit: String(limit)
+    });
+    return request(`/materials/search?${params.toString()}`);
   }
 };

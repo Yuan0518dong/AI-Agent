@@ -214,7 +214,14 @@
             </section>
 
             <section class="panel">
-              <h2>资料总结</h2>
+              <div class="panel-head">
+                <h2>资料总结</h2>
+                <form id="chunk-search-form" class="inline-actions">
+                  <input class="compact-input" name="query" placeholder="搜索学习片段" />
+                  <button class="ghost-button" id="chunk-search-button" type="submit">搜索</button>
+                </form>
+              </div>
+              <div class="chunk-search-results" id="chunk-search-results"></div>
               <div class="list" id="summary-list"></div>
             </section>
           </div>
