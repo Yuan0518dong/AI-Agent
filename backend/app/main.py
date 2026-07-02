@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.routers import goals, materials, progress, tasks
+from backend.app.routers import agent, goals, materials, progress, tasks
 from backend.app.services import store
 
 
@@ -27,6 +27,7 @@ app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(progress.router, prefix="/api/progress", tags=["progress"])
 app.include_router(materials.router, prefix="/api/materials", tags=["materials"])
+app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
 
 
 @app.get("/")

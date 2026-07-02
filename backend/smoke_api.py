@@ -116,6 +116,16 @@ def main() -> None:
             chunks_search_response.raise_for_status()
             chunks_search = chunks_search_response.json()["data"]
 
+            agent_ask_response = client.post(
+                "/api/agent/ask",
+                json={
+                    "goalId": goal_id,
+                    "question": "How does material CRUD work?",
+                },
+            )
+            agent_ask_response.raise_for_status()
+            agent_answer = agent_ask_response.json()["data"]
+
             flashcards_response = client.post(f"/api/materials/{material_id}/flashcards")
             flashcards_response.raise_for_status()
             flashcards = flashcards_response.json()["data"]
@@ -175,6 +185,10 @@ def main() -> None:
                 "chunk_count": len(chunks),
                 "chunk_readback": len(chunks_get) == len(chunks),
                 "chunk_search_count": len(chunks_search),
+                "agent_mode": agent_answer["mode"],
+                "agent_reference_count": len(agent_answer["references"]),
+                "agent_from_material": agent_answer["isFromMaterial"],
+                "agent_confidence": agent_answer["confidence"],
                 "flashcard_count": len(flashcards),
                 "flashcard_readback": len(flashcards_get) == len(flashcards),
                 "quiz_count": len(quiz_questions),
