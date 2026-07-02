@@ -109,32 +109,37 @@ document.getElementById("reset-today-date").addEventListener("click", async () =
   await refreshGoalData("已回到今天");
 });
 
-document.getElementById("material-form").addEventListener("submit", (event) => {
+document.getElementById("material-form").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector("button[type='submit']");
   const data = new FormData(event.currentTarget);
   const content = data.get("content").trim();
-  const timestamp = new Date().toISOString();
-  const materialId = makeId();
-  const summary = summarizeContent(content, {
-    materialId,
-    timestamp
-  });
-  const material = {
-    id: materialId,
-    goalId: "",
+  const type = data.get("type");
+  const payload = {
+    goalId: selectedGoalId || "",
     title: data.get("title").trim(),
-    type: data.get("type"),
-    content,
-    url: data.get("type") === "网页链接" ? content : "",
-    summary,
-    createdAt: timestamp,
-    updatedAt: timestamp
+    type,
+    content: type === "text" ? content : "",
+    url: type === "link" ? content : ""
   };
 
-  state.materials.unshift(material);
-  createMemoryItems(material);
-  saveAndRender();
-  event.currentTarget.reset();
+  setButtonLoading(submitButton, true, "保存中");
+
+  try {
+    const material = await materialApi.createMaterial(payload);
+    await materialApi.summarizeMaterial(material.id);
+    await materialApi.generateFlashcards(material.id);
+    await materialApi.generateQuiz(material.id);
+    await loadMaterialDataFromApi();
+    render();
+    form.reset();
+    showSuccess("资料已保存，并完成摘要、闪卡和测试题");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
 });
 
 document.getElementById("chat-form").addEventListener("submit", (event) => {
@@ -206,6 +211,7 @@ async function init() {
 
   try {
     await loadGoalDataFromApi();
+    await loadMaterialDataFromApi();
   } catch (error) {
     showError(error);
   } finally {
@@ -224,6 +230,39 @@ function loadState() {
   } catch {
     return normalizeState(structuredClone(defaultState));
   }
+}
+
+async function loadMaterialDataFromApi() {
+  const materials = await materialApi.listMaterials();
+  const materialDetails = await Promise.all(
+    materials.map(async (material) => {
+      const [summary, flashcards, quizzes] = await Promise.all([
+        materialApi.getSummary(material.id),
+        materialApi.listFlashcards(material.id),
+        materialApi.listQuiz(material.id)
+      ]);
+
+      const normalizedMaterial = {
+        ...material,
+        summary: summary || undefined
+      };
+      normalizedMaterial.summary = normalizeSummary(normalizedMaterial);
+
+      return {
+        material: normalizedMaterial,
+        flashcards,
+        quizzes
+      };
+    })
+  );
+
+  state.materials = materialDetails.map((item) => item.material).reverse();
+  state.flashcards = materialDetails.flatMap((item) => item.flashcards);
+  state.quizzes = materialDetails.flatMap((item) => item.quizzes);
+  if (activeCardIndex >= state.flashcards.length) {
+    activeCardIndex = 0;
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
 function normalizeState(nextState) {

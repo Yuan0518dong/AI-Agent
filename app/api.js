@@ -80,3 +80,60 @@ const goalApi = {
     return request(`/progress/${goalId}`);
   }
 };
+
+const materialApi = {
+  listMaterials(goalId = "") {
+    const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
+    return request(`/materials${query}`);
+  },
+
+  createMaterial(payload) {
+    return request("/materials", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  updateMaterial(materialId, payload) {
+    return request(`/materials/${materialId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  deleteMaterial(materialId) {
+    return request(`/materials/${materialId}`, {
+      method: "DELETE"
+    });
+  },
+
+  summarizeMaterial(materialId) {
+    return request(`/materials/${materialId}/summarize`, {
+      method: "POST"
+    });
+  },
+
+  getSummary(materialId) {
+    return request(`/materials/${materialId}/summary`);
+  },
+
+  listFlashcards(materialId) {
+    return request(`/materials/${materialId}/flashcards`);
+  },
+
+  generateFlashcards(materialId) {
+    return request(`/materials/${materialId}/flashcards`, {
+      method: "POST"
+    });
+  },
+
+  listQuiz(materialId) {
+    return request(`/materials/${materialId}/quiz`);
+  },
+
+  generateQuiz(materialId) {
+    return request(`/materials/${materialId}/quiz`, {
+      method: "POST"
+    });
+  }
+};

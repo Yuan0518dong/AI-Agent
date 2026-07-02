@@ -45,7 +45,7 @@ function renderMaterials() {
         <button class="ghost-button" title="删除资料">×</button>
       </div>
       <div class="tag-row">
-        <span class="tag">${escapeHtml(material.type)}</span>
+        <span class="tag">${escapeHtml(getMaterialTypeLabel(material.type))}</span>
         <span class="tag">${summary.keyPoints.length} 个知识点</span>
         <span class="tag">${summary.aiMode}</span>
       </div>
@@ -189,23 +189,28 @@ function createMemoryItems(material) {
   });
 }
 
-function deleteMaterial(id) {
+async function deleteMaterial(id) {
   if (!window.confirm("确认删除这份资料吗？")) return;
-  state.materials = state.materials.filter((item) => item.id !== id);
-  state.flashcards = state.flashcards.filter((card) => card.materialId !== id);
-  state.quizzes = state.quizzes.filter((quiz) => quiz.materialId !== id);
-  state.aiConversations = state.aiConversations.map((conversation) => ({
-    ...conversation,
-    relatedMaterialIds: conversation.relatedMaterialIds.filter((materialId) => materialId !== id),
-    messages: conversation.messages.map((message) => ({
-      ...message,
-      relatedMaterialIds: (message.relatedMaterialIds || []).filter((materialId) => materialId !== id)
-    })),
-    updatedAt: new Date().toISOString()
-  }));
-  state.chat = getActiveConversation().messages;
-  activeCardIndex = 0;
-  saveAndRender();
+
+  try {
+    await materialApi.deleteMaterial(id);
+    await loadMaterialDataFromApi();
+    state.aiConversations = state.aiConversations.map((conversation) => ({
+      ...conversation,
+      relatedMaterialIds: conversation.relatedMaterialIds.filter((materialId) => materialId !== id),
+      messages: conversation.messages.map((message) => ({
+        ...message,
+        relatedMaterialIds: (message.relatedMaterialIds || []).filter((materialId) => materialId !== id)
+      })),
+      updatedAt: new Date().toISOString()
+    }));
+    state.chat = getActiveConversation().messages;
+    activeCardIndex = 0;
+    saveAndRender();
+    showSuccess("资料已删除");
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function rateCard(status) {
@@ -220,4 +225,12 @@ function rateCard(status) {
 function getMaterialTitle(materialId) {
   const material = state.materials.find((item) => item.id === materialId);
   return material ? material.title : "未关联资料";
+}
+
+function getMaterialTypeLabel(type) {
+  const labels = {
+    text: "文本",
+    link: "网页链接"
+  };
+  return labels[type] || type || "资料";
 }
