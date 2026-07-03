@@ -19,9 +19,10 @@ GET /api/materials/{material_id}/qa
 资料总结区按资料直接提问
 资料历史问答列表展示
 历史问答复盘草稿入口
+复盘草稿确认加入正式闪卡
 ```
 
-因此当前问答交界面已经形成可演示闭环：资料生成 chunks 后，用户可以围绕资料提问；后端通过 `POST /api/agent/ask` 生成回答并保存 QA 记录；前端通过 `GET /api/materials/{material_id}/qa` 读回历史问答，并可以从单条问答生成前端复盘草稿。
+因此当前问答交界面已经形成可演示闭环：资料生成 chunks 后，用户可以围绕资料提问；后端通过 `POST /api/agent/ask` 生成回答并保存 QA 记录；前端通过 `GET /api/materials/{material_id}/qa` 读回历史问答，并可以从单条问答生成前端复盘草稿。用户确认后，复盘草稿可以写入正式闪卡，并保存复习状态。
 
 ## 2. POST /api/agent/ask
 
@@ -161,7 +162,7 @@ createdAt
 当前状态：
 
 ```text
-已完成前端本地草稿闭环。
+已完成前端本地草稿闭环，并已支持用户确认后加入后端正式闪卡。
 ```
 
 当前规则：
@@ -172,13 +173,40 @@ createdAt
 3. 同一条 QA 的同类型草稿不重复生成。
 4. 复盘草稿显示在记忆页。
 5. 删除资料时同步删除对应本地复盘草稿。
+6. 点击“加入闪卡”后，前端调用 POST /api/materials/{material_id}/flashcards/custom。
+7. 记忆页点击“已掌握 / 还要复习”后，前端调用 PATCH /api/materials/{material_id}/flashcards/{flashcard_id} 保存状态。
 ```
 
 当前边界：
 
 ```text
-复盘草稿暂存在前端 localStorage，不写入后端 flashcards 表。
-如需正式持久化，需要新增或确认 QA -> flashcard/review-point API。
+复盘草稿本身仍暂存在前端 localStorage，不自动写入。
+用户确认“加入闪卡”后，正式闪卡会写入后端 flashcards 表。
+第二版暂不自动生成测试题或任务，也不做完整间隔重复日程。
+```
+
+新增闪卡接口：
+
+```text
+POST /api/materials/{material_id}/flashcards/custom
+PATCH /api/materials/{material_id}/flashcards/{flashcard_id}
+```
+
+创建单张闪卡请求示例：
+
+```json
+{
+  "front": "请解释：RAG 如何使用检索？",
+  "back": "RAG 会先检索相关资料片段，再基于证据组织回答。"
+}
+```
+
+更新闪卡状态请求示例：
+
+```json
+{
+  "status": "known"
+}
 ```
 
 ## 6. 当前验证
@@ -188,5 +216,6 @@ python -m pytest backend/tests -v：18 passed
 python backend/smoke_api.py：通过，包含 agent_mode / agent_reference_count / agent_from_material / agent_confidence / qa_record_count
 node --check app/api.js app/app.js app/modules/chat.js app/modules/materials.js app/modules/goals.js app/modules/progress.js app/modules/utils.js：通过
 Edge 浏览器 smoke：资料 QA 历史 -> 转闪卡草稿 -> 记忆页展示；重复点击不重复；删除新建 smoke 资料后复盘草稿清零；无 console error / pageerror
+2026-07-03 闪卡闭环补完：backend/tests/test_material_flow.py 3 passed；隔离本地 .env 后全量 pytest 26 passed；8001 接口 smoke 完成创建单张闪卡、PATCH 标记 known、GET 读回和清理临时资料。
 ```
 

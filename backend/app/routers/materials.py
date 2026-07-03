@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.app.schemas.materials import MaterialCreate, MaterialUpdate
+from backend.app.schemas.materials import FlashcardCreate, FlashcardStatusUpdate, MaterialCreate, MaterialUpdate
 from backend.app.services import material_ai_service, material_store, store
 from backend.app.utils.responses import ok
 
@@ -182,6 +182,46 @@ def generate_material_flashcards(material_id: str):
         for card in material_ai_service.generate_flashcards(summary)
     ]
     return ok(material_store.replace_flashcards_for_material(material_id, flashcards))
+
+
+@router.post("/{material_id}/flashcards/custom")
+def create_material_flashcard(material_id: str, payload: FlashcardCreate):
+    if not material_store.get_material(material_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    front = payload.front.strip()
+    back = payload.back.strip()
+    if not front or not back:
+        raise HTTPException(status_code=422, detail="Flashcard front and back are required")
+
+    now = store.now_iso()
+    flashcard = {
+        "id": store.make_id("flashcard"),
+        "materialId": material_id,
+        "front": front,
+        "back": back,
+        "status": "new",
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    return ok(material_store.create_flashcard_for_material(flashcard))
+
+
+@router.patch("/{material_id}/flashcards/{flashcard_id}")
+def update_material_flashcard_status(material_id: str, flashcard_id: str, payload: FlashcardStatusUpdate):
+    if not material_store.get_material(material_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    flashcard = material_store.update_flashcard_status(
+        material_id,
+        flashcard_id,
+        payload.status,
+        store.now_iso(),
+    )
+    if not flashcard:
+        raise HTTPException(status_code=404, detail="Flashcard not found")
+
+    return ok(flashcard)
 
 
 @router.get("/{material_id}/quiz")

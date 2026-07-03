@@ -133,6 +133,28 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
     assert flashcards_read_response.status_code == 200
     assert len(flashcards_read_response.json()["data"]) == len(flashcards)
 
+    custom_flashcard_response = client.post(
+        f"/api/materials/{material_id}/flashcards/custom",
+        json={
+            "front": "What should be reviewed?",
+            "back": "Review tasks should be connected to saved materials.",
+        },
+    )
+    assert custom_flashcard_response.status_code == 200
+    custom_flashcard = custom_flashcard_response.json()["data"]
+    assert custom_flashcard["materialId"] == material_id
+    assert custom_flashcard["status"] == "new"
+
+    update_flashcard_response = client.patch(
+        f"/api/materials/{material_id}/flashcards/{custom_flashcard['id']}",
+        json={"status": "known"},
+    )
+    assert update_flashcard_response.status_code == 200
+    assert update_flashcard_response.json()["data"]["status"] == "known"
+
+    flashcards_after_custom = client.get(f"/api/materials/{material_id}/flashcards").json()["data"]
+    assert len(flashcards_after_custom) == len(flashcards) + 1
+
     quiz_response = client.post(f"/api/materials/{material_id}/quiz")
     assert quiz_response.status_code == 200
     quiz_questions = quiz_response.json()["data"]
