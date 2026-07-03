@@ -138,6 +138,36 @@ def test_agent_ask_filters_references_by_goal():
     assert references[0]["materialId"] == target_material["id"]
 
 
+def test_agent_ask_matches_chinese_material_question():
+    goal = create_goal("专注力训练")
+    material = create_material(
+        goal["id"],
+        "番茄工作法学习笔记",
+        (
+            "番茄工作法是一种时间管理方法。它通常把学习或工作时间分成 25 分钟的专注时间和 5 分钟的短休息。"
+            "番茄工作法的好处是帮助学习者减少分心，提高专注度，并且更容易记录自己实际投入的学习时间。"
+            "如果任务太大，应该先把任务拆成更小的步骤。"
+        ),
+    )
+
+    response = client.post(
+        "/api/agent/ask",
+        json={
+            "goalId": goal["id"],
+            "materialId": material["id"],
+            "question": "番茄工作法为什么能提高专注度？",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["isFromMaterial"] is True
+    assert data["confidence"] in {"medium", "high"}
+    assert data["references"]
+    assert data["references"][0]["materialId"] == material["id"]
+    assert "番茄工作法" in data["answer"]
+
+
 def test_agent_ask_returns_fallback_when_no_chunks_match():
     goal = create_goal()
     material = create_material(

@@ -618,11 +618,32 @@ def _extract_keywords(text: str, max_keywords: int = 20) -> list[str]:
     tokens = re.findall(r"[a-zA-Z0-9_]+|[\u4e00-\u9fff]{2,}", normalized)
     keywords: list[str] = []
     for token in tokens:
-        if token not in keywords:
-            keywords.append(token)
+        _append_keyword(keywords, token)
+        if _is_cjk_text(token):
+            for keyword in _cjk_ngrams(token):
+                _append_keyword(keywords, keyword)
         if len(keywords) >= max_keywords:
             break
     return keywords
+
+
+def _append_keyword(keywords: list[str], keyword: str) -> None:
+    if keyword and keyword not in keywords:
+        keywords.append(keyword)
+
+
+def _is_cjk_text(text: str) -> bool:
+    return bool(re.fullmatch(r"[\u4e00-\u9fff]+", text))
+
+
+def _cjk_ngrams(text: str, min_size: int = 2, max_size: int = 4) -> list[str]:
+    grams: list[str] = []
+    for size in range(min_size, min(max_size, len(text)) + 1):
+        for index in range(0, len(text) - size + 1):
+            gram = text[index : index + size]
+            if gram not in grams:
+                grams.append(gram)
+    return grams
 
 
 def _score_chunk(query: str, query_terms: list[str], haystack: str) -> int:
