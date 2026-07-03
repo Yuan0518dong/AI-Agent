@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute, APIRouter
 
-from backend.app.routers import agent, goals, materials, progress, tasks
+from backend.app.routers import agent, auth, goals, materials, progress, tasks
 from backend.app.services import store
 
 
@@ -23,11 +24,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(goals.router, prefix="/api/goals", tags=["goals"])
-app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
-app.include_router(progress.router, prefix="/api/progress", tags=["progress"])
-app.include_router(materials.router, prefix="/api/materials", tags=["materials"])
-app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
+
+def include_api_router(router: APIRouter, prefix: str, tags: list[str]) -> None:
+    for route in router.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        app.add_api_route(
+            f"{prefix}{route.path}",
+            route.endpoint,
+            methods=list(route.methods or []),
+            tags=tags,
+            name=route.name,
+            response_model=route.response_model,
+            status_code=route.status_code,
+            include_in_schema=route.include_in_schema,
+        )
+
+
+include_api_router(goals.router, prefix="/api/goals", tags=["goals"])
+include_api_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+include_api_router(progress.router, prefix="/api/progress", tags=["progress"])
+include_api_router(materials.router, prefix="/api/materials", tags=["materials"])
+include_api_router(agent.router, prefix="/api/agent", tags=["agent"])
+include_api_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 
 @app.get("/")

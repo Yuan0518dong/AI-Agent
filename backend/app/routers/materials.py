@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.app.schemas.materials import MaterialCreate, MaterialUpdate
 from backend.app.services import material_ai_service, material_store, store
+from backend.app.utils.auth import current_user_id
 from backend.app.utils.responses import ok
 
 
@@ -9,20 +10,24 @@ router = APIRouter()
 
 
 @router.get("")
-def list_materials(goalId: str | None = Query(default=None)):
+def list_materials(
+    goalId: str | None = Query(default=None),
+    user_id: str | None = Depends(current_user_id),
+):
     goal_id = _normalize_goal_id(goalId)
-    return ok(material_store.list_materials(goal_id))
+    return ok(material_store.list_materials(goal_id, user_id))
 
 
 @router.post("")
-def create_material(payload: MaterialCreate):
+def create_material(payload: MaterialCreate, user_id: str | None = Depends(current_user_id)):
     goal_id = _normalize_goal_id(payload.goalId)
-    if goal_id and not store.goal_exists(goal_id):
+    if goal_id and not store.goal_exists(goal_id, user_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     now = store.now_iso()
     material = {
         "id": store.make_id("material"),
+        "userId": user_id,
         "goalId": goal_id,
         "title": payload.title,
         "type": payload.type,
@@ -38,21 +43,26 @@ def create_material(payload: MaterialCreate):
 def search_material_chunks(
     query: str = Query(min_length=1),
     limit: int = Query(default=5, ge=1, le=20),
+    user_id: str | None = Depends(current_user_id),
 ):
-    return ok(material_store.search_chunks(query, limit))
+    return ok(material_store.search_chunks(query, limit, user_id))
 
 
 @router.get("/{material_id}")
-def get_material(material_id: str):
-    material = material_store.get_material(material_id)
+def get_material(material_id: str, user_id: str | None = Depends(current_user_id)):
+    material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
     return ok(material)
 
 
 @router.put("/{material_id}")
-def update_material(material_id: str, payload: MaterialUpdate):
-    material = material_store.get_material(material_id)
+def update_material(
+    material_id: str,
+    payload: MaterialUpdate,
+    user_id: str | None = Depends(current_user_id),
+):
+    material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
@@ -66,7 +76,7 @@ def update_material(material_id: str, payload: MaterialUpdate):
 
     if "goalId" in changes:
         goal_id = _normalize_goal_id(changes["goalId"])
-        if goal_id and not store.goal_exists(goal_id):
+        if goal_id and not store.goal_exists(goal_id, user_id):
             raise HTTPException(status_code=404, detail="Goal not found")
         changes["goalId"] = goal_id
 
@@ -80,15 +90,15 @@ def update_material(material_id: str, payload: MaterialUpdate):
 
 
 @router.delete("/{material_id}")
-def delete_material(material_id: str):
-    if not material_store.delete_material(material_id):
+def delete_material(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.delete_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
     return ok({"deleted": True, "material_id": material_id})
 
 
 @router.post("/{material_id}/chunks")
-def generate_material_chunks(material_id: str):
-    material = material_store.get_material(material_id)
+def generate_material_chunks(material_id: str, user_id: str | None = Depends(current_user_id)):
+    material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
@@ -111,24 +121,24 @@ def generate_material_chunks(material_id: str):
 
 
 @router.get("/{material_id}/chunks")
-def list_material_chunks(material_id: str):
-    if not material_store.get_material(material_id):
+def list_material_chunks(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     return ok(material_store.list_chunks_for_material(material_id))
 
 
 @router.get("/{material_id}/qa")
-def list_material_qa_records(material_id: str):
-    if not material_store.get_material(material_id):
+def list_material_qa_records(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     return ok(material_store.list_qa_records_for_material(material_id))
 
 
 @router.post("/{material_id}/summarize")
-def summarize_material(material_id: str):
-    material = material_store.get_material(material_id)
+def summarize_material(material_id: str, user_id: str | None = Depends(current_user_id)):
+    material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
@@ -144,24 +154,24 @@ def summarize_material(material_id: str):
 
 
 @router.get("/{material_id}/summary")
-def get_material_summary(material_id: str):
-    if not material_store.get_material(material_id):
+def get_material_summary(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     return ok(material_store.get_material_summary(material_id))
 
 
 @router.get("/{material_id}/flashcards")
-def list_material_flashcards(material_id: str):
-    if not material_store.get_material(material_id):
+def list_material_flashcards(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     return ok(material_store.list_flashcards_for_material(material_id))
 
 
 @router.post("/{material_id}/flashcards")
-def generate_material_flashcards(material_id: str):
-    if not material_store.get_material(material_id):
+def generate_material_flashcards(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     summary = material_store.get_material_summary(material_id)
@@ -185,16 +195,16 @@ def generate_material_flashcards(material_id: str):
 
 
 @router.get("/{material_id}/quiz")
-def list_material_quiz(material_id: str):
-    if not material_store.get_material(material_id):
+def list_material_quiz(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     return ok(material_store.list_quiz_questions_for_material(material_id))
 
 
 @router.post("/{material_id}/quiz")
-def generate_material_quiz(material_id: str):
-    if not material_store.get_material(material_id):
+def generate_material_quiz(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     summary = material_store.get_material_summary(material_id)

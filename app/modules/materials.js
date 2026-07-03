@@ -32,7 +32,7 @@ function renderMaterials() {
 
   state.materials.forEach((material) => {
     const item = document.createElement("article");
-    item.className = "item";
+    item.className = "item summary-card";
     const summary = material.summary;
     const points = summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     const difficulties = summary.difficulties.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
@@ -79,7 +79,7 @@ function renderSummaries() {
 
   state.materials.forEach((material) => {
     const item = document.createElement("article");
-    item.className = "item";
+    item.className = "item summary-card";
     const summary = material.summary;
     const points = summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     const difficulties = summary.difficulties.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
@@ -353,7 +353,7 @@ async function askMaterialQuestion(event) {
       limit: 3
     });
     state.materialQaRecords[materialId] = await materialApi.listQaRecords(materialId);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    saveState();
     form.reset();
     renderSummaries();
     showSuccess("问答记录已保存");
@@ -370,7 +370,7 @@ async function generateChunksForMaterial(materialId, button) {
   try {
     const chunks = await materialApi.generateChunks(materialId);
     state.materialChunks[materialId] = chunks;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    saveState();
     renderSummaries();
     showSuccess(chunks.length ? "学习片段已生成" : "资料内容不足，暂无片段");
   } catch (error) {

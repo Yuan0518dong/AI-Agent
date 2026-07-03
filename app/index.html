@@ -5,20 +5,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>通用成长学习助手 App 原型</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=workspace-ui-20260703" />
   </head>
   <body>
-    <div class="app-shell">
+    <section class="auth-shell" id="auth-shell">
+      <div class="auth-card">
+        <div class="auth-copy">
+          <div class="auth-brand">
+            <div class="brand-mark" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </div>
+            <div>
+              <p class="eyebrow">Growth Agent</p>
+              <h1>成长学习助手</h1>
+            </div>
+          </div>
+          <p>把目标、资料、计划和 AI 问答放在一个学习工作台里，登录后继续你的成长路径。</p>
+          <div class="auth-highlights" aria-label="核心能力">
+            <span>目标管理</span>
+            <span>资料问答</span>
+            <span>进度追踪</span>
+          </div>
+        </div>
+
+        <div class="auth-panel">
+          <div class="auth-panel-head">
+            <h2>账号入口</h2>
+            <p>使用邮箱注册或登录</p>
+          </div>
+          <div class="auth-tabs" role="tablist" aria-label="登录注册切换">
+            <button class="active" id="show-login" type="button">登录</button>
+            <button id="show-register" type="button">注册</button>
+          </div>
+
+          <form class="auth-form active" id="login-form">
+            <label>
+              邮箱
+              <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+            </label>
+            <label>
+              密码
+              <input name="password" type="password" required autocomplete="current-password" placeholder="至少 6 位" />
+            </label>
+            <button class="primary-button" id="login-submit" type="submit">登录</button>
+          </form>
+
+          <form class="auth-form" id="register-form">
+            <label>
+              昵称
+              <input name="name" required autocomplete="name" placeholder="例如：陈" />
+            </label>
+            <label>
+              邮箱
+              <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+            </label>
+            <label>
+              密码
+              <input name="password" type="password" required autocomplete="new-password" placeholder="至少 6 位" />
+            </label>
+            <label>
+              确认密码
+              <input name="confirmPassword" type="password" required autocomplete="new-password" placeholder="再次输入密码" />
+            </label>
+            <button class="primary-button" id="register-submit" type="submit">创建账号</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <div class="app-shell" id="app-shell" hidden>
       <aside class="sidebar">
-        <div class="brand">
-          <div class="brand-mark" aria-hidden="true">
-            <span></span>
-            <span></span>
+        <div class="sidebar-head">
+          <div class="brand">
+            <div class="brand-mark" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </div>
+            <div class="brand-text">
+              <strong>成长学习助手</strong>
+              <small>成长智能体</small>
+            </div>
           </div>
-          <div>
-            <strong>成长学习助手</strong>
-            <small>成长智能体</small>
-          </div>
+          <button class="sidebar-toggle" id="sidebar-toggle" type="button" title="折叠侧边栏">‹</button>
         </div>
 
         <nav class="nav" aria-label="主导航">
@@ -38,11 +109,12 @@
             <h1 id="page-title">今日行动</h1>
           </div>
           <div class="top-actions">
+            <span class="user-chip" id="current-user"></span>
+            <button class="ghost-button" id="logout-button" title="退出登录">退出</button>
             <button class="ghost-button" id="export-data" title="导出本地数据">⇩</button>
             <button class="danger-button" id="reset-data" title="清空本地数据">×</button>
           </div>
         </header>
-        <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
         <section class="view active" id="view-today">
           <div class="summary-grid">
@@ -65,7 +137,7 @@
           </div>
 
           <div class="workspace two-columns">
-            <section class="panel">
+            <section class="panel task-panel">
               <div class="panel-head">
                 <h2>今日任务</h2>
                 <div class="inline-actions">
@@ -213,7 +285,7 @@
               </form>
             </section>
 
-            <section class="panel">
+            <section class="panel summary-panel">
               <div class="panel-head">
                 <h2>资料总结</h2>
                 <form id="chunk-search-form" class="inline-actions">
@@ -222,7 +294,7 @@
                 </form>
               </div>
               <div class="chunk-search-results" id="chunk-search-results"></div>
-              <div class="list" id="summary-list"></div>
+              <div class="list summary-list" id="summary-list"></div>
             </section>
           </div>
         </section>
@@ -244,7 +316,7 @@
               </div>
             </section>
 
-            <section class="panel">
+            <section class="panel memory-review-panel">
               <div class="panel-head">
                 <h2>复盘草稿</h2>
                 <span class="panel-count" id="review-draft-count">0 条</span>
@@ -274,13 +346,13 @@
       </div>
     </template>
 
-    <script src="./api.js"></script>
-    <script src="./modules/utils.js"></script>
-    <script src="./modules/chat.js"></script>
-    <script src="./modules/materials.js"></script>
-    <script src="./modules/goals.js"></script>
-    <script src="./modules/progress.js"></script>
-    <script src="./app.js"></script>
+    <script src="./api.js?v=user-cache-20260703"></script>
+    <script src="./modules/utils.js?v=user-cache-20260703"></script>
+    <script src="./modules/chat.js?v=user-cache-20260703"></script>
+    <script src="./modules/materials.js?v=user-cache-20260703"></script>
+    <script src="./modules/goals.js?v=user-cache-20260703"></script>
+    <script src="./modules/progress.js?v=user-cache-20260703"></script>
+    <script src="./app.js?v=user-cache-20260703"></script>
   </body>
 </html>
 
