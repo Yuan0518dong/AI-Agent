@@ -8,6 +8,7 @@
 docs/status/当前状态.md
 docs/status/MVP第一版验收记录.md
 docs/status/第二版阶段验收记录.md
+docs/status/第二版验收样例与演示脚本.md
 docs/planning/第二版项目计划书.md
 docs/README.md
 ```
@@ -20,6 +21,7 @@ docs/README.md
 docs/status/当前状态.md
 docs/status/MVP第一版验收记录.md
 docs/status/第二版阶段验收记录.md
+docs/status/第二版验收样例与演示脚本.md
 docs/status/MVP第一版进度评估与下一步计划.md
 docs/status/项目进度记录.md
 docs/status/dev-demo-smoke.png
@@ -67,6 +69,7 @@ docs/modules/资料模块前后端接口对照.md
 docs/daily/2026-06-30工作安排.md
 docs/daily/2026-07-01工作安排.md
 docs/daily/2026-07-02工作安排.md
+docs/daily/2026-07-03工作安排.md
 ```
 
 ## 归档规则
