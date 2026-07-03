@@ -118,6 +118,14 @@ def list_material_chunks(material_id: str):
     return ok(material_store.list_chunks_for_material(material_id))
 
 
+@router.get("/{material_id}/qa")
+def list_material_qa_records(material_id: str):
+    if not material_store.get_material(material_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    return ok(material_store.list_qa_records_for_material(material_id))
+
+
 @router.post("/{material_id}/summarize")
 def summarize_material(material_id: str):
     material = material_store.get_material(material_id)

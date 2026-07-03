@@ -120,11 +120,16 @@ def main() -> None:
                 "/api/agent/ask",
                 json={
                     "goalId": goal_id,
+                    "materialId": material_id,
                     "question": "How does material CRUD work?",
                 },
             )
             agent_ask_response.raise_for_status()
             agent_answer = agent_ask_response.json()["data"]
+
+            material_qa_response = client.get(f"/api/materials/{material_id}/qa")
+            material_qa_response.raise_for_status()
+            material_qa_records = material_qa_response.json()["data"]
 
             flashcards_response = client.post(f"/api/materials/{material_id}/flashcards")
             flashcards_response.raise_for_status()
@@ -189,6 +194,7 @@ def main() -> None:
                 "agent_reference_count": len(agent_answer["references"]),
                 "agent_from_material": agent_answer["isFromMaterial"],
                 "agent_confidence": agent_answer["confidence"],
+                "qa_record_count": len(material_qa_records),
                 "flashcard_count": len(flashcards),
                 "flashcard_readback": len(flashcards_get) == len(flashcards),
                 "quiz_count": len(quiz_questions),
