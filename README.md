@@ -90,7 +90,25 @@ Application startup complete.
 
 默认不配置任何密钥时，系统使用 `MockLLMProvider`，本地测试和 smoke 不受影响。
 
-如果要联调兼容 OpenAI Chat Completions 形状的模型服务，可以设置：
+如果要联调兼容 OpenAI Chat Completions 形状的模型服务，可以复制本地配置文件：
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+```
+
+然后编辑 `backend/.env`：
+
+```env
+LLM_PROVIDER=openai-compatible
+LLM_API_KEY=你的密钥
+LLM_MODEL=glm-4-flash-250414
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+LLM_TIMEOUT_SECONDS=30
+```
+
+`backend/.env` 已加入 `.gitignore`，不要提交真实 API Key。
+
+也可以临时用 PowerShell 环境变量启动，环境变量会优先于 `.env`：
 
 ```powershell
 $env:LLM_PROVIDER="openai-compatible"
@@ -107,6 +125,7 @@ python -m uvicorn backend.app.main:app --reload
 1. LLM_API_KEY 或 LLM_MODEL 缺失时会自动回退 mock。
 2. 模型调用失败、超时或返回格式不可解析时会自动回退 mock。
 3. 兼容服务需要提供 /chat/completions 接口。
+4. 后端会读取 backend/.env，但不会覆盖系统环境变量。
 ```
 
 ## 启动前端

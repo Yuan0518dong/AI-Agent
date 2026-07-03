@@ -1,8 +1,10 @@
 import os
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from typing import Protocol
 
@@ -104,6 +106,7 @@ class OpenAICompatibleLLMProvider:
 
 
 def get_llm_provider() -> LLMProvider:
+    _load_env_file()
     provider_name = os.getenv("LLM_PROVIDER", "mock").strip().lower()
     if provider_name == "mock":
         return MockLLMProvider()
@@ -121,6 +124,24 @@ def get_llm_provider() -> LLMProvider:
             )
 
     return MockLLMProvider()
+
+
+def _load_env_file(path: Path | None = None) -> None:
+    configured_path = os.getenv("LLM_ENV_FILE", "").strip()
+    env_path = path or (Path(configured_path) if configured_path else Path(__file__).resolve().parents[2] / ".env")
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip().lstrip("\ufeff")
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def _read_timeout_seconds() -> float:
@@ -230,6 +251,9 @@ def _answer_from_model_data(
     context: LLMAnswerContext,
     mode: str,
 ) -> LLMAnswer:
+    answer_text = str(data.get("answer") or "当前资料不足以直接回答这个问题。")
+    basis_text = str(data.get("basis") or _build_basis(context.references))
+    suggestion_text = str(data.get("suggestion") or _build_material_suggestion(context.goal))
     confidence = str(data.get("confidence") or "").lower()
     if confidence not in {"high", "medium", "low"}:
         confidence = _estimate_confidence(context.references)
@@ -237,13 +261,69 @@ def _answer_from_model_data(
     is_from_material = data.get("isFromMaterial")
     if not isinstance(is_from_material, bool):
         is_from_material = confidence != "low"
+    missing_terms = _missing_question_terms_from_references(context)
+    if missing_terms and not _looks_material_insufficient(answer_text, basis_text):
+        terms = "、".join(missing_terms)
+        answer_text = f"当前资料不足以直接回答这个问题：资料片段中未提及 {terms}。"
+        basis_text = f"给定资料片段中未检索到这些问题关键词：{terms}。"
+        suggestion_text = f"建议补充包含 {terms} 的相关资料，再重新生成 chunks 后提问。"
+
+    if confidence == "low" or missing_terms or _looks_material_insufficient(answer_text, basis_text):
+        confidence = "low"
+        is_from_material = False
 
     return LLMAnswer(
-        answer=str(data.get("answer") or "当前资料不足以直接回答这个问题。"),
-        basis=str(data.get("basis") or _build_basis(context.references)),
-        suggestion=str(data.get("suggestion") or _build_material_suggestion(context.goal)),
+        answer=answer_text,
+        basis=basis_text,
+        suggestion=suggestion_text,
         source_title=context.references[0]["materialTitle"] if context.references else "",
         is_from_material=is_from_material,
         confidence=confidence,
         mode=mode,
     )
+
+
+def _looks_material_insufficient(answer: str, basis: str) -> bool:
+    text = f"{answer}\n{basis}".lower()
+    markers = [
+        "资料不足",
+        "未提及",
+        "不涉及",
+        "没有说明",
+        "无法回答",
+        "不能回答",
+        "not discuss",
+        "does not discuss",
+        "insufficient",
+    ]
+    return any(marker in text for marker in markers)
+
+
+def _missing_question_terms_from_references(context: LLMAnswerContext) -> list[str]:
+    reference_text = " ".join(reference["content"] for reference in context.references).lower()
+    ignored_terms = {
+        "how",
+        "what",
+        "when",
+        "where",
+        "which",
+        "why",
+        "does",
+        "with",
+        "from",
+        "this",
+        "that",
+        "system",
+        "work",
+        "works",
+        "implement",
+        "implementation",
+    }
+    terms = []
+    for term in re.findall(r"[A-Za-z][A-Za-z0-9.+#-]{2,}", context.question):
+        normalized = term.lower()
+        if normalized in ignored_terms or normalized in reference_text:
+            continue
+        if term not in terms:
+            terms.append(term)
+    return terms[:3]

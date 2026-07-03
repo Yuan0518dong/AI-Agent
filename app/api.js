@@ -1,5 +1,5 @@
-const API_BASE_URL = "http://127.0.0.1:8000/api";
 const API_AUTH_STORAGE_KEY = "student-assistant-auth";
+const API_BASE_URL = localStorage.getItem("ai-agent-api-base-url") || "http://127.0.0.1:8001/api";
 
 async function request(path, options = {}) {
   const userId = getCurrentApiUserId();
