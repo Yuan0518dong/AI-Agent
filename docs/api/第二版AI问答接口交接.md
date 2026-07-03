@@ -8,15 +8,16 @@
 
 ```text
 POST /api/agent/ask
-```
-
-当前后端尚未提供：
-
-```text
 GET /api/materials/{material_id}/qa
 ```
 
-因此赵前端本轮先接入 `POST /api/agent/ask`，历史问答列表暂时沿用前端现有会话展示；等 `GET /api/materials/{material_id}/qa` 后端稳定后，再接持久化历史问答。
+当前前端尚未接入：
+
+```text
+历史问答列表展示
+```
+
+因此赵前端当前已经接入 `POST /api/agent/ask`，并在资料总结区问 AI 时传入 `materialId`；历史问答列表暂时沿用前端现有会话展示，下一小闭环可接入 `GET /api/materials/{material_id}/qa`。
 
 ## 2. POST /api/agent/ask
 
@@ -32,6 +33,7 @@ GET /api/materials/{material_id}/qa
 {
   "question": "How does RAG retrieval answer questions?",
   "goalId": "goal_xxx",
+  "materialId": "material_xxx",
   "limit": 3
 }
 ```
@@ -42,6 +44,7 @@ GET /api/materials/{material_id}/qa
 |---|---|---|
 | question | 是 | 用户问题，不能为空 |
 | goalId | 否 | 当前目标 ID；如果传入，后端会按目标过滤资料片段 |
+| materialId | 否 | 当前资料 ID；如果传入，后端会按资料过滤片段，并保存该资料的问答记录 |
 | limit | 否 | 返回引用片段数量，默认 3，范围 1-10 |
 
 响应示例：
@@ -111,7 +114,7 @@ app/modules/chat.js -> renderChat()
 当前状态：
 
 ```text
-后端尚未实现，前端暂不接入。
+后端已实现，前端历史列表暂未接入。
 ```
 
 预期用途：
@@ -120,13 +123,21 @@ app/modules/chat.js -> renderChat()
 按资料读取该资料相关的历史问答记录。
 ```
 
-待后端稳定后再确认：
+当前返回字段：
 
 ```text
-1. 是否按 materialId 查询。
-2. 是否支持 goalId 过滤。
-3. 是否返回 answer、basis、suggestion、references、isFromMaterial、confidence、createdAt。
-4. 是否需要分页或 limit。
+id
+materialId
+goalId
+question
+answer
+basis
+suggestion
+sourceTitle
+isFromMaterial
+confidence
+mode
+createdAt
 ```
 
 ## 5. 当前验证

@@ -1,18 +1,34 @@
 # AI-Agent
 
-通用成长学习助手 App 的第一版可运行原型。
+通用成长学习助手 App 的第二版开发原型。
 
 ## 当前版本
 
 - 创建成长目标
 - 添加学习或成长资料
 - 自动整理资料摘要和知识点
+- 将资料切分为可检索片段 chunks
+- 支持按关键词检索资料片段
 - 自动生成 7 天行动计划
 - 生成闪卡和简单测试题
-- 支持成长问答
+- 支持成长问答，并通过 `POST /api/agent/ask` 返回答案、依据、学习建议和来源片段
 - 支持任务打卡和进度查看
-- 目标、任务、打卡、资料、摘要、闪卡、测试题已接入后端 SQLite 持久化
+- 目标、任务、打卡、资料、摘要、闪卡、测试题、资料片段已接入后端 SQLite 持久化
 - 当前仍是单用户 MVP，没有注册登录和用户隔离
+
+当前第二版已完成的 AI 学习链路：
+
+```text
+添加资料 -> 生成 chunks -> 搜索资料片段 -> 成长问答提问 -> 展示 answer / basis / suggestion / references
+```
+
+当前限制：
+
+```text
+1. /api/agent/ask 仍是 mock / rule-based 问答底座，尚未接入真实大模型。
+2. 后端已提供 GET /api/materials/{material_id}/qa；前端历史问答列表仍待接入。
+3. 资料不足判断已有前端提示基础，但仍需后续用评估样例继续收紧。
+```
 
 ## 环境要求
 
@@ -133,6 +149,7 @@ materials
 material_summaries
 flashcards
 quiz_questions
+material_chunks
 ```
 
 说明：
@@ -195,15 +212,16 @@ python -m http.server 5501 --directory app
 
 ### 5. 成长问答回答不准确
 
-当前问答仍是 mock / rule-based 能力，不是真正的大模型问答。
+当前问答通过 `POST /api/agent/ask` 基于资料 chunks 返回 mock / rule-based 结果，不是真正的大模型问答。
 
-如果资料库里没有相关资料，系统可能仍会参考已有资料回答。后续需要补充资料相关性判断，并接入真实 AI。
+如果资料库里没有相关资料，系统会尽量显示资料不足状态，但后续仍需要通过评估样例、真实模型调用或 LangChain 问答链继续收紧回答边界。
 
 ## 重要文档
 
 - 通用成长学习助手App简单版PRD.md
 - docs/README.md
 - docs/status/当前状态.md
+- docs/status/第二版阶段验收记录.md
 - docs/status/项目进度记录.md
 - docs/status/MVP第一版进度评估与下一步计划.md
 - docs/daily/2026-07-02工作安排.md
@@ -213,6 +231,8 @@ python -m http.server 5501 --directory app
 - docs/planning/每日工作安排规则.md
 - docs/planning/第二版项目计划书.md
 - docs/api/资料与AI模块字段和API草案.md
+- docs/api/RAG-chunks接口说明.md
+- docs/api/第二版AI问答接口交接.md
 - docs/modules/目标模块前后端接口对照.md
 - docs/modules/资料模块前后端接口对照.md
 
@@ -236,6 +256,8 @@ python -m http.server 5501 --directory app
 ## 后续计划
 
 - 接入真实大模型接口
+- 前端接入历史问答记录读回
+- 增加 AI 回答评估样例
 - 支持 PDF 文件上传和解析
 - 增加用户登录
 - 增加用户数据隔离
