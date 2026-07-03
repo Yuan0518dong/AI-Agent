@@ -135,3 +135,99 @@ def test_openai_compatible_provider_maps_json_response(monkeypatch):
     assert answer.is_from_material is True
     assert answer.confidence == "high"
     assert answer.source_title == "RAG notes"
+
+
+def test_openai_compatible_provider_downgrades_insufficient_material(monkeypatch):
+    provider = llm_provider.OpenAICompatibleLLMProvider(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="test-model",
+    )
+
+    def fake_completion(payload):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"answer":"资料不涉及登录和支付设计。",'
+                            '"basis":"The note does not discuss authentication or payment systems.",'
+                            '"suggestion":"请补充登录和支付相关资料。",'
+                            '"isFromMaterial":true,'
+                            '"confidence":"medium"}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(provider, "_post_chat_completion", fake_completion)
+
+    answer = provider.generate_answer(
+        llm_provider.LLMAnswerContext(
+            question="如何设计登录和支付？",
+            goal=None,
+            material_id="material_1",
+            references=[
+                {
+                    "materialId": "material_1",
+                    "materialTitle": "Flashcard notes",
+                    "chunkIndex": 0,
+                    "content": "This note describes flashcards only.",
+                    "score": 3,
+                }
+            ],
+        )
+    )
+
+    assert answer.is_from_material is False
+    assert answer.confidence == "low"
+
+
+def test_openai_compatible_provider_downgrades_missing_question_terms(monkeypatch):
+    provider = llm_provider.OpenAICompatibleLLMProvider(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="test-model",
+    )
+
+    def fake_completion(payload):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"answer":"LangChain can help implement spaced repetition.",'
+                            '"basis":"Based on spaced repetition and flashcards.",'
+                            '"suggestion":"Use LangChain to build a review flow.",'
+                            '"isFromMaterial":true,'
+                            '"confidence":"medium"}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(provider, "_post_chat_completion", fake_completion)
+
+    answer = provider.generate_answer(
+        llm_provider.LLMAnswerContext(
+            question="这份资料是否说明了如何用 LangChain 实现间隔重复？",
+            goal=None,
+            material_id="material_1",
+            references=[
+                {
+                    "materialId": "material_1",
+                    "materialTitle": "Review notes",
+                    "chunkIndex": 0,
+                    "content": "Spaced repetition helps learners review difficult knowledge over time.",
+                    "score": 3,
+                }
+            ],
+        )
+    )
+
+    assert answer.is_from_material is False
+    assert answer.confidence == "low"
+    assert "LangChain" in answer.answer
+    assert "未提及" in answer.answer
