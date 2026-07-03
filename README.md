@@ -27,8 +27,8 @@
 当前限制：
 
 ```text
-1. /api/agent/ask 仍是 mock / rule-based 问答底座，尚未接入真实大模型。
-2. LLM Provider 抽象已预留真实模型替换入口，但默认仍使用 MockLLMProvider。
+1. /api/agent/ask 默认仍使用 mock / rule-based 问答底座。
+2. 已提供 OpenAI-compatible Provider 入口；配置 LLM_PROVIDER、LLM_API_KEY 和 LLM_MODEL 后可切换真实模型。
 3. 复盘草稿当前保存在前端 localStorage，尚未正式写入后端闪卡或复习点表。
 4. 资料不足判断已有前端提示基础，但仍需后续用评估样例继续收紧。
 ```
@@ -84,6 +84,29 @@ python -m uvicorn backend.app.main:app --reload
 ```text
 Uvicorn running on http://127.0.0.1:8000
 Application startup complete.
+```
+
+## 可选：配置真实模型 Provider
+
+默认不配置任何密钥时，系统使用 `MockLLMProvider`，本地测试和 smoke 不受影响。
+
+如果要联调兼容 OpenAI Chat Completions 形状的模型服务，可以设置：
+
+```powershell
+$env:LLM_PROVIDER="openai-compatible"
+$env:LLM_API_KEY="你的密钥"
+$env:LLM_MODEL="你的模型名称"
+$env:LLM_BASE_URL="https://api.openai.com/v1"
+$env:LLM_TIMEOUT_SECONDS="20"
+python -m uvicorn backend.app.main:app --reload
+```
+
+说明：
+
+```text
+1. LLM_API_KEY 或 LLM_MODEL 缺失时会自动回退 mock。
+2. 模型调用失败、超时或返回格式不可解析时会自动回退 mock。
+3. 兼容服务需要提供 /chat/completions 接口。
 ```
 
 ## 启动前端
@@ -216,7 +239,7 @@ python -m http.server 5501 --directory app
 
 ### 5. 成长问答回答不准确
 
-当前问答通过 `POST /api/agent/ask` 基于资料 chunks 返回 mock / rule-based 结果，不是真正的大模型问答。
+当前问答默认通过 `POST /api/agent/ask` 基于资料 chunks 返回 mock / rule-based 结果。配置 `openai-compatible` Provider 后，可以把同一套检索和返回结构切到真实模型。
 
 如果资料库里没有相关资料，系统会尽量显示资料不足状态，但后续仍需要通过评估样例、真实模型调用或 LangChain 问答链继续收紧回答边界。
 
@@ -261,8 +284,8 @@ python -m http.server 5501 --directory app
 
 ## 后续计划
 
-- 接入真实大模型接口
 - 增加 AI 回答评估样例
+- 使用真实 API Key 联调 OpenAI-compatible Provider
 - 确认复盘草稿是否正式写入后端闪卡或复习点表
 - 支持 PDF 文件上传和解析
 - 增加用户登录

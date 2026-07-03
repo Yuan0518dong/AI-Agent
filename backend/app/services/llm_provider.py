@@ -1,5 +1,9 @@
 import os
+import json
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
+from typing import Any
 from typing import Protocol
 
 
@@ -56,13 +60,77 @@ class MockLLMProvider:
         )
 
 
+class OpenAICompatibleLLMProvider:
+    mode = "openai-compatible"
+
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout_seconds: float = 20,
+    ):
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+        self.fallback_provider = MockLLMProvider()
+
+    def generate_answer(self, context: LLMAnswerContext) -> LLMAnswer:
+        if not context.references:
+            return self.fallback_provider.generate_answer(context)
+
+        try:
+            result = self._post_chat_completion(_build_openai_payload(context, self.model))
+            content = result["choices"][0]["message"]["content"]
+            data = _parse_model_json(content)
+            return _answer_from_model_data(data, context, self.mode)
+        except (KeyError, TypeError, ValueError, urllib.error.URLError, TimeoutError):
+            return self.fallback_provider.generate_answer(context)
+
+    def _post_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            url=f"{self.base_url}/chat/completions",
+            data=body,
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+
 def get_llm_provider() -> LLMProvider:
     provider_name = os.getenv("LLM_PROVIDER", "mock").strip().lower()
     if provider_name == "mock":
         return MockLLMProvider()
+    if provider_name in {"openai-compatible", "openai"}:
+        api_key = os.getenv("LLM_API_KEY", "").strip()
+        model = os.getenv("LLM_MODEL", "").strip()
+        base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1").strip()
+        timeout_seconds = _read_timeout_seconds()
+        if api_key and model:
+            return OpenAICompatibleLLMProvider(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                timeout_seconds=timeout_seconds,
+            )
 
-    # Keep a safe fallback until real providers are implemented.
     return MockLLMProvider()
+
+
+def _read_timeout_seconds() -> float:
+    try:
+        timeout_seconds = float(os.getenv("LLM_TIMEOUT_SECONDS", "20"))
+    except ValueError:
+        return 20
+    if timeout_seconds <= 0:
+        return 20
+    return timeout_seconds
 
 
 def _build_basis(references: list[dict]) -> str:
@@ -98,3 +166,84 @@ def _estimate_confidence(references: list[dict]) -> str:
     if best_score >= 3:
         return "high"
     return "medium"
+
+
+def _build_openai_payload(context: LLMAnswerContext, model: str) -> dict[str, Any]:
+    references_text = "\n".join(
+        (
+            f"- 资料：{reference['materialTitle']}；片段 {reference['chunkIndex'] + 1}；"
+            f"score={reference['score']}；内容：{reference['content']}"
+        )
+        for reference in context.references
+    )
+    goal_text = "无"
+    if context.goal:
+        goal_text = (
+            f"{context.goal['name']}；方向：{context.goal['subject']}；"
+            f"当前水平：{context.goal['level']}；每日时间：{context.goal['daily_minutes']} 分钟"
+        )
+
+    return {
+        "model": model,
+        "temperature": 0.2,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "你是一个学习助手。请优先且严格基于给定资料片段回答。"
+                    "如果资料不足，必须明确说明资料不足，不能把通用经验说成资料结论。"
+                    "只输出 JSON，不要输出 Markdown。JSON 字段必须包含："
+                    "answer, basis, suggestion, isFromMaterial, confidence。"
+                    "confidence 只能是 high、medium 或 low。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"用户目标：{goal_text}\n"
+                    f"用户问题：{context.question}\n"
+                    f"资料片段：\n{references_text}\n"
+                    "请给出适合学习者理解的简洁回答。"
+                ),
+            },
+        ],
+    }
+
+
+def _parse_model_json(content: str) -> dict[str, Any]:
+    normalized = content.strip()
+    if normalized.startswith("```"):
+        normalized = normalized.strip("`").removeprefix("json").strip()
+
+    try:
+        return json.loads(normalized)
+    except json.JSONDecodeError:
+        start = normalized.find("{")
+        end = normalized.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        return json.loads(normalized[start : end + 1])
+
+
+def _answer_from_model_data(
+    data: dict[str, Any],
+    context: LLMAnswerContext,
+    mode: str,
+) -> LLMAnswer:
+    confidence = str(data.get("confidence") or "").lower()
+    if confidence not in {"high", "medium", "low"}:
+        confidence = _estimate_confidence(context.references)
+
+    is_from_material = data.get("isFromMaterial")
+    if not isinstance(is_from_material, bool):
+        is_from_material = confidence != "low"
+
+    return LLMAnswer(
+        answer=str(data.get("answer") or "当前资料不足以直接回答这个问题。"),
+        basis=str(data.get("basis") or _build_basis(context.references)),
+        suggestion=str(data.get("suggestion") or _build_material_suggestion(context.goal)),
+        source_title=context.references[0]["materialTitle"] if context.references else "",
+        is_from_material=is_from_material,
+        confidence=confidence,
+        mode=mode,
+    )
