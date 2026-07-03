@@ -7,6 +7,7 @@
 ```text
 docs/status/当前状态.md
 docs/status/MVP第一版验收记录.md
+docs/status/第二版阶段验收记录.md
 docs/planning/第二版项目计划书.md
 docs/README.md
 ```
@@ -18,6 +19,7 @@ docs/README.md
 ```text
 docs/status/当前状态.md
 docs/status/MVP第一版验收记录.md
+docs/status/第二版阶段验收记录.md
 docs/status/MVP第一版进度评估与下一步计划.md
 docs/status/项目进度记录.md
 docs/status/dev-demo-smoke.png
