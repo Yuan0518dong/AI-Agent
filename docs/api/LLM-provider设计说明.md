@@ -40,7 +40,23 @@ get_llm_provider()：按环境变量选择 Provider
 LLM_PROVIDER=mock
 ```
 
-如果 `LLM_PROVIDER` 未配置或配置成未知值，系统会安全回退到 `MockLLMProvider`，保证本地开发、测试和 smoke 不受真实模型配置影响。
+当前已新增：
+
+```text
+OpenAICompatibleLLMProvider
+```
+
+它使用兼容 OpenAI Chat Completions 形状的 HTTP 接口。只有在以下配置齐全时才会启用：
+
+```text
+LLM_PROVIDER=openai-compatible
+LLM_API_KEY=你的密钥
+LLM_MODEL=模型名称
+LLM_BASE_URL=https://api.openai.com/v1 或其他兼容服务地址
+LLM_TIMEOUT_SECONDS=20
+```
+
+如果 `LLM_PROVIDER` 未配置、配置成未知值，或选择 `openai-compatible` 但缺少 `LLM_API_KEY` / `LLM_MODEL`，系统会安全回退到 `MockLLMProvider`，保证本地开发、测试和 smoke 不受真实模型配置影响。
 
 ## 调用链路
 
@@ -52,6 +68,15 @@ POST /api/agent/ask
 -> provider.generate_answer()
 -> 保存 material_qa_records
 -> 返回统一响应
+```
+
+当使用 `OpenAICompatibleLLMProvider` 时：
+
+```text
+1. agent_service 仍负责检索 chunks、过滤 goal/material 和组织 references。
+2. provider 只负责把 question、goal 和 references 交给模型生成结构化回答。
+3. 模型必须返回 answer、basis、suggestion、isFromMaterial、confidence。
+4. 如果模型调用失败、超时或返回格式不可解析，自动降级为 MockLLMProvider。
 ```
 
 ## 为什么不直接把真实模型写进 agent_service
@@ -66,9 +91,8 @@ POST /api/agent/ask
 ## 下一步
 
 ```text
-1. 增加真实 Provider，例如 OpenAICompatibleLLMProvider。
-2. 通过环境变量读取 API Key、Base URL 和 Model。
-3. 保留 mock fallback，避免没有密钥时项目无法启动。
-4. 收紧 Prompt，要求模型返回 answer、basis、suggestion、confidence 等结构化字段。
-5. 再评估是否引入 LangChain 管理 Prompt 和输出解析。
+1. 使用真实 API Key 做人工联调。
+2. 准备 3 类资料不足 / 部分命中 / 明确命中问题样例。
+3. 根据联调结果继续收紧 Prompt 和结构化输出解析。
+4. 再评估是否引入 LangChain 管理 Prompt 和输出解析。
 ```
