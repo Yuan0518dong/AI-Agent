@@ -136,6 +136,20 @@ const materialApi = {
     });
   },
 
+  createFlashcard(materialId, payload) {
+    return request(`/materials/${materialId}/flashcards/custom`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  updateFlashcard(materialId, flashcardId, payload) {
+    return request(`/materials/${materialId}/flashcards/${flashcardId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    });
+  },
+
   listQuiz(materialId) {
     return request(`/materials/${materialId}/quiz`);
   },

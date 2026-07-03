@@ -425,6 +425,64 @@ def replace_flashcards_for_material(
     return list_flashcards_for_material(material_id)
 
 
+def create_flashcard_for_material(flashcard: dict) -> dict:
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO flashcards (
+                id, material_id, front, back, status, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                flashcard["id"],
+                flashcard["materialId"],
+                flashcard["front"],
+                flashcard["back"],
+                flashcard["status"],
+                flashcard["createdAt"],
+                flashcard["updatedAt"],
+            ),
+        )
+    return flashcard
+
+
+def update_flashcard_status(material_id: str, flashcard_id: str, status: str, updated_at: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM flashcards
+            WHERE id = ? AND material_id = ?
+            """,
+            (flashcard_id, material_id),
+        ).fetchone()
+        if not row:
+            return None
+
+        conn.execute(
+            """
+            UPDATE flashcards
+            SET status = ?, updated_at = ?
+            WHERE id = ? AND material_id = ?
+            """,
+            (status, updated_at, flashcard_id, material_id),
+        )
+
+    return get_flashcard(material_id, flashcard_id)
+
+
+def get_flashcard(material_id: str, flashcard_id: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM flashcards
+            WHERE id = ? AND material_id = ?
+            """,
+            (flashcard_id, material_id),
+        ).fetchone()
+    return _flashcard_from_row(row) if row else None
+
+
 def list_quiz_questions_for_material(material_id: str) -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(

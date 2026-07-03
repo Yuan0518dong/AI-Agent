@@ -710,6 +710,12 @@ textarea {
   line-height: 1.6;
 }
 
+.review-draft-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .chunk-list {
   display: grid;
   gap: 8px;
@@ -901,9 +907,25 @@ textarea {
   background: #fff8e8;
 }
 
-.flashcard span {
+.flashcard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flashcard span,
+.flashcard-meta span {
   color: var(--amber);
   font-weight: 700;
+}
+
+.flashcard-meta span:last-child {
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #825500;
+  background: #ffe1a8;
+  font-size: 12px;
 }
 
 .flashcard strong {

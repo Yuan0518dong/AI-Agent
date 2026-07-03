@@ -318,11 +318,22 @@ function renderReviewDrafts() {
       ${draft.type === "flashcard"
         ? `<h3>${escapeHtml(draft.front)}</h3><p>${escapeHtml(draft.back)}</p>`
         : `<h3>${escapeHtml(draft.point)}</h3><p>来源问题：${escapeHtml(draft.question)}</p>`}
+      <div class="review-draft-actions">
+        <button
+          class="primary-button"
+          data-action="add-review-draft-to-flashcards"
+          data-draft-id="${escapeHtml(draft.id)}"
+          type="button"
+        >加入闪卡</button>
+      </div>
     </article>
   `).join("");
 
   list.querySelectorAll('[data-action="delete-review-draft"]').forEach((button) => {
     button.addEventListener("click", deleteReviewDraft);
+  });
+  list.querySelectorAll('[data-action="add-review-draft-to-flashcards"]').forEach((button) => {
+    button.addEventListener("click", addReviewDraftToFlashcards);
   });
 }
 
@@ -331,6 +342,52 @@ function deleteReviewDraft(event) {
   state.qaReviewDrafts = state.qaReviewDrafts.filter((draft) => draft.id !== draftId);
   saveAndRender();
   showSuccess("复盘草稿已删除");
+}
+
+async function addReviewDraftToFlashcards(event) {
+  const button = event.currentTarget;
+  const draftId = button.dataset.draftId;
+  const draft = (state.qaReviewDrafts || []).find((item) => item.id === draftId);
+
+  if (!draft) {
+    showError(new Error("没有找到这条复盘草稿"));
+    return;
+  }
+
+  const material = state.materials.find((item) => item.id === draft.materialId);
+  if (!material) {
+    showError(new Error("这条草稿缺少关联资料，暂时不能加入闪卡"));
+    return;
+  }
+
+  setButtonLoading(button, true, "加入中");
+
+  try {
+    const flashcard = await materialApi.createFlashcard(draft.materialId, getDraftFlashcardPayload(draft));
+    state.flashcards.push(flashcard);
+    state.qaReviewDrafts = state.qaReviewDrafts.filter((item) => item.id !== draft.id);
+    activeCardIndex = Math.max(0, state.flashcards.length - 1);
+    saveAndRender();
+    showSuccess("已加入闪卡复习");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
+
+function getDraftFlashcardPayload(draft) {
+  if (draft.type === "flashcard") {
+    return {
+      front: draft.front,
+      back: draft.back
+    };
+  }
+
+  return {
+    front: `请复述：${draft.question}`,
+    back: draft.point
+  };
 }
 
 async function askMaterialQuestion(event) {
@@ -399,7 +456,14 @@ function prefillQuestionFromMaterial(materialId) {
 
 function renderFlashcard() {
   const card = document.getElementById("flashcard");
+  const count = document.getElementById("flashcard-count");
   const flashcard = state.flashcards[activeCardIndex];
+
+  if (count) {
+    count.textContent = state.flashcards.length
+      ? `第 ${activeCardIndex + 1} / ${state.flashcards.length} 张`
+      : "0 张";
+  }
 
   if (!flashcard) {
     card.innerHTML = "<span>暂无闪卡</span><strong>添加资料后会自动生成记忆卡片</strong>";
@@ -407,7 +471,10 @@ function renderFlashcard() {
   }
 
   card.innerHTML = `
-    <span>${escapeHtml(getMaterialTitle(flashcard.materialId))}</span>
+    <div class="flashcard-meta">
+      <span>${escapeHtml(getMaterialTitle(flashcard.materialId))}</span>
+      <span>${escapeHtml(getFlashcardStatusLabel(flashcard.status))}</span>
+    </div>
     <strong>${escapeHtml(flashcard.front)}</strong>
     <p>${escapeHtml(flashcard.back)}</p>
   `;
@@ -559,18 +626,36 @@ async function deleteMaterial(id) {
   }
 }
 
-function rateCard(status) {
+async function rateCard(status) {
   const card = state.flashcards[activeCardIndex];
   if (!card) return;
-  card.status = status;
-  card.updatedAt = new Date().toISOString();
-  activeCardIndex = state.flashcards.length ? (activeCardIndex + 1) % state.flashcards.length : 0;
-  saveAndRender();
+
+  try {
+    const updatedCard = card.materialId && card.id
+      ? await materialApi.updateFlashcard(card.materialId, card.id, { status })
+      : { ...card, status, updatedAt: new Date().toISOString() };
+
+    state.flashcards[activeCardIndex] = updatedCard;
+    activeCardIndex = state.flashcards.length ? (activeCardIndex + 1) % state.flashcards.length : 0;
+    saveAndRender();
+    showSuccess(status === "known" ? "已标记为掌握" : "已加入复习队列");
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function getMaterialTitle(materialId) {
   const material = state.materials.find((item) => item.id === materialId);
   return material ? material.title : "未关联资料";
+}
+
+function getFlashcardStatusLabel(status) {
+  const labels = {
+    new: "新卡",
+    known: "已掌握",
+    review: "需复习"
+  };
+  return labels[status] || "新卡";
 }
 
 function getMaterialTypeLabel(type) {

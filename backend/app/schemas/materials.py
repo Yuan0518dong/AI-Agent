@@ -23,3 +23,12 @@ class MaterialUpdate(BaseModel):
     type: str | None = Field(default=None, pattern="^(text|link)$")
     content: str | None = None
     url: str | None = None
+
+
+class FlashcardCreate(BaseModel):
+    front: str = Field(min_length=1)
+    back: str = Field(min_length=1)
+
+
+class FlashcardStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(new|known|review)$")
