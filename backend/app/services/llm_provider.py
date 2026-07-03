@@ -127,17 +127,18 @@ def get_llm_provider() -> LLMProvider:
 
 
 def _load_env_file(path: Path | None = None) -> None:
-    env_path = path or Path(__file__).resolve().parents[2] / ".env"
+    configured_path = os.getenv("LLM_ENV_FILE", "").strip()
+    env_path = path or (Path(configured_path) if configured_path else Path(__file__).resolve().parents[2] / ".env")
     if not env_path.exists():
         return
 
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+    for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
 
         key, value = line.split("=", 1)
-        key = key.strip()
+        key = key.strip().lstrip("\ufeff")
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value

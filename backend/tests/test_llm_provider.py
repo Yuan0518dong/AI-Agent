@@ -97,7 +97,8 @@ def test_load_env_file_does_not_override_existing_values(tmp_path, monkeypatch):
     assert llm_provider.os.getenv("LLM_MODEL") == "from-shell"
 
 
-def test_openai_compatible_provider_requires_key_and_model(monkeypatch):
+def test_openai_compatible_provider_requires_key_and_model(tmp_path, monkeypatch):
+    monkeypatch.setenv("LLM_ENV_FILE", str(tmp_path / "missing.env"))
     monkeypatch.setenv("LLM_PROVIDER", "openai-compatible")
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
