@@ -41,6 +41,7 @@ var editingGoalId = "";
 var editingMaterialId = "";
 var selectedGoalId = "";
 var selectedTaskDate = todayString();
+var pendingChatMaterialId = "";
 
 const views = {
   today: "今日行动",
@@ -170,6 +171,7 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
     id: makeId(),
     role: "user",
     content: question,
+    relatedMaterialIds: pendingChatMaterialId ? [pendingChatMaterialId] : [],
     createdAt: timestamp
   });
   saveAndRender();
@@ -179,6 +181,7 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
     const answer = await agentApi.ask({
       question,
       goalId: selectedGoalId || undefined,
+      materialId: pendingChatMaterialId || undefined,
       limit: 3
     });
     const relatedMaterialIds = collectReferenceMaterialIds(answer.references);
@@ -199,6 +202,7 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
     conversation.updatedAt = new Date().toISOString();
     saveAndRender();
     form.reset();
+    pendingChatMaterialId = "";
   } catch (error) {
     showError(error);
   } finally {

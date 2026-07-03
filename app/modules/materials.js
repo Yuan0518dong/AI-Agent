@@ -199,6 +199,7 @@ function prefillQuestionFromMaterial(materialId) {
   if (material.goalId) {
     selectedGoalId = material.goalId;
   }
+  pendingChatMaterialId = material.id;
 
   const input = document.querySelector('#chat-form input[name="question"]');
   input.value = `请基于《${material.title}》解释这份资料的核心内容，并给我下一步复习建议。`;

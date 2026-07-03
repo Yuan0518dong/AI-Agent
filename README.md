@@ -26,7 +26,7 @@
 
 ```text
 1. /api/agent/ask 仍是 mock / rule-based 问答底座，尚未接入真实大模型。
-2. GET /api/materials/{material_id}/qa 尚未实现，历史问答持久化列表暂不接入。
+2. 后端已提供 GET /api/materials/{material_id}/qa；前端历史问答列表仍待接入。
 3. 资料不足判断已有前端提示基础，但仍需后续用评估样例继续收紧。
 ```
 
@@ -256,7 +256,7 @@ python -m http.server 5501 --directory app
 ## 后续计划
 
 - 接入真实大模型接口
-- 保存并读取历史问答记录
+- 前端接入历史问答记录读回
 - 增加 AI 回答评估样例
 - 支持 PDF 文件上传和解析
 - 增加用户登录
