@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.schemas.goals import GoalCreate, GoalUpdate
 from backend.app.schemas.tasks import PlanGenerateRequest
 from backend.app.services import plan_service, store
+from backend.app.utils.auth import current_user_id
 from backend.app.utils.responses import ok
 
 
@@ -10,15 +11,16 @@ router = APIRouter()
 
 
 @router.get("")
-def list_goals():
-    return ok(store.list_goals())
+def list_goals(user_id: str | None = Depends(current_user_id)):
+    return ok(store.list_goals(user_id))
 
 
 @router.post("")
-def create_goal(payload: GoalCreate):
+def create_goal(payload: GoalCreate, user_id: str | None = Depends(current_user_id)):
     now = store.now_iso()
     goal = {
         "id": store.make_id("goal"),
+        "user_id": user_id,
         "name": payload.name,
         "subject": payload.subject,
         "level": payload.level,
@@ -32,16 +34,16 @@ def create_goal(payload: GoalCreate):
 
 
 @router.get("/{goal_id}")
-def get_goal(goal_id: str):
-    goal = store.get_goal(goal_id)
+def get_goal(goal_id: str, user_id: str | None = Depends(current_user_id)):
+    goal = store.get_goal(goal_id, user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
     return ok(goal)
 
 
 @router.put("/{goal_id}")
-def update_goal(goal_id: str, payload: GoalUpdate):
-    goal = store.get_goal(goal_id)
+def update_goal(goal_id: str, payload: GoalUpdate, user_id: str | None = Depends(current_user_id)):
+    goal = store.get_goal(goal_id, user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -50,21 +52,21 @@ def update_goal(goal_id: str, payload: GoalUpdate):
         changes["deadline"] = changes["deadline"].isoformat()
     if changes:
         changes["updated_at"] = store.now_iso()
-    updated_goal = store.update_goal(goal_id, changes)
+    updated_goal = store.update_goal(goal_id, changes, user_id)
     return ok(updated_goal)
 
 
 @router.delete("/{goal_id}")
-def delete_goal(goal_id: str):
-    if not store.delete_goal(goal_id):
+def delete_goal(goal_id: str, user_id: str | None = Depends(current_user_id)):
+    if not store.delete_goal(goal_id, user_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     return ok({"deleted": True, "goal_id": goal_id})
 
 
 @router.post("/{goal_id}/plans")
-def generate_plan(goal_id: str, payload: PlanGenerateRequest):
-    goal = store.get_goal(goal_id)
+def generate_plan(goal_id: str, payload: PlanGenerateRequest, user_id: str | None = Depends(current_user_id)):
+    goal = store.get_goal(goal_id, user_id)
     if not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -77,8 +79,8 @@ def generate_plan(goal_id: str, payload: PlanGenerateRequest):
 
 
 @router.get("/{goal_id}/tasks")
-def list_goal_tasks(goal_id: str):
-    if not store.get_goal(goal_id):
+def list_goal_tasks(goal_id: str, user_id: str | None = Depends(current_user_id)):
+    if not store.get_goal(goal_id, user_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
     return ok(store.list_goal_tasks(goal_id))

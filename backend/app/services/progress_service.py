@@ -1,12 +1,12 @@
 from backend.app.services import store
 
 
-def get_all_progress() -> list[dict]:
-    return [get_goal_progress(goal["id"]) for goal in store.list_goals()]
+def get_all_progress(user_id: str | None = None) -> list[dict]:
+    return [get_goal_progress(goal["id"], user_id) for goal in store.list_goals(user_id)]
 
 
-def get_goal_progress(goal_id: str) -> dict:
-    goal = store.get_goal(goal_id)
+def get_goal_progress(goal_id: str, user_id: str | None = None) -> dict:
+    goal = store.get_goal(goal_id, user_id)
     if not goal:
         return {}
 

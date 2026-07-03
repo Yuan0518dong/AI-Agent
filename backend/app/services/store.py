@@ -47,6 +47,7 @@ def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS goals (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 name TEXT NOT NULL,
                 subject TEXT NOT NULL,
                 level TEXT NOT NULL,
@@ -81,8 +82,19 @@ def init_db() -> None:
                 FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE CASCADE,
                 FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                password_salt TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             """
         )
+        _ensure_columns(conn)
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS materials (
@@ -169,39 +181,75 @@ def today_iso() -> str:
     return date.today().isoformat()
 
 
-def list_goals() -> list[dict]:
+def list_goals(user_id: str | None = None) -> list[dict]:
     init_db()
     with db_connection() as conn:
-        rows = conn.execute("SELECT * FROM goals ORDER BY created_at DESC").fetchall()
+        if user_id:
+            rows = conn.execute(
+                "SELECT * FROM goals WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM goals ORDER BY created_at DESC").fetchall()
     return [_goal_from_row(row) for row in rows]
 
 
 def create_goal(goal: dict) -> dict:
     init_db()
+    goal_for_db = {"user_id": None, **goal}
     with db_connection() as conn:
         conn.execute(
             """
             INSERT INTO goals (
-                id, name, subject, level, deadline, daily_minutes, notes, created_at, updated_at
+                id, user_id, name, subject, level, deadline, daily_minutes, notes, created_at, updated_at
             ) VALUES (
-                :id, :name, :subject, :level, :deadline, :daily_minutes, :notes, :created_at, :updated_at
+                :id, :user_id, :name, :subject, :level, :deadline, :daily_minutes, :notes, :created_at, :updated_at
             )
             """,
-            goal,
+            goal_for_db,
         )
     return goal
 
 
-def get_goal(goal_id: str) -> dict | None:
+def create_user(user: dict) -> dict:
     init_db()
     with db_connection() as conn:
-        row = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
+        conn.execute(
+            """
+            INSERT INTO users (
+                id, name, email, password_hash, password_salt, created_at, updated_at
+            ) VALUES (
+                :id, :name, :email, :password_hash, :password_salt, :created_at, :updated_at
+            )
+            """,
+            user,
+        )
+    return user
+
+
+def get_user_by_email(email: str) -> dict | None:
+    init_db()
+    with db_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    return _user_from_row(row) if row else None
+
+
+def get_goal(goal_id: str, user_id: str | None = None) -> dict | None:
+    init_db()
+    with db_connection() as conn:
+        if user_id:
+            row = conn.execute(
+                "SELECT * FROM goals WHERE id = ? AND user_id = ?",
+                (goal_id, user_id),
+            ).fetchone()
+        else:
+            row = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
     return _goal_from_row(row) if row else None
 
 
-def update_goal(goal_id: str, changes: dict) -> dict | None:
+def update_goal(goal_id: str, changes: dict, user_id: str | None = None) -> dict | None:
     if not changes:
-        return get_goal(goal_id)
+        return get_goal(goal_id, user_id)
 
     allowed_fields = {"name", "subject", "level", "deadline", "daily_minutes", "notes", "updated_at"}
     assignments = []
@@ -213,24 +261,33 @@ def update_goal(goal_id: str, changes: dict) -> dict | None:
         values.append(value)
 
     if not assignments:
-        return get_goal(goal_id)
+        return get_goal(goal_id, user_id)
 
     values.append(goal_id)
+    if user_id:
+        values.append(user_id)
     init_db()
     with db_connection() as conn:
         cursor = conn.execute(
-            f"UPDATE goals SET {', '.join(assignments)} WHERE id = ?",
+            f"UPDATE goals SET {', '.join(assignments)} WHERE id = ?"
+            + (" AND user_id = ?" if user_id else ""),
             values,
         )
         if cursor.rowcount == 0:
             return None
-    return get_goal(goal_id)
+    return get_goal(goal_id, user_id)
 
 
-def delete_goal(goal_id: str) -> bool:
+def delete_goal(goal_id: str, user_id: str | None = None) -> bool:
     init_db()
     with db_connection() as conn:
-        cursor = conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+        if user_id:
+            cursor = conn.execute(
+                "DELETE FROM goals WHERE id = ? AND user_id = ?",
+                (goal_id, user_id),
+            )
+        else:
+            cursor = conn.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
     return cursor.rowcount > 0
 
 
@@ -244,13 +301,24 @@ def list_goal_tasks(goal_id: str) -> list[dict]:
     return [_task_from_row(row) for row in rows]
 
 
-def list_tasks_by_date(target_date: str) -> list[dict]:
+def list_tasks_by_date(target_date: str, user_id: str | None = None) -> list[dict]:
     init_db()
     with db_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM tasks WHERE date = ? ORDER BY created_at ASC",
-            (target_date,),
-        ).fetchall()
+        if user_id:
+            rows = conn.execute(
+                """
+                SELECT tasks.* FROM tasks
+                JOIN goals ON goals.id = tasks.goal_id
+                WHERE tasks.date = ? AND goals.user_id = ?
+                ORDER BY tasks.created_at ASC
+                """,
+                (target_date, user_id),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tasks WHERE date = ? ORDER BY created_at ASC",
+                (target_date,),
+            ).fetchall()
     return [_task_from_row(row) for row in rows]
 
 
@@ -319,13 +387,27 @@ def set_task_checkin(task_id: str, done: bool) -> dict | None:
     return get_task(task_id)
 
 
-def goal_exists(goal_id: str) -> bool:
-    return get_goal(goal_id) is not None
+def goal_exists(goal_id: str, user_id: str | None = None) -> bool:
+    return get_goal(goal_id, user_id) is not None
+
+
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    goal_columns = _column_names(conn, "goals")
+    if "user_id" not in goal_columns:
+        conn.execute("ALTER TABLE goals ADD COLUMN user_id TEXT")
+
+
+def _column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    return {
+        row["name"]
+        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
 
 
 def _goal_from_row(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
+        "user_id": row["user_id"],
         "name": row["name"],
         "subject": row["subject"],
         "level": row["level"],
@@ -347,6 +429,18 @@ def _task_from_row(row: sqlite3.Row) -> dict:
         "priority": row["priority"],
         "done": bool(row["done"]),
         "completed_at": row["completed_at"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def _user_from_row(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "email": row["email"],
+        "password_hash": row["password_hash"],
+        "password_salt": row["password_salt"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

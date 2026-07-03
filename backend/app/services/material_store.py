@@ -27,6 +27,7 @@ def init_db() -> None:
                 """
                 CREATE TABLE IF NOT EXISTS materials (
                     id TEXT PRIMARY KEY,
+                    user_id TEXT,
                     goal_id TEXT,
                     title TEXT NOT NULL,
                     type TEXT NOT NULL,
@@ -116,28 +117,37 @@ def clear_material_data() -> None:
         conn.execute("DELETE FROM materials")
 
 
-def list_materials(goal_id: str | None = None) -> list[dict]:
+def list_materials(goal_id: str | None = None, user_id: str | None = None) -> list[dict]:
+    filters = []
+    values = []
+    if goal_id:
+        filters.append("goal_id = ?")
+        values.append(goal_id)
+    if user_id:
+        filters.append("user_id = ?")
+        values.append(user_id)
+    where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
+
     with _connect() as conn:
-        if goal_id:
-            rows = conn.execute(
-                """
-                SELECT * FROM materials
-                WHERE goal_id = ?
-                ORDER BY created_at ASC
-                """,
-                (goal_id,),
-            ).fetchall()
-        else:
-            rows = conn.execute("SELECT * FROM materials ORDER BY created_at ASC").fetchall()
+        rows = conn.execute(
+            f"SELECT * FROM materials {where_clause} ORDER BY created_at ASC",
+            values,
+        ).fetchall()
     return [_material_from_row(row) for row in rows]
 
 
-def get_material(material_id: str) -> dict | None:
+def get_material(material_id: str, user_id: str | None = None) -> dict | None:
     with _connect() as conn:
-        row = conn.execute(
-            "SELECT * FROM materials WHERE id = ?",
-            (material_id,),
-        ).fetchone()
+        if user_id:
+            row = conn.execute(
+                "SELECT * FROM materials WHERE id = ? AND user_id = ?",
+                (material_id, user_id),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM materials WHERE id = ?",
+                (material_id,),
+            ).fetchone()
     return _material_from_row(row) if row else None
 
 
@@ -146,10 +156,11 @@ def save_material(material: dict) -> dict:
         conn.execute(
             """
             INSERT INTO materials (
-                id, goal_id, title, type, content, url, created_at, updated_at
+                id, user_id, goal_id, title, type, content, url, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
+                user_id = excluded.user_id,
                 goal_id = excluded.goal_id,
                 title = excluded.title,
                 type = excluded.type,
@@ -159,6 +170,7 @@ def save_material(material: dict) -> dict:
             """,
             (
                 material["id"],
+                material.get("userId"),
                 material["goalId"],
                 material["title"],
                 material["type"],
@@ -171,9 +183,15 @@ def save_material(material: dict) -> dict:
     return get_material(material["id"]) or material
 
 
-def delete_material(material_id: str) -> bool:
+def delete_material(material_id: str, user_id: str | None = None) -> bool:
     with _connect() as conn:
-        cursor = conn.execute("DELETE FROM materials WHERE id = ?", (material_id,))
+        if user_id:
+            cursor = conn.execute(
+                "DELETE FROM materials WHERE id = ? AND user_id = ?",
+                (material_id, user_id),
+            )
+        else:
+            cursor = conn.execute("DELETE FROM materials WHERE id = ?", (material_id,))
     return cursor.rowcount > 0
 
 
@@ -259,13 +277,15 @@ def list_chunks_for_material(material_id: str) -> list[dict]:
     return [_chunk_from_row(row) for row in rows]
 
 
-def search_chunks(query: str, limit: int = 5) -> list[dict]:
+def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> list[dict]:
     normalized_query = query.strip().lower()
     if not normalized_query:
         return []
 
     query_terms = _extract_keywords(normalized_query)
     with _connect() as conn:
+        where_clause = "WHERE materials.user_id = ?" if user_id else ""
+        values = (user_id,) if user_id else ()
         rows = conn.execute(
             """
             SELECT
@@ -274,8 +294,10 @@ def search_chunks(query: str, limit: int = 5) -> list[dict]:
                 materials.goal_id AS goal_id
             FROM material_chunks
             JOIN materials ON materials.id = material_chunks.material_id
+            {where_clause}
             ORDER BY material_chunks.created_at ASC, material_chunks.chunk_index ASC
-            """
+            """.format(where_clause=where_clause),
+            values,
         ).fetchall()
 
     scored: list[tuple[int, dict]] = []
@@ -545,6 +567,10 @@ def _connect():
 
 
 def _ensure_columns(conn: sqlite3.Connection) -> None:
+    material_columns = _column_names(conn, "materials")
+    if "user_id" not in material_columns:
+        conn.execute("ALTER TABLE materials ADD COLUMN user_id TEXT")
+
     summary_columns = _column_names(conn, "material_summaries")
     summary_defaults = {
         "overview": "''",
@@ -573,6 +599,7 @@ def _column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
 def _material_from_row(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],
+        "userId": row["user_id"],
         "goalId": row["goal_id"],
         "title": row["title"],
         "type": row["type"],

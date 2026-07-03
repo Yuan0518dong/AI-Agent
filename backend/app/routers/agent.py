@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.schemas.agent import AgentAskRequest
 from backend.app.services import agent_service, material_store, store
+from backend.app.utils.auth import current_user_id
 from backend.app.utils.responses import ok
 
 
@@ -9,10 +10,10 @@ router = APIRouter()
 
 
 @router.post("/ask")
-def ask_agent(payload: AgentAskRequest):
+def ask_agent(payload: AgentAskRequest, user_id: str | None = Depends(current_user_id)):
     goal_id = _normalize_goal_id(payload.goalId)
     material_id = _normalize_id(payload.materialId)
-    material = material_store.get_material(material_id) if material_id else None
+    material = material_store.get_material(material_id, user_id) if material_id else None
     if material_id and not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
@@ -20,7 +21,7 @@ def ask_agent(payload: AgentAskRequest):
         raise HTTPException(status_code=400, detail="Material does not belong to goal")
 
     goal_context_id = goal_id or (material["goalId"] if material else None)
-    goal = store.get_goal(goal_context_id) if goal_context_id else None
+    goal = store.get_goal(goal_context_id, user_id) if goal_context_id else None
     if goal_context_id and not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
@@ -29,6 +30,7 @@ def ask_agent(payload: AgentAskRequest):
         goal=goal,
         material_id=material_id,
         limit=payload.limit,
+        user_id=user_id,
     )
     if answer["materialId"]:
         now = store.now_iso()
