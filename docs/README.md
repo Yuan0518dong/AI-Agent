@@ -11,6 +11,7 @@ docs/status/第二版阶段验收记录.md
 docs/status/第二版最终验收记录.md
 docs/status/第二版验收样例与演示脚本.md
 docs/planning/第二版项目计划书.md
+docs/planning/第三版项目计划书.md
 docs/README.md
 ```
 
@@ -32,10 +33,11 @@ docs/status/dev-demo-smoke.png
 
 ## planning
 
-记录版本计划、技术方案、协作规则和长期工作规则。第二版以 `docs/planning/第二版项目计划书.md` 为主。
+记录版本计划、技术方案、协作规则和长期工作规则。第二版以 `docs/planning/第二版项目计划书.md` 为主；第三版以 `docs/planning/第三版项目计划书.md` 为主。
 
 ```text
 docs/planning/第二版项目计划书.md
+docs/planning/第三版项目计划书.md
 docs/planning/第一版技术实现方案.md
 docs/planning/第一版功能开发边界与分工.md
 docs/planning/两人协作开发分工文档.md
