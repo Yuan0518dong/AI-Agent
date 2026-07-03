@@ -126,6 +126,9 @@ function renderSummaries() {
       generateChunksForMaterial(event.currentTarget.dataset.materialId, event.currentTarget);
     });
     item.querySelector(".material-qa-form").addEventListener("submit", askMaterialQuestion);
+    item.querySelectorAll('[data-action="qa-flashcard-draft"], [data-action="qa-review-point"]').forEach((button) => {
+      button.addEventListener("click", createReviewDraftFromQa);
+    });
     list.appendChild(item);
   });
 }
@@ -206,10 +209,128 @@ function renderMaterialQaRecords(records) {
           </div>
           ${record.basis ? `<div class="qa-detail"><strong>依据</strong><span>${escapeHtml(record.basis)}</span></div>` : ""}
           ${record.suggestion ? `<div class="qa-detail"><strong>建议</strong><span>${escapeHtml(record.suggestion)}</span></div>` : ""}
+          <div class="qa-actions">
+            <button
+              class="ghost-button"
+              data-action="qa-flashcard-draft"
+              data-material-id="${escapeHtml(record.materialId || "")}"
+              data-record-id="${escapeHtml(record.id)}"
+              type="button"
+            >转闪卡草稿</button>
+            <button
+              class="ghost-button"
+              data-action="qa-review-point"
+              data-material-id="${escapeHtml(record.materialId || "")}"
+              data-record-id="${escapeHtml(record.id)}"
+              type="button"
+            >记复习点</button>
+          </div>
         </article>
       `).join("")}
     </div>
   `;
+}
+
+function createReviewDraftFromQa(event) {
+  const button = event.currentTarget;
+  const materialId = button.dataset.materialId;
+  const recordId = button.dataset.recordId;
+  const record = findQaRecord(materialId, recordId);
+
+  if (!record) {
+    showError(new Error("没有找到这条问答记录"));
+    return;
+  }
+
+  const type = button.dataset.action === "qa-flashcard-draft" ? "flashcard" : "review-point";
+  const exists = state.qaReviewDrafts.some((draft) => {
+    return draft.type === type && draft.qaRecordId === record.id;
+  });
+
+  if (exists) {
+    showSuccess(type === "flashcard" ? "这条问答已有闪卡草稿" : "这条问答已有复习点");
+    return;
+  }
+
+  const timestamp = new Date().toISOString();
+  const draft = {
+    id: makeId(),
+    type,
+    materialId,
+    qaRecordId: record.id,
+    question: record.question,
+    createdAt: timestamp
+  };
+
+  if (type === "flashcard") {
+    draft.front = `请解释：${record.question}`;
+    draft.back = compactDraftText(record.answer, 220);
+  } else {
+    draft.point = record.suggestion || record.basis || `回到资料重新复述：${record.question}`;
+  }
+
+  state.qaReviewDrafts.unshift(draft);
+  saveAndRender();
+  showSuccess(type === "flashcard" ? "已生成闪卡草稿" : "已记录复习点");
+}
+
+function findQaRecord(materialId, recordId) {
+  return (state.materialQaRecords[materialId] || []).find((record) => record.id === recordId);
+}
+
+function compactDraftText(text, maxLength) {
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength)}...`;
+}
+
+function renderReviewDrafts() {
+  const list = document.getElementById("review-draft-list");
+  const count = document.getElementById("review-draft-count");
+  if (!list) return;
+
+  const drafts = state.qaReviewDrafts || [];
+  if (count) {
+    count.textContent = `${drafts.length} 条`;
+  }
+
+  list.innerHTML = "";
+  if (!drafts.length) {
+    list.appendChild(emptyNode("暂无复盘草稿", "可以从资料问答记录生成闪卡草稿或复习点。"));
+    return;
+  }
+
+  list.innerHTML = drafts.slice(0, 6).map((draft) => `
+    <article class="review-draft-item">
+      <div class="review-draft-head">
+        <div class="tag-row">
+          <span class="tag">${draft.type === "flashcard" ? "闪卡草稿" : "复习点"}</span>
+          <span class="tag">${escapeHtml(getMaterialTitle(draft.materialId))}</span>
+        </div>
+        <button
+          class="ghost-button"
+          data-action="delete-review-draft"
+          data-draft-id="${escapeHtml(draft.id)}"
+          type="button"
+          title="删除草稿"
+        >×</button>
+      </div>
+      ${draft.type === "flashcard"
+        ? `<h3>${escapeHtml(draft.front)}</h3><p>${escapeHtml(draft.back)}</p>`
+        : `<h3>${escapeHtml(draft.point)}</h3><p>来源问题：${escapeHtml(draft.question)}</p>`}
+    </article>
+  `).join("");
+
+  list.querySelectorAll('[data-action="delete-review-draft"]').forEach((button) => {
+    button.addEventListener("click", deleteReviewDraft);
+  });
+}
+
+function deleteReviewDraft(event) {
+  const draftId = event.currentTarget.dataset.draftId;
+  state.qaReviewDrafts = state.qaReviewDrafts.filter((draft) => draft.id !== draftId);
+  saveAndRender();
+  showSuccess("复盘草稿已删除");
 }
 
 async function askMaterialQuestion(event) {
@@ -419,6 +540,7 @@ async function deleteMaterial(id) {
       cancelMaterialEdit();
     }
     await loadMaterialDataFromApi();
+    state.qaReviewDrafts = state.qaReviewDrafts.filter((draft) => draft.materialId !== id);
     state.aiConversations = state.aiConversations.map((conversation) => ({
       ...conversation,
       relatedMaterialIds: conversation.relatedMaterialIds.filter((materialId) => materialId !== id),

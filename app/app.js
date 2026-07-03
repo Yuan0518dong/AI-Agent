@@ -6,6 +6,7 @@ const defaultState = {
   progress: [],
   materialChunks: {},
   materialQaRecords: {},
+  qaReviewDrafts: [],
   chunkSearch: {
     query: "",
     results: []
@@ -347,6 +348,7 @@ function normalizeState(nextState) {
   const materialsByTitle = new Map();
   nextState.materialChunks = nextState.materialChunks || {};
   nextState.materialQaRecords = nextState.materialQaRecords || {};
+  nextState.qaReviewDrafts = nextState.qaReviewDrafts || [];
   nextState.chunkSearch = nextState.chunkSearch || { query: "", results: [] };
 
   nextState.materials = nextState.materials.map((material) => {
@@ -384,6 +386,21 @@ function normalizeState(nextState) {
       explanation: quiz.explanation || "回到资料摘要和关键知识点中核对答案。",
       createdAt: timestamp,
       updatedAt: quiz.updatedAt || timestamp
+    };
+  });
+
+  nextState.qaReviewDrafts = nextState.qaReviewDrafts.map((draft) => {
+    const timestamp = draft.createdAt || new Date().toISOString();
+    return {
+      id: draft.id || makeId(),
+      type: draft.type || "review-point",
+      materialId: draft.materialId || "",
+      qaRecordId: draft.qaRecordId || "",
+      question: draft.question || "",
+      front: draft.front || "",
+      back: draft.back || "",
+      point: draft.point || "",
+      createdAt: timestamp
     };
   });
 
@@ -436,6 +453,7 @@ function render() {
   renderSummaries();
   renderChat();
   renderFlashcard();
+  renderReviewDrafts();
   renderQuizzes();
   renderProgress();
 }
