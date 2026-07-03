@@ -5,6 +5,7 @@ const defaultState = {
   tasks: [],
   progress: [],
   materialChunks: {},
+  materialQaRecords: {},
   chunkSearch: {
     query: "",
     results: []
@@ -179,6 +180,7 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
     const answer = await agentApi.ask({
       question,
       goalId: selectedGoalId || undefined,
+      materialId: getActiveMaterialIdForQuestion(),
       limit: 3
     });
     const relatedMaterialIds = collectReferenceMaterialIds(answer.references);
@@ -297,12 +299,13 @@ async function loadMaterialDataFromApi() {
   const materials = await materialApi.listMaterials();
   const materialDetails = await Promise.all(
     materials.map(async (material) => {
-      const [summary, flashcards, quizzes] = await Promise.all([
+      const [summary, flashcards, quizzes, chunks, qaRecords] = await Promise.all([
         materialApi.getSummary(material.id),
         materialApi.listFlashcards(material.id),
-        materialApi.listQuiz(material.id)
+        materialApi.listQuiz(material.id),
+        materialApi.listChunks(material.id),
+        materialApi.listQaRecords(material.id)
       ]);
-      const chunks = await materialApi.listChunks(material.id);
 
       const normalizedMaterial = {
         ...material,
@@ -314,7 +317,8 @@ async function loadMaterialDataFromApi() {
         material: normalizedMaterial,
         flashcards,
         quizzes,
-        chunks
+        chunks,
+        qaRecords
       };
     })
   );
@@ -326,6 +330,10 @@ async function loadMaterialDataFromApi() {
     chunksByMaterial[item.material.id] = item.chunks;
     return chunksByMaterial;
   }, {});
+  state.materialQaRecords = materialDetails.reduce((recordsByMaterial, item) => {
+    recordsByMaterial[item.material.id] = item.qaRecords;
+    return recordsByMaterial;
+  }, {});
   if (activeCardIndex >= state.flashcards.length) {
     activeCardIndex = 0;
   }
@@ -335,6 +343,7 @@ async function loadMaterialDataFromApi() {
 function normalizeState(nextState) {
   const materialsByTitle = new Map();
   nextState.materialChunks = nextState.materialChunks || {};
+  nextState.materialQaRecords = nextState.materialQaRecords || {};
   nextState.chunkSearch = nextState.chunkSearch || { query: "", results: [] };
 
   nextState.materials = nextState.materials.map((material) => {
@@ -396,6 +405,14 @@ function normalizeState(nextState) {
   nextState.chat = getConversationMessages(nextState, nextState.activeConversationId);
 
   return nextState;
+}
+
+function getActiveMaterialIdForQuestion() {
+  const conversation = getActiveConversation();
+  if (conversation.relatedMaterialIds.length) {
+    return conversation.relatedMaterialIds[conversation.relatedMaterialIds.length - 1];
+  }
+  return undefined;
 }
 
 function saveAndRender() {
