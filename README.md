@@ -14,6 +14,7 @@
 - 支持成长问答，并通过 `POST /api/agent/ask` 返回答案、依据、学习建议和来源片段
 - 支持按资料保存和读回历史问答
 - 支持从资料历史问答生成复盘草稿：闪卡草稿或复习点
+- 支持用户确认后把复盘草稿加入正式闪卡，并保存已掌握 / 还要复习状态
 - 支持任务打卡和进度查看
 - 目标、任务、打卡、资料、摘要、闪卡、测试题、资料片段、资料问答记录已接入后端 SQLite 持久化
 - 当前仍是单用户 MVP，没有注册登录和用户隔离
@@ -21,7 +22,7 @@
 当前第二版已完成的 AI 学习链路：
 
 ```text
-添加资料 -> 生成 chunks -> 搜索资料片段 -> 围绕资料问 AI -> 展示 answer / basis / suggestion / references -> 保存并读回历史问答 -> 从问答生成复盘草稿
+添加资料 -> 生成 chunks -> 搜索资料片段 -> 围绕资料问 AI -> 展示 answer / basis / suggestion / references -> 保存并读回历史问答 -> 从问答生成复盘草稿 -> 加入正式闪卡 -> 复习打分保存
 ```
 
 当前限制：
@@ -29,8 +30,9 @@
 ```text
 1. /api/agent/ask 默认仍使用 mock / rule-based 问答底座。
 2. 已提供 OpenAI-compatible Provider 入口；配置 LLM_PROVIDER、LLM_API_KEY 和 LLM_MODEL 后可切换真实模型。
-3. 复盘草稿当前保存在前端 localStorage，尚未正式写入后端闪卡或复习点表。
-4. 资料不足判断已有前端提示基础，但仍需后续用评估样例继续收紧。
+3. 复盘草稿本身仍保存在前端 localStorage，用户点击“加入闪卡”后会写入后端 flashcards 表。
+4. 第二版只保存 new / known / review 状态，不做完整间隔重复日程。
+5. 资料不足判断已有提示和真实模型联调样例，后续更换模型时需要复跑评估样例。
 ```
 
 ## 环境要求
@@ -268,6 +270,7 @@ python -m http.server 5501 --directory app
 - docs/README.md
 - docs/status/当前状态.md
 - docs/status/第二版阶段验收记录.md
+- docs/status/第二版最终验收记录.md
 - docs/status/第二版验收样例与演示脚本.md
 - docs/status/项目进度记录.md
 - docs/status/MVP第一版进度评估与下一步计划.md
@@ -304,8 +307,9 @@ python -m http.server 5501 --directory app
 ## 后续计划
 
 - 增加 AI 回答评估样例
-- 使用真实 API Key 联调 OpenAI-compatible Provider
-- 确认复盘草稿是否正式写入后端闪卡或复习点表
+- 更换真实模型时复跑 OpenAI-compatible Provider 三类验收样例
+- 评估是否接入 LangChain 问答链
+- 评估是否增加完整间隔重复日程
 - 支持 PDF 文件上传和解析
 - 增加用户登录
 - 增加用户数据隔离

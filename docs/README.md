@@ -8,6 +8,7 @@
 docs/status/当前状态.md
 docs/status/MVP第一版验收记录.md
 docs/status/第二版阶段验收记录.md
+docs/status/第二版最终验收记录.md
 docs/status/第二版验收样例与演示脚本.md
 docs/planning/第二版项目计划书.md
 docs/README.md
@@ -21,6 +22,7 @@ docs/README.md
 docs/status/当前状态.md
 docs/status/MVP第一版验收记录.md
 docs/status/第二版阶段验收记录.md
+docs/status/第二版最终验收记录.md
 docs/status/第二版验收样例与演示脚本.md
 docs/status/真实模型联调记录.md
 docs/status/MVP第一版进度评估与下一步计划.md
