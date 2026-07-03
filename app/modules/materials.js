@@ -107,6 +107,17 @@ function renderSummaries() {
         </div>
         ${renderMaterialChunks(chunks)}
       </div>
+      <div class="qa-panel">
+        <div class="qa-panel-head">
+          <h4>资料问答</h4>
+          <span>${(state.materialQaRecords[material.id] || []).length} 条记录</span>
+        </div>
+        <form class="material-qa-form" data-material-id="${escapeHtml(material.id)}">
+          <input name="question" required placeholder="围绕这份资料提问" />
+          <button class="ghost-button" type="submit">问 AI</button>
+        </form>
+        ${renderMaterialQaRecords(state.materialQaRecords[material.id] || [])}
+      </div>
     `;
     item.querySelector('[data-action="ask-ai"]').addEventListener("click", (event) => {
       prefillQuestionFromMaterial(event.currentTarget.dataset.materialId);
@@ -114,6 +125,7 @@ function renderSummaries() {
     item.querySelector('[data-action="generate-chunks"]').addEventListener("click", (event) => {
       generateChunksForMaterial(event.currentTarget.dataset.materialId, event.currentTarget);
     });
+    item.querySelector(".material-qa-form").addEventListener("submit", askMaterialQuestion);
     list.appendChild(item);
   });
 }
@@ -174,6 +186,61 @@ function renderChunkSearchResults(container) {
       `).join("")}
     </div>
   `;
+}
+
+function renderMaterialQaRecords(records) {
+  if (!records.length) {
+    return '<p class="muted-text">还没有围绕这份资料提问。</p>';
+  }
+
+  return `
+    <div class="qa-list">
+      ${records.slice().reverse().map((record) => `
+        <article class="qa-item">
+          <div class="qa-question">${escapeHtml(record.question)}</div>
+          <p>${escapeHtml(record.answer)}</p>
+          <div class="qa-meta">
+            <span>${record.isFromMaterial === false ? "资料不足" : "基于资料"}</span>
+            <span>${escapeHtml(record.confidence || "unknown")}</span>
+            <span>${escapeHtml(record.sourceTitle || "未匹配资料")}</span>
+          </div>
+          ${record.basis ? `<div class="qa-detail"><strong>依据</strong><span>${escapeHtml(record.basis)}</span></div>` : ""}
+          ${record.suggestion ? `<div class="qa-detail"><strong>建议</strong><span>${escapeHtml(record.suggestion)}</span></div>` : ""}
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+async function askMaterialQuestion(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const materialId = form.dataset.materialId;
+  const material = state.materials.find((item) => item.id === materialId);
+  const question = new FormData(form).get("question").trim();
+  const button = form.querySelector("button[type='submit']");
+
+  if (!material || !question) return;
+
+  setButtonLoading(button, true, "提问中");
+
+  try {
+    await agentApi.ask({
+      question,
+      materialId,
+      goalId: material.goalId || selectedGoalId || undefined,
+      limit: 3
+    });
+    state.materialQaRecords[materialId] = await materialApi.listQaRecords(materialId);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    form.reset();
+    renderSummaries();
+    showSuccess("问答记录已保存");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 async function generateChunksForMaterial(materialId, button) {

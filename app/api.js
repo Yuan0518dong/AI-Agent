@@ -156,6 +156,10 @@ const materialApi = {
     return request(`/materials/${materialId}/chunks`);
   },
 
+  listQaRecords(materialId) {
+    return request(`/materials/${materialId}/qa`);
+  },
+
   searchChunks(query, limit = 5) {
     const params = new URLSearchParams({
       query,
