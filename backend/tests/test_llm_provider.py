@@ -61,6 +61,42 @@ def test_unknown_llm_provider_falls_back_to_mock(monkeypatch):
     assert isinstance(provider, llm_provider.MockLLMProvider)
 
 
+def test_load_env_file_sets_missing_values(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "LLM_PROVIDER=openai-compatible",
+                "LLM_API_KEY=test-key",
+                "LLM_MODEL=glm-test",
+                "LLM_BASE_URL=https://example.test/v1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+
+    llm_provider._load_env_file(env_file)
+
+    assert llm_provider.os.getenv("LLM_PROVIDER") == "openai-compatible"
+    assert llm_provider.os.getenv("LLM_API_KEY") == "test-key"
+    assert llm_provider.os.getenv("LLM_MODEL") == "glm-test"
+    assert llm_provider.os.getenv("LLM_BASE_URL") == "https://example.test/v1"
+
+
+def test_load_env_file_does_not_override_existing_values(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("LLM_MODEL=from-file", encoding="utf-8")
+    monkeypatch.setenv("LLM_MODEL", "from-shell")
+
+    llm_provider._load_env_file(env_file)
+
+    assert llm_provider.os.getenv("LLM_MODEL") == "from-shell"
+
+
 def test_openai_compatible_provider_requires_key_and_model(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai-compatible")
     monkeypatch.delenv("LLM_API_KEY", raising=False)

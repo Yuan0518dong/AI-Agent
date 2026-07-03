@@ -56,6 +56,15 @@ LLM_BASE_URL=https://api.openai.com/v1 或其他兼容服务地址
 LLM_TIMEOUT_SECONDS=20
 ```
 
+配置来源：
+
+```text
+1. 后端会自动读取 backend/.env。
+2. backend/.env 不提交 Git。
+3. backend/.env.example 提供可提交的配置模板。
+4. 系统环境变量优先级高于 backend/.env，适合服务器或临时联调。
+```
+
 如果 `LLM_PROVIDER` 未配置、配置成未知值，或选择 `openai-compatible` 但缺少 `LLM_API_KEY` / `LLM_MODEL`，系统会安全回退到 `MockLLMProvider`，保证本地开发、测试和 smoke 不受真实模型配置影响。
 
 ## 调用链路
