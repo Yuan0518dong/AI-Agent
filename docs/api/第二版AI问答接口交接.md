@@ -1,6 +1,6 @@
 # 第二版 AI 问答接口交接
 
-更新时间：2026-07-02
+更新时间：2026-07-03
 
 ## 1. 当前结论
 
@@ -11,13 +11,17 @@ POST /api/agent/ask
 GET /api/materials/{material_id}/qa
 ```
 
-当前前端尚未接入：
+当前前端已接入：
 
 ```text
-历史问答列表展示
+成长问答页 agent ask
+资料总结区问 AI 入口
+资料总结区按资料直接提问
+资料历史问答列表展示
+历史问答复盘草稿入口
 ```
 
-因此赵前端当前已经接入 `POST /api/agent/ask`，并在资料总结区问 AI 时传入 `materialId`；历史问答列表暂时沿用前端现有会话展示，下一小闭环可接入 `GET /api/materials/{material_id}/qa`。
+因此当前问答交界面已经形成可演示闭环：资料生成 chunks 后，用户可以围绕资料提问；后端通过 `POST /api/agent/ask` 生成回答并保存 QA 记录；前端通过 `GET /api/materials/{material_id}/qa` 读回历史问答，并可以从单条问答生成前端复盘草稿。
 
 ## 2. POST /api/agent/ask
 
@@ -89,6 +93,7 @@ GET /api/materials/{material_id}/qa
 app/api.js -> agentApi.ask()
 app/app.js -> #chat-form submit
 app/modules/chat.js -> renderChat()
+app/modules/materials.js -> 资料总结区按资料提问
 ```
 
 展示位置：
@@ -114,7 +119,7 @@ app/modules/chat.js -> renderChat()
 当前状态：
 
 ```text
-后端已实现，前端历史列表暂未接入。
+后端已实现，前端已在资料总结区接入历史列表展示。
 ```
 
 预期用途：
@@ -140,12 +145,48 @@ mode
 createdAt
 ```
 
-## 5. 当前验证
+前端展示规则：
 
 ```text
-python -m pytest backend/tests -v：14 passed
-python backend/smoke_api.py：通过，包含 agent_mode / agent_reference_count / agent_from_material / agent_confidence
-node --check app/api.js app/app.js app/modules/chat.js app/modules/materials.js：通过
-Edge 浏览器 smoke：成长问答页提交问题 -> 调用 /api/agent/ask -> 展示 answer / basis / suggestion / references / confidence，无控制台错误
+1. 按资料隔离展示历史问答。
+2. 页面初始化时读取并展示。
+3. 提问成功后重新读取该资料的历史问答。
+4. 展示 question、answer、basis、suggestion、sourceTitle、confidence。
+5. isFromMaterial=false 或 confidence=low 时显示资料不足状态。
+6. 每条历史问答提供“转闪卡草稿”和“记复习点”入口。
+```
+
+## 5. 历史问答复盘入口
+
+当前状态：
+
+```text
+已完成前端本地草稿闭环。
+```
+
+当前规则：
+
+```text
+1. “转闪卡草稿”根据 question 和 answer 生成 front/back。
+2. “记复习点”优先使用 suggestion，其次使用 basis，再降级为回到资料复述问题。
+3. 同一条 QA 的同类型草稿不重复生成。
+4. 复盘草稿显示在记忆页。
+5. 删除资料时同步删除对应本地复盘草稿。
+```
+
+当前边界：
+
+```text
+复盘草稿暂存在前端 localStorage，不写入后端 flashcards 表。
+如需正式持久化，需要新增或确认 QA -> flashcard/review-point API。
+```
+
+## 6. 当前验证
+
+```text
+python -m pytest backend/tests -v：18 passed
+python backend/smoke_api.py：通过，包含 agent_mode / agent_reference_count / agent_from_material / agent_confidence / qa_record_count
+node --check app/api.js app/app.js app/modules/chat.js app/modules/materials.js app/modules/goals.js app/modules/progress.js app/modules/utils.js：通过
+Edge 浏览器 smoke：资料 QA 历史 -> 转闪卡草稿 -> 记忆页展示；重复点击不重复；删除新建 smoke 资料后复盘草稿清零；无 console error / pageerror
 ```
 

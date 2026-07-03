@@ -12,22 +12,25 @@
 - 自动生成 7 天行动计划
 - 生成闪卡和简单测试题
 - 支持成长问答，并通过 `POST /api/agent/ask` 返回答案、依据、学习建议和来源片段
+- 支持按资料保存和读回历史问答
+- 支持从资料历史问答生成复盘草稿：闪卡草稿或复习点
 - 支持任务打卡和进度查看
-- 目标、任务、打卡、资料、摘要、闪卡、测试题、资料片段已接入后端 SQLite 持久化
+- 目标、任务、打卡、资料、摘要、闪卡、测试题、资料片段、资料问答记录已接入后端 SQLite 持久化
 - 当前仍是单用户 MVP，没有注册登录和用户隔离
 
 当前第二版已完成的 AI 学习链路：
 
 ```text
-添加资料 -> 生成 chunks -> 搜索资料片段 -> 成长问答提问 -> 展示 answer / basis / suggestion / references
+添加资料 -> 生成 chunks -> 搜索资料片段 -> 围绕资料问 AI -> 展示 answer / basis / suggestion / references -> 保存并读回历史问答 -> 从问答生成复盘草稿
 ```
 
 当前限制：
 
 ```text
 1. /api/agent/ask 仍是 mock / rule-based 问答底座，尚未接入真实大模型。
-2. 后端已提供 GET /api/materials/{material_id}/qa；前端历史问答列表仍待接入。
-3. 资料不足判断已有前端提示基础，但仍需后续用评估样例继续收紧。
+2. LLM Provider 抽象已预留真实模型替换入口，但默认仍使用 MockLLMProvider。
+3. 复盘草稿当前保存在前端 localStorage，尚未正式写入后端闪卡或复习点表。
+4. 资料不足判断已有前端提示基础，但仍需后续用评估样例继续收紧。
 ```
 
 ## 环境要求
@@ -150,6 +153,7 @@ material_summaries
 flashcards
 quiz_questions
 material_chunks
+material_qa_records
 ```
 
 说明：
@@ -222,6 +226,7 @@ python -m http.server 5501 --directory app
 - docs/README.md
 - docs/status/当前状态.md
 - docs/status/第二版阶段验收记录.md
+- docs/status/第二版验收样例与演示脚本.md
 - docs/status/项目进度记录.md
 - docs/status/MVP第一版进度评估与下一步计划.md
 - docs/daily/2026-07-02工作安排.md
@@ -233,6 +238,7 @@ python -m http.server 5501 --directory app
 - docs/api/资料与AI模块字段和API草案.md
 - docs/api/RAG-chunks接口说明.md
 - docs/api/第二版AI问答接口交接.md
+- docs/api/LLM-provider设计说明.md
 - docs/modules/目标模块前后端接口对照.md
 - docs/modules/资料模块前后端接口对照.md
 
@@ -256,8 +262,8 @@ python -m http.server 5501 --directory app
 ## 后续计划
 
 - 接入真实大模型接口
-- 前端接入历史问答记录读回
 - 增加 AI 回答评估样例
+- 确认复盘草稿是否正式写入后端闪卡或复习点表
 - 支持 PDF 文件上传和解析
 - 增加用户登录
 - 增加用户数据隔离
