@@ -1,4 +1,6 @@
 const STORAGE_KEY = "student-assistant-mvp";
+const AUTH_STORAGE_KEY = "student-assistant-auth";
+const SIDEBAR_STORAGE_KEY = "student-assistant-sidebar-collapsed";
 const defaultState = {
   goals: [],
   materials: [],
@@ -37,6 +39,7 @@ const defaultState = {
   chat: []
 };
 
+var currentUser = loadCurrentUser();
 var state = loadState();
 var activeCardIndex = 0;
 var editingGoalId = "";
@@ -53,6 +56,78 @@ const views = {
   memory: "记忆训练",
   progress: "成长进度"
 };
+
+document.getElementById("show-login").addEventListener("click", () => switchAuthMode("login"));
+document.getElementById("show-register").addEventListener("click", () => switchAuthMode("register"));
+
+document.getElementById("login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = document.getElementById("login-submit");
+  const data = new FormData(form);
+
+  setButtonLoading(submitButton, true, "登录中");
+
+  try {
+    const user = await authApi.login({
+      email: data.get("email").trim(),
+      password: data.get("password")
+    });
+    await enterApp(user);
+    form.reset();
+    showSuccess("登录成功");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
+});
+
+document.getElementById("register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = document.getElementById("register-submit");
+  const data = new FormData(form);
+  const password = data.get("password");
+  const confirmPassword = data.get("confirmPassword");
+
+  if (password !== confirmPassword) {
+    showError(new Error("两次输入的密码不一致"));
+    return;
+  }
+
+  setButtonLoading(submitButton, true, "创建中");
+
+  try {
+    const user = await authApi.register({
+      name: data.get("name").trim(),
+      email: data.get("email").trim(),
+      password
+    });
+    await enterApp(user);
+    form.reset();
+    showSuccess("注册成功");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(submitButton, false);
+  }
+});
+
+document.getElementById("logout-button").addEventListener("click", () => {
+  currentUser = null;
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  renderAuth();
+  showSuccess("已退出登录");
+});
+
+document.getElementById("sidebar-toggle").addEventListener("click", () => {
+  const shell = document.getElementById("app-shell");
+  const collapsed = !shell.classList.contains("sidebar-collapsed");
+  shell.classList.toggle("sidebar-collapsed", collapsed);
+  localStorage.setItem(SIDEBAR_STORAGE_KEY, collapsed ? "1" : "0");
+  updateSidebarToggleLabel();
+});
 
 document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
@@ -265,7 +340,7 @@ document.getElementById("export-data").addEventListener("click", () => {
 document.getElementById("reset-data").addEventListener("click", () => {
   const confirmed = window.confirm("确认清空所有本地学习数据吗？");
   if (!confirmed) return;
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(getStateStorageKey());
   Object.assign(state, normalizeState(structuredClone(defaultState)));
   activeCardIndex = 0;
   saveAndRender();
@@ -275,10 +350,15 @@ init();
 
 async function init() {
   document.getElementById("today-date-filter").value = selectedTaskDate;
+  applySidebarState();
+  renderAuth();
+
+  if (!currentUser) {
+    return;
+  }
 
   try {
-    await loadGoalDataFromApi();
-    await loadMaterialDataFromApi();
+    await loadAppDataFromApi();
   } catch (error) {
     showError(error);
   } finally {
@@ -286,17 +366,85 @@ async function init() {
   }
 }
 
+function applySidebarState() {
+  const collapsed = localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1";
+  document.getElementById("app-shell").classList.toggle("sidebar-collapsed", collapsed);
+  updateSidebarToggleLabel();
+}
+
+function updateSidebarToggleLabel() {
+  const shell = document.getElementById("app-shell");
+  const button = document.getElementById("sidebar-toggle");
+  const collapsed = shell.classList.contains("sidebar-collapsed");
+  button.textContent = collapsed ? "›" : "‹";
+  button.title = collapsed ? "展开侧边栏" : "折叠侧边栏";
+}
+
+async function enterApp(user) {
+  currentUser = user;
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+  state = loadState();
+  activeCardIndex = 0;
+  renderAuth();
+  await loadAppDataFromApi();
+  render();
+}
+
+async function loadAppDataFromApi() {
+  await loadGoalDataFromApi();
+  await loadMaterialDataFromApi();
+}
+
+function loadCurrentUser() {
+  const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const user = JSON.parse(raw);
+    return user && user.id ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderAuth() {
+  const isLoggedIn = Boolean(currentUser);
+  document.getElementById("auth-shell").hidden = isLoggedIn;
+  document.getElementById("app-shell").hidden = !isLoggedIn;
+  const currentUserElement = document.getElementById("current-user");
+  if (currentUserElement) {
+    currentUserElement.textContent = isLoggedIn ? currentUser.name || currentUser.email : "";
+    currentUserElement.title = isLoggedIn ? currentUser.email : "";
+  }
+}
+
+function switchAuthMode(mode) {
+  const isLogin = mode === "login";
+  document.getElementById("show-login").classList.toggle("active", isLogin);
+  document.getElementById("show-register").classList.toggle("active", !isLogin);
+  document.getElementById("login-form").classList.toggle("active", isLogin);
+  document.getElementById("register-form").classList.toggle("active", !isLogin);
+}
+
 function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = localStorage.getItem(getStateStorageKey());
   if (!raw) return normalizeState(structuredClone(defaultState));
 
   try {
     const normalized = normalizeState({ ...structuredClone(defaultState), ...JSON.parse(raw) });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    localStorage.setItem(getStateStorageKey(), JSON.stringify(normalized));
     return normalized;
   } catch {
     return normalizeState(structuredClone(defaultState));
   }
+}
+
+function getStateStorageKey(user = currentUser) {
+  return user && user.id ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
+}
+
+function saveState() {
+  localStorage.setItem(getStateStorageKey(), JSON.stringify(state));
 }
 
 async function loadMaterialDataFromApi() {
@@ -341,7 +489,7 @@ async function loadMaterialDataFromApi() {
   if (activeCardIndex >= state.flashcards.length) {
     activeCardIndex = 0;
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveState();
 }
 
 function normalizeState(nextState) {
@@ -428,7 +576,7 @@ function normalizeState(nextState) {
 }
 
 function saveAndRender() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveState();
   render();
 }
 

@@ -6,8 +6,9 @@ def answer_question(
     goal: dict | None = None,
     material_id: str | None = None,
     limit: int = 3,
+    user_id: str | None = None,
 ) -> dict:
-    matches = material_store.search_chunks(question, limit=20)
+    matches = material_store.search_chunks(question, limit=20, user_id=user_id)
     if material_id:
         matches = [chunk for chunk in matches if chunk["materialId"] == material_id]
     if goal:

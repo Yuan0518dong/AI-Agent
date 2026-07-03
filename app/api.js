@@ -1,10 +1,13 @@
+const API_AUTH_STORAGE_KEY = "student-assistant-auth";
 const API_BASE_URL = localStorage.getItem("ai-agent-api-base-url") || "http://127.0.0.1:8001/api";
 
 async function request(path, options = {}) {
+  const userId = getCurrentApiUserId();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(userId ? { "X-User-Id": userId } : {}),
       ...(options.headers || {})
     }
   });
@@ -16,6 +19,34 @@ async function request(path, options = {}) {
 
   return result.data;
 }
+
+function getCurrentApiUserId() {
+  const raw = localStorage.getItem(API_AUTH_STORAGE_KEY);
+  if (!raw) return "";
+
+  try {
+    const user = JSON.parse(raw);
+    return user && user.id ? user.id : "";
+  } catch {
+    return "";
+  }
+}
+
+const authApi = {
+  register(payload) {
+    return request("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  login(payload) {
+    return request("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+};
 
 const goalApi = {
   listGoals() {
