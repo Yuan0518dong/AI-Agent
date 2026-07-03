@@ -100,11 +100,17 @@ function renderSummaries() {
       <div class="chunk-panel">
         <div class="chunk-panel-head">
           <h4>学习片段</h4>
-          <button class="ghost-button" data-action="generate-chunks" data-material-id="${escapeHtml(material.id)}" type="button">生成片段</button>
+          <div class="inline-actions">
+            <button class="ghost-button" data-action="ask-ai" data-material-id="${escapeHtml(material.id)}" type="button">问 AI</button>
+            <button class="ghost-button" data-action="generate-chunks" data-material-id="${escapeHtml(material.id)}" type="button">生成片段</button>
+          </div>
         </div>
         ${renderMaterialChunks(chunks)}
       </div>
     `;
+    item.querySelector('[data-action="ask-ai"]').addEventListener("click", (event) => {
+      prefillQuestionFromMaterial(event.currentTarget.dataset.materialId);
+    });
     item.querySelector('[data-action="generate-chunks"]').addEventListener("click", (event) => {
       generateChunksForMaterial(event.currentTarget.dataset.materialId, event.currentTarget);
     });
@@ -184,6 +190,22 @@ async function generateChunksForMaterial(materialId, button) {
   } finally {
     setButtonLoading(button, false);
   }
+}
+
+function prefillQuestionFromMaterial(materialId) {
+  const material = state.materials.find((item) => item.id === materialId);
+  if (!material) return;
+
+  if (material.goalId) {
+    selectedGoalId = material.goalId;
+  }
+
+  const input = document.querySelector('#chat-form input[name="question"]');
+  input.value = `请基于《${material.title}》解释这份资料的核心内容，并给我下一步复习建议。`;
+  switchView("study");
+  input.focus();
+  input.select();
+  showSuccess("已带入资料问题，确认后发送");
 }
 
 function renderFlashcard() {
