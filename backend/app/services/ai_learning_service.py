@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import date, timedelta
 from typing import Any
 
@@ -7,14 +8,23 @@ from backend.app.services import llm_provider, material_ai_service, material_sto
 
 def generate_learning_plan(goal: dict, days: int, user_id: str | None = None) -> dict:
     materials = material_store.list_materials(goal_id=goal["id"], user_id=user_id)
-    summaries = [
-        summary
-        for material in materials
-        if (summary := material_store.get_material_summary(material["id"]))
-    ]
+    relevant_materials = []
+    summaries = []
+    for material in materials:
+        summary = material_store.get_material_summary(material["id"])
+        if _is_material_relevant_to_goal(goal, material, summary):
+            relevant_materials.append(material)
+            if summary:
+                summaries.append(summary)
+
     chunks = []
-    for material in materials[:5]:
-        chunks.extend(material_store.list_chunks_for_material(material["id"])[:3])
+    for material in relevant_materials[:5]:
+        relevant_chunks = [
+            chunk
+            for chunk in material_store.list_chunks_for_material(material["id"])
+            if _is_text_relevant_to_goal(goal, chunk.get("content", ""))
+        ]
+        chunks.extend(relevant_chunks[:3])
 
     fallback = _fallback_plan(goal, days, summaries, chunks)
     data = _generate_json(
@@ -32,7 +42,9 @@ def generate_learning_plan(goal: dict, days: int, user_id: str | None = None) ->
                 "rules": [
                     "Create exactly the requested number of daily tasks.",
                     "Each task should be concrete and executable in the user's daily_minutes.",
-                    "Prefer material-based review, practice, and self-test activities.",
+                    "The goal name, subject, and notes are the primary planning source.",
+                    "Use material-based review only when the material is clearly related to the goal.",
+                    "Do not create tasks about unrelated materials, even if they are present in the context.",
                     "Use Chinese if the goal or material is Chinese.",
                 ],
             },
@@ -40,6 +52,7 @@ def generate_learning_plan(goal: dict, days: int, user_id: str | None = None) ->
         ),
     )
     tasks = _normalize_plan_tasks(data.get("tasks"), fallback["tasks"], days)
+    tasks = _ensure_goal_aligned_plan_tasks(goal, tasks, fallback["tasks"])
     return {"tasks": tasks, "mode": _result_mode(data, fallback)}
 
 
@@ -155,29 +168,126 @@ def _generate_json(system: str, user: str) -> dict[str, Any]:
 
 def _fallback_plan(goal: dict, days: int, summaries: list[dict], chunks: list[dict]) -> dict:
     topics = []
+    topics.extend(_goal_topics(goal))
     for summary in summaries:
         topics.extend(summary.get("keyPoints", []))
     topics.extend(chunk.get("content", "")[:48] for chunk in chunks)
-    topics.extend([goal.get("subject", ""), goal.get("notes", "")])
-    topics = [topic.strip()[:40] for topic in topics if topic and topic.strip()]
+    topics = _unique_topics(topics)
     if not topics:
-        topics = ["core topic"]
+        topics = [str(goal.get("subject") or goal.get("name") or "核心知识点")]
 
     tasks = []
     for index in range(days):
         topic = topics[index % len(topics)]
-        tasks.append(
-            {
-                "day": index + 1,
-                "title": f"Day {index + 1}: Learn {topic}",
-                "detail": (
-                    f"Study {topic} for {goal['daily_minutes']} minutes, "
-                    "then write a 3-sentence recap and complete one self-test."
-                ),
-                "priority": "normal",
-            }
-        )
+        tasks.append(_build_fallback_task(goal, index, topic))
     return {"tasks": tasks, "mode": "mock"}
+
+
+def _build_fallback_task(goal: dict, index: int, topic: str | None = None) -> dict:
+    topics = _goal_topics(goal)
+    topic = topic or topics[index % len(topics)]
+    action = _plan_action(index)
+    return {
+        "day": index + 1,
+        "title": f"第 {index + 1} 天：{action}{topic}",
+        "detail": _plan_detail(goal, action, topic),
+        "priority": "normal",
+    }
+
+
+def _goal_topics(goal: dict) -> list[str]:
+    source = "，".join(str(goal.get(key, "")) for key in ("name", "notes") if goal.get(key))
+    parts = [
+        _clean_topic(part)
+        for part in re.split(r"[，,。；;、\n]+", source)
+        if _clean_topic(part)
+    ]
+    topics = _unique_topics(parts)
+    return topics or [str(goal.get("subject") or goal.get("name") or "核心知识点")]
+
+
+def _clean_topic(value: str) -> str:
+    topic = str(value or "").strip()
+    replacements = (
+        ("学习", ""),
+        ("提升自己", ""),
+        ("提高自己对", ""),
+        ("提高", ""),
+        ("提升", ""),
+        ("掌握", ""),
+        ("的能力", ""),
+        ("的理解", ""),
+    )
+    for old, new in replacements:
+        topic = topic.replace(old, new)
+    return topic.strip(" ：:，,。；;、")[:40]
+
+
+def _unique_topics(raw_topics: list[str]) -> list[str]:
+    seen = set()
+    topics = []
+    stop_topics = {"数学", "刚开始", "有基础", "冲刺复习", "basic", "beginner"}
+    for raw_topic in raw_topics:
+        topic = str(raw_topic or "").strip()[:40]
+        if not topic or topic in stop_topics or topic in seen:
+            continue
+        seen.add(topic)
+        topics.append(topic)
+    return topics
+
+
+def _plan_action(index: int) -> str:
+    actions = ["理解", "梳理", "练习", "巩固", "应用", "复盘", "自测"]
+    return actions[index % len(actions)]
+
+
+def _plan_detail(goal: dict, action: str, topic: str) -> str:
+    minutes = goal["daily_minutes"]
+    templates = {
+        "理解": f"用 {minutes} 分钟理解“{topic}”的定义、适用条件和常见符号，整理 2 个容易混淆的点。",
+        "梳理": f"用 {minutes} 分钟梳理“{topic}”的知识框架，写出核心公式、定理条件和解题入口。",
+        "练习": f"用 {minutes} 分钟完成“{topic}”相关基础例题，标出不会做或容易出错的步骤。",
+        "巩固": f"用 {minutes} 分钟回看“{topic}”的笔记和错题，补充一份简短的解题步骤清单。",
+        "应用": f"用 {minutes} 分钟选择“{topic}”的综合题进行演练，总结题目条件如何转化为解法。",
+        "复盘": f"用 {minutes} 分钟复盘“{topic}”，用自己的话讲清核心思路，并记录下一轮要补的薄弱点。",
+        "自测": f"用 {minutes} 分钟围绕“{topic}”做一次限时小测，完成后记录得分、错因和下一步补救动作。",
+    }
+    return templates.get(action, f"用 {minutes} 分钟学习“{topic}”，完成练习并记录卡点。")
+
+
+def _goal_keywords(goal: dict) -> set[str]:
+    text = " ".join(str(goal.get(key, "")) for key in ("name", "subject", "notes"))
+    words = set(re.findall(r"[A-Za-z0-9_]+", text.lower()))
+    chinese_terms = set(re.findall(r"[\u4e00-\u9fff]{2,}", text))
+    stop_words = {"学习", "提升", "提高", "能力", "自己", "内容", "理解"}
+    return {
+        item
+        for item in words | chinese_terms
+        if item.strip() and item not in stop_words
+    }
+
+
+def _is_text_relevant_to_goal(goal: dict, text: str) -> bool:
+    keywords = _goal_keywords(goal)
+    if not keywords:
+        return False
+
+    normalized_text = str(text or "").lower()
+    return any(keyword.lower() in normalized_text for keyword in keywords)
+
+
+def _is_material_relevant_to_goal(goal: dict, material: dict, summary: dict | None) -> bool:
+    material_text = " ".join(
+        [
+            str(material.get("title", "")),
+            str(material.get("content", ""))[:1000],
+            str(material.get("url", "")),
+            str(summary.get("overview", "") if summary else ""),
+            " ".join(summary.get("keyPoints", []) if summary else []),
+            " ".join(summary.get("difficulties", []) if summary else []),
+        ]
+    )
+    return _is_text_relevant_to_goal(goal, material_text)
 
 
 def _fallback_quiz(summary: dict, count: int) -> dict:
@@ -233,6 +343,36 @@ def _normalize_plan_tasks(raw_tasks: Any, fallback_tasks: list[dict], days: int)
     if len(normalized) < days:
         normalized.extend(fallback_tasks[len(normalized) : days])
     return normalized[:days]
+
+
+def _ensure_goal_aligned_plan_tasks(
+    goal: dict,
+    tasks: list[dict],
+    fallback_tasks: list[dict],
+) -> list[dict]:
+    cleaned = []
+    for index, task in enumerate(tasks):
+        fallback = fallback_tasks[index] if index < len(fallback_tasks) else _build_fallback_task(goal, index)
+        if _should_replace_plan_task(task):
+            cleaned.append(fallback)
+            continue
+        cleaned.append(task)
+    return cleaned
+
+
+def _should_replace_plan_task(task: dict) -> bool:
+    text = f"{task.get('title', '')} {task.get('detail', '')}"
+    lower_text = text.lower()
+    english_template_markers = (
+        "day ",
+        "learn ",
+        "study ",
+        " minutes",
+        "3-sentence",
+        "self-test",
+    )
+    stop_topics = {"刚开始", "有基础", "冲刺复习", "basic", "beginner"}
+    return any(marker in lower_text for marker in english_template_markers) or any(topic in text for topic in stop_topics)
 
 
 def _normalize_quiz_questions(raw_questions: Any, fallback_questions: list[dict], count: int) -> list[dict]:

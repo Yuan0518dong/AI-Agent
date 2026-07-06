@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from backend.app.main import app
-from backend.app.services import store
+from backend.app.services import ai_learning_service, store
 
 
 client = TestClient(app)
@@ -111,6 +111,117 @@ def test_generate_plan_list_tasks_checkin_and_progress():
     assert cancel_response.status_code == 200
     assert cancel_response.json()["data"]["done"] is False
     assert cancel_response.json()["data"]["completed_at"] is None
+
+
+def test_generate_plan_ignores_unrelated_material_even_if_linked_to_goal():
+    goal = create_goal(
+        {
+            "name": "学习高数第一章内容极限",
+            "subject": "数学",
+            "notes": "提升自己求极限的能力，提高自己对极限定理的理解",
+        }
+    )
+    goal_id = goal["id"]
+
+    material_response = client.post(
+        "/api/materials",
+        json={
+            "goalId": goal_id,
+            "title": "春江花月夜",
+            "type": "text",
+            "content": "春江潮水连海平，海上明月共潮生。诗歌描写月夜江景和离愁。",
+        },
+    )
+    assert material_response.status_code == 200
+    material_id = material_response.json()["data"]["id"]
+    assert client.post(f"/api/materials/{material_id}/summarize").status_code == 200
+
+    plan_response = client.post(
+        f"/api/goals/{goal_id}/plans",
+        json={"days": 3, "regenerate": True},
+    )
+    assert plan_response.status_code == 200
+    tasks = plan_response.json()["data"]
+    task_text = " ".join(f"{task['title']} {task['detail']}" for task in tasks)
+
+    assert "春江花月夜" not in task_text
+    assert "诗" not in task_text
+    assert "极限" in task_text or "数学" in task_text
+
+
+def test_fallback_plan_uses_chinese_task_template_and_ignores_goal_level():
+    goal = create_goal(
+        {
+            "name": "学习高数第一章内容极限",
+            "subject": "数学",
+            "level": "刚开始",
+            "notes": "提升自己求极限的能力，提高自己对极限定义的理解",
+        }
+    )
+
+    plan_response = client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 5, "regenerate": True},
+    )
+    assert plan_response.status_code == 200
+    tasks = plan_response.json()["data"]
+    task_text = " ".join(f"{task['title']} {task['detail']}" for task in tasks)
+
+    assert "Day" not in task_text
+    assert "Learn" not in task_text
+    assert "Study" not in task_text
+    assert "3-sentence" not in task_text
+    assert "刚开始" not in task_text
+    assert "梳理数学" not in task_text
+    assert "提升自己" not in task_text
+    assert "第 1 天" in task_text
+    assert "分钟" in task_text
+    assert len({task["detail"] for task in tasks}) > 1
+    assert any("定义" in task["detail"] for task in tasks)
+    assert any("例题" in task["detail"] for task in tasks)
+
+
+def test_plan_normalizes_english_llm_template_before_saving(monkeypatch):
+    goal = create_goal(
+        {
+            "name": "学习高数第一章内容极限",
+            "subject": "数学",
+            "level": "刚开始",
+            "notes": "提升自己求极限的能力，提高自己对极限定义的理解",
+        }
+    )
+
+    def fake_generate_json(system: str, user: str) -> dict:
+        return {
+            "mode": "fake-llm",
+            "tasks": [
+                {
+                    "day": 1,
+                    "title": "Day 1: Learn 刚开始",
+                    "detail": "Study 刚开始 for 60 minutes, then write a 3-sentence recap and complete one self-test.",
+                    "priority": "normal",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(ai_learning_service, "_generate_json", fake_generate_json)
+
+    plan_response = client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 1, "regenerate": True},
+    )
+    assert plan_response.status_code == 200
+    task = plan_response.json()["data"][0]
+    task_text = f"{task['title']} {task['detail']}"
+
+    assert "Day" not in task_text
+    assert "Learn" not in task_text
+    assert "Study" not in task_text
+    assert "3-sentence" not in task_text
+    assert "刚开始" not in task_text
+    assert "提升自己" not in task_text
+    assert task["title"].startswith("第 1 天")
+    assert "分钟" in task["detail"]
 
 
 def test_delete_goal_removes_related_tasks_and_progress():
