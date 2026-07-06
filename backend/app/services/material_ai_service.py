@@ -108,23 +108,42 @@ def generate_flashcards(summary: dict) -> list[dict]:
     return [
         {
             "front": f"请解释：{point}",
-            "back": f"围绕“{point}”进行复述，并补充一个例子。",
+            "back": f"先用自己的话说明“{point}”，再回到资料中核对依据，并补充一个使用场景。",
         }
         for point in summary["keyPoints"]
     ]
 
 
 def generate_quiz_questions(summary: dict) -> list[dict]:
-    return [
+    overview = summary.get("overview") or "当前资料"
+    return [_build_quiz_question(point, index, overview) for index, point in enumerate(summary["keyPoints"])]
+
+
+def _build_quiz_question(point: str, index: int, overview: str) -> dict:
+    variants = [
         {
             "type": "short",
-            "question": f"简答：{point} 的核心含义是什么？",
             "options": [],
-            "answer": "先说明核心含义，再结合资料中的例子解释。",
-            "explanation": f"这道题对应资料整理结果中的知识点“{point}”。",
-        }
-        for point in summary["keyPoints"]
+            "question": f"用自己的话解释：{point}",
+            "answer": f"答案应围绕“{point}”展开，并能说出它在资料中的作用或结论。",
+            "explanation": f"这道题检查你是否真正理解了资料中的关键点，而不是只记住原句。资料摘要：{overview[:80]}",
+        },
+        {
+            "type": "application",
+            "options": [],
+            "question": f"如果把“{point}”用到你的学习或项目里，第一步应该怎么做？",
+            "answer": f"先找到资料中支撑“{point}”的依据，再把它转成一个可执行的小动作或复习问题。",
+            "explanation": "这道题检查能不能把资料知识转成真实学习行动，贴近用户复习和实践场景。",
+        },
+        {
+            "type": "boundary",
+            "options": [],
+            "question": f"判断并说明理由：学习“{point}”时，只记住结论就够了，不需要回到资料依据。",
+            "answer": "不对。需要回到资料依据核对来源，否则容易把自己的猜测当成资料结论。",
+            "explanation": "这道题检查资料依据意识，也对应第三版智能体的资料不足判断规则。",
+        },
     ]
+    return variants[index % len(variants)]
 
 
 def _split_sentences(text: str) -> list[str]:

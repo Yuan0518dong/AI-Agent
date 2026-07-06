@@ -46,6 +46,10 @@ def ask_agent(payload: AgentAskRequest, user_id: str | None = Depends(current_us
             "isFromMaterial": answer["isFromMaterial"],
             "confidence": answer["confidence"],
             "mode": answer["mode"],
+            "nextAction": answer["nextAction"],
+            "requiresConfirmation": answer["requiresConfirmation"],
+            "insufficiencyReason": answer["insufficiencyReason"],
+            "reviewDrafts": answer["reviewDrafts"],
             "createdAt": now,
         }
         material_store.save_qa_record(material_qa_record)

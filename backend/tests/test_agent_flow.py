@@ -83,6 +83,11 @@ def test_agent_ask_returns_mock_answer_with_references():
     assert data["sourceTitle"] == "RAG notes"
     assert data["isFromMaterial"] is True
     assert data["confidence"] == "high"
+    assert data["nextAction"] == "create_flashcards"
+    assert data["requiresConfirmation"] is True
+    assert data["insufficiencyReason"] == ""
+    assert data["reviewDrafts"]
+    assert data["reviewDrafts"][0]["type"] == "flashcard"
     assert data["createdAt"]
     assert len(data["references"]) == 1
     assert data["references"][0]["materialId"] == material["id"]
@@ -104,6 +109,10 @@ def test_agent_ask_returns_mock_answer_with_references():
     assert history[0]["sourceTitle"] == data["sourceTitle"]
     assert history[0]["isFromMaterial"] is True
     assert history[0]["confidence"] == data["confidence"]
+    assert history[0]["nextAction"] == data["nextAction"]
+    assert history[0]["requiresConfirmation"] == data["requiresConfirmation"]
+    assert history[0]["insufficiencyReason"] == data["insufficiencyReason"]
+    assert history[0]["reviewDrafts"] == data["reviewDrafts"]
 
 
 def test_agent_ask_filters_references_by_goal():
@@ -168,6 +177,39 @@ def test_agent_ask_matches_chinese_material_question():
     assert "番茄工作法" in data["answer"]
 
 
+def test_agent_ask_falls_back_to_current_material_chunks_for_generic_question():
+    goal = create_goal("古诗词赏析")
+    material = create_material(
+        goal["id"],
+        "春江花月夜",
+        (
+            "春江潮水连海平，海上明月共潮生。"
+            "滟滟随波千万里，何处春江无月明！"
+            "江流宛转绕芳甸，月照花林皆似霰。"
+            "江天一色无纤尘，皎皎空中孤月轮。"
+        ),
+    )
+
+    response = client.post(
+        "/api/agent/ask",
+        json={
+            "goalId": goal["id"],
+            "materialId": material["id"],
+            "question": "请基于《春江花月夜》解释这份资料的核心内容，并给我下一步复习建议。",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["isFromMaterial"] is True
+    assert data["confidence"] in {"medium", "high"}
+    assert data["references"]
+    assert data["references"][0]["materialId"] == material["id"]
+    assert data["references"][0]["materialTitle"] == "春江花月夜"
+    assert "春江" in data["answer"]
+    assert data["nextAction"] in {"review_material", "create_flashcards"}
+
+
 def test_agent_ask_returns_fallback_when_no_chunks_match():
     goal = create_goal()
     material = create_material(
@@ -196,12 +238,20 @@ def test_agent_ask_returns_fallback_when_no_chunks_match():
     assert "资料不足" in data["answer"]
     assert "没有检索到" in data["basis"]
     assert "RAG notes" not in data["suggestion"]
+    assert data["nextAction"] == "ask_for_more_material"
+    assert data["requiresConfirmation"] is False
+    assert data["insufficiencyReason"]
+    assert data["reviewDrafts"] == []
 
     history = client.get(f"/api/materials/{material['id']}/qa").json()["data"]
     assert len(history) == 1
     assert history[0]["id"] == data["id"]
     assert history[0]["isFromMaterial"] is False
     assert history[0]["confidence"] == "low"
+    assert history[0]["nextAction"] == "ask_for_more_material"
+    assert history[0]["requiresConfirmation"] is False
+    assert history[0]["insufficiencyReason"]
+    assert history[0]["reviewDrafts"] == []
 
 
 def test_agent_ask_validation_and_missing_goal():

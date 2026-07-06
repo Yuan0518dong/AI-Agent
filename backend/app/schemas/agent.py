@@ -38,3 +38,7 @@ class AgentAskResponse(BaseModel):
     confidence: str
     createdAt: str | None = None
     mode: str = "mock"
+    nextAction: str = "answer_only"
+    requiresConfirmation: bool = False
+    insufficiencyReason: str = ""
+    reviewDrafts: list[dict] = Field(default_factory=list)

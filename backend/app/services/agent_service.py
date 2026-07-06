@@ -1,3 +1,5 @@
+import re
+
 from backend.app.services import llm_provider, material_store
 
 
@@ -11,6 +13,8 @@ def answer_question(
     matches = material_store.search_chunks(question, limit=20, user_id=user_id)
     if material_id:
         matches = [chunk for chunk in matches if chunk["materialId"] == material_id]
+        if not matches:
+            matches = _fallback_chunks_for_material(question, material_id, user_id)
     if goal:
         matches = [chunk for chunk in matches if chunk["goalId"] == goal["id"]]
 
@@ -49,4 +53,59 @@ def answer_question(
         "confidence": generated.confidence,
         "createdAt": None,
         "mode": generated.mode,
+        "nextAction": generated.next_action,
+        "requiresConfirmation": generated.requires_confirmation,
+        "insufficiencyReason": generated.insufficiency_reason,
+        "reviewDrafts": generated.review_drafts,
     }
+
+
+def _fallback_chunks_for_material(
+    question: str,
+    material_id: str,
+    user_id: str | None = None,
+) -> list[dict]:
+    material = material_store.get_material(material_id, user_id)
+    if not material or not _should_use_current_material(question, material):
+        return []
+
+    chunks = material_store.list_chunks_for_material(material_id)
+    fallback_matches = []
+    for chunk in chunks:
+        fallback_matches.append(
+            {
+                **chunk,
+                "materialTitle": material["title"],
+                "goalId": material["goalId"],
+                "score": 1,
+            }
+        )
+    return fallback_matches
+
+
+def _should_use_current_material(question: str, material: dict) -> bool:
+    normalized_question = _normalize_text(question)
+    normalized_title = _normalize_text(material["title"])
+    if normalized_title and normalized_title in normalized_question:
+        return True
+
+    material_intent_markers = [
+        "这份资料",
+        "当前资料",
+        "本文",
+        "这篇",
+        "这首",
+        "核心内容",
+        "主要内容",
+        "总结",
+        "概括",
+        "解释这份",
+        "基于资料",
+        "复习建议",
+        "下一步",
+    ]
+    return any(_normalize_text(marker) in normalized_question for marker in material_intent_markers)
+
+
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", "", text or "").lower()

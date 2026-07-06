@@ -194,6 +194,8 @@ def main() -> None:
                 "agent_reference_count": len(agent_answer["references"]),
                 "agent_from_material": agent_answer["isFromMaterial"],
                 "agent_confidence": agent_answer["confidence"],
+                "agent_next_action": agent_answer["nextAction"],
+                "agent_requires_confirmation": agent_answer["requiresConfirmation"],
                 "qa_record_count": len(material_qa_records),
                 "flashcard_count": len(flashcards),
                 "flashcard_readback": len(flashcards_get) == len(flashcards),
