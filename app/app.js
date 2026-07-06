@@ -134,6 +134,10 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
 });
 
+document.querySelectorAll("[data-agent-sample]").forEach((button) => {
+  button.addEventListener("click", () => prefillAgentSampleQuestion(button.dataset.agentSample));
+});
+
 document.getElementById("goal-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
@@ -267,6 +271,8 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
       id: makeId(),
       role: "assistant",
       content: answer.answer,
+      materialId: answer.materialId || "",
+      qaRecordId: answer.id || "",
       basis: answer.basis,
       suggestion: answer.suggestion,
       references: answer.references || [],
@@ -282,9 +288,11 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
     });
     conversation.relatedMaterialIds = mergeUniqueIds(conversation.relatedMaterialIds, relatedMaterialIds);
     conversation.updatedAt = new Date().toISOString();
-    saveAndRender();
-    form.reset();
+    syncMaterialQaRecordFromAgentAnswer(answer, question);
     pendingChatMaterialId = "";
+    saveAndRender();
+    focusMaterialQaRecord(answer.id);
+    form.reset();
   } catch (error) {
     showError(error);
   } finally {
@@ -612,6 +620,7 @@ function render() {
   renderMaterials();
   renderSummaries();
   renderChat();
+  renderAgentSampleState();
   renderFlashcard();
   renderReviewDrafts();
   renderQuizzes();

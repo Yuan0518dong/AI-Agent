@@ -46,6 +46,8 @@ function normalizeMessage(message) {
     id: message.id || makeId(),
     role: message.role === "agent" ? "assistant" : message.role,
     content: message.content || message.text || "",
+    materialId: message.materialId || "",
+    qaRecordId: message.qaRecordId || "",
     basis: message.basis || "",
     suggestion: message.suggestion || "",
     references: message.references || [],
