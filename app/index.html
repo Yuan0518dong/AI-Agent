@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>通用成长学习助手 App 原型</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=ai-learning-20260706" />
+    <link rel="stylesheet" href="./styles.css?v=v3-page-boundary-20260706" />
   </head>
   <body>
     <section class="auth-shell" id="auth-shell">
@@ -136,6 +136,39 @@
             </article>
           </div>
 
+          <section class="today-dashboard" aria-label="今日学习看板">
+            <div class="today-hero">
+              <div class="today-ring" id="today-progress-ring">
+                <strong id="today-progress-value">0%</strong>
+                <span id="today-progress-label">今日完成率</span>
+              </div>
+              <div class="today-hero-copy">
+                <span class="today-kicker" id="today-date-label">今天</span>
+                <h2 id="today-headline">先创建目标，让系统生成今日行动</h2>
+                <p id="today-suggestion">完成任务打卡后，这里会展示你的学习节奏和下一步重点。</p>
+                <div class="today-progress-bar" aria-hidden="true">
+                  <span id="today-progress-bar"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="today-insights">
+              <article class="today-insight">
+                <span>预计学习</span>
+                <strong id="today-study-minutes">0 分</strong>
+                <p id="today-study-text">今日暂无学习时长</p>
+              </article>
+            </div>
+
+            <div class="today-next">
+              <div class="panel-head">
+                <h2>今日重点</h2>
+                <span class="panel-count" id="today-next-count">0 项</span>
+              </div>
+              <div class="today-next-list" id="today-next-list"></div>
+            </div>
+          </section>
+
           <div class="workspace two-columns">
             <section class="panel task-panel">
               <div class="panel-head">
@@ -154,17 +187,41 @@
               <div class="list" id="today-task-list"></div>
             </section>
 
-            <section class="panel accent-panel">
-              <h2>学习状态</h2>
-              <div class="focus-card">
-                <div class="focus-visual" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
+            <section class="panel accent-panel today-focus-panel">
+              <div class="panel-head">
+                <h2>主线目标</h2>
+                <span class="panel-count" id="focus-status">未开始</span>
+              </div>
+              <div class="today-focus-card">
+                <div class="today-focus-head">
+                  <div class="today-focus-badge" id="focus-badge" aria-hidden="true">目</div>
+                  <div>
+                    <h3 id="focus-title">先创建一个成长目标</h3>
+                    <p id="focus-text">设置目标后，系统会根据资料和截止时间生成学习计划。</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 id="focus-title">先创建一个成长目标</h3>
-                  <p id="focus-text">设置目标后，系统会根据资料和截止时间生成学习计划。</p>
+                <div class="today-focus-stats">
+                  <div>
+                    <span>整体进度</span>
+                    <strong id="focus-rate">0%</strong>
+                  </div>
+                  <div>
+                    <span>剩余时间</span>
+                    <strong id="focus-remaining">-</strong>
+                  </div>
+                  <div>
+                    <span>今日任务</span>
+                    <strong id="focus-today">0/0</strong>
+                  </div>
+                </div>
+                <div class="today-focus-advice">
+                  <span>今日建议</span>
+                  <p id="focus-advice">先建立一个目标，再生成行动计划。</p>
+                </div>
+                <div class="inline-actions today-focus-actions">
+                  <button class="ghost-button" id="focus-view-goal" type="button">查看目标</button>
+                  <button class="ghost-button" id="focus-view-progress" type="button">看进度</button>
+                  <button class="primary-button" id="focus-generate-plan" type="button">生成计划</button>
                 </div>
               </div>
             </section>
@@ -332,9 +389,44 @@
         </section>
 
         <section class="view" id="view-progress">
-          <div class="workspace">
-            <section class="panel">
-              <h2>成长进度</h2>
+          <section class="progress-overview" aria-label="学习进度总览">
+            <article class="progress-score-card">
+              <span>总完成率</span>
+              <strong id="progress-overall-rate">0%</strong>
+              <div class="bar progress-score-bar"><span id="progress-overall-bar"></span></div>
+              <p id="progress-overall-text">创建目标后会自动统计整体学习进度。</p>
+            </article>
+            <article class="progress-stat-card">
+              <span>任务完成</span>
+              <strong id="progress-task-total">0/0</strong>
+              <p id="progress-task-text">暂无任务</p>
+            </article>
+            <article class="progress-stat-card">
+              <span>风险目标</span>
+              <strong id="progress-risk-total">0</strong>
+              <p id="progress-risk-text">暂无明显风险</p>
+            </article>
+            <article class="progress-stat-card">
+              <span>测试覆盖</span>
+              <strong id="progress-quiz-total">0%</strong>
+              <p id="progress-quiz-text">暂无测试题</p>
+            </article>
+          </section>
+
+          <div class="workspace progress-layout">
+            <section class="panel progress-advice-panel">
+              <div class="panel-head">
+                <h2>复盘建议</h2>
+                <span class="panel-count" id="progress-risk-count">0 条风险</span>
+              </div>
+              <div class="progress-advice-list" id="progress-advice-list"></div>
+            </section>
+
+            <section class="panel progress-goals-panel">
+              <div class="panel-head">
+                <h2>目标进度</h2>
+                <span class="panel-count" id="progress-goal-count">0 个目标</span>
+              </div>
               <div class="progress-list" id="progress-list"></div>
             </section>
           </div>
@@ -353,8 +445,8 @@
     <script src="./modules/utils.js?v=ai-learning-20260706"></script>
     <script src="./modules/chat.js?v=ai-learning-20260706"></script>
     <script src="./modules/materials.js?v=ai-learning-20260706"></script>
-    <script src="./modules/goals.js?v=ai-learning-20260706"></script>
-    <script src="./modules/progress.js?v=ai-learning-20260706"></script>
+    <script src="./modules/goals.js?v=v3-page-boundary-20260706"></script>
+    <script src="./modules/progress.js?v=v3-page-boundary-20260706"></script>
     <script src="./app.js?v=ai-learning-20260706"></script>
   </body>
 </html>

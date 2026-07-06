@@ -67,8 +67,7 @@ async function generatePlansForAllGoals(days = 7, triggerButton = null) {
   }
 }
 
-async function regenerateGoalPlan(goalId, triggerButton = null) {
-  const days = getPlanDays("goal-plan-days");
+async function regenerateGoalPlan(goalId, triggerButton = null, days = getPlanDays("goal-plan-days")) {
   const hasTasks = selectedGoalId === goalId && state.selectedGoalTasks.length > 0;
   if (hasTasks && !window.confirm(`将覆盖该目标已有任务，并重新生成 ${days} 天计划。确认继续吗？`)) return;
 
@@ -179,10 +178,198 @@ async function refreshGoalData(successMessage = "") {
   }
 }
 
+function getTaskGoal(task) {
+  return state.goals.find((goal) => goal.id === task.goalId);
+}
+
+function getTaskMinutes(task) {
+  const goalMinutes = Number(getTaskGoal(task)?.dailyMinutes || 0);
+  if (goalMinutes > 0) return goalMinutes;
+
+  const matched = String(task.detail || "").match(/(\d+)\s*(分钟|minutes?)/i);
+  return matched ? Number(matched[1]) : 30;
+}
+
+function getTodayStats() {
+  const tasks = state.tasks;
+  const completedTasks = tasks.filter((task) => task.done);
+  const totalMinutes = tasks.reduce((sum, task) => sum + getTaskMinutes(task), 0);
+  const completedMinutes = completedTasks.reduce((sum, task) => sum + getTaskMinutes(task), 0);
+  const reviewCards = state.flashcards.filter((card) => card.status !== "known");
+  const quizAttempts = Object.values(state.quizAttempts || {}).flat();
+  const attemptedQuizIds = new Set(quizAttempts.map((attempt) => attempt.quizId));
+  const completionRate = tasks.length ? Math.round((completedTasks.length / tasks.length) * 100) : 0;
+
+  return {
+    tasks,
+    completedTasks,
+    pendingTasks: tasks.filter((task) => !task.done),
+    totalMinutes,
+    completedMinutes,
+    reviewCount: reviewCards.length,
+    quizTotal: state.quizzes.length,
+    quizAttempted: attemptedQuizIds.size,
+    completionRate
+  };
+}
+
+function getGoalProgress(goalId) {
+  return state.progress.find((item) => item.goalId === goalId) || null;
+}
+
+function getPrimaryGoal(stats) {
+  const pendingGoalId = stats.pendingTasks.find((task) => task.goalId)?.goalId;
+  if (pendingGoalId) {
+    return state.goals.find((goal) => goal.id === pendingGoalId) || null;
+  }
+
+  if (selectedGoalId) {
+    const selected = state.goals.find((goal) => goal.id === selectedGoalId);
+    if (selected) return selected;
+  }
+
+  const todayGoalId = stats.tasks.find((task) => task.goalId)?.goalId;
+  if (todayGoalId) {
+    return state.goals.find((goal) => goal.id === todayGoalId) || null;
+  }
+
+  return state.goals[0] || null;
+}
+
+function buildTodayAdvice(goal, stats, progress) {
+  if (!goal) {
+    return "先创建一个成长目标，再生成行动计划。这样今日页才能给出明确的学习路线。";
+  }
+
+  if (stats.tasks.length === 0) {
+    return `当前主线是“${goal.name}”。建议先生成 ${getPlanDays("quick-plan-days")} 天计划，让系统拆出今天要完成的任务。`;
+  }
+
+  const firstPending = stats.pendingTasks.find((task) => task.goalId === goal.id) || stats.pendingTasks[0];
+  if (firstPending) {
+    return `先完成“${firstPending.title}”，预计 ${getTaskMinutes(firstPending)} 分钟。完成后再处理 ${stats.reviewCount} 张待复习闪卡。`;
+  }
+
+  if (stats.reviewCount > 0) {
+    return `今日任务已完成。建议进入记忆训练，优先复习 ${stats.reviewCount} 张未掌握或新闪卡。`;
+  }
+
+  if (stats.quizTotal > stats.quizAttempted) {
+    return `今日任务已完成。还可以做 ${stats.quizTotal - stats.quizAttempted} 道测试题，检查资料理解是否扎实。`;
+  }
+
+  return `今天节奏很好，主线目标整体完成率 ${progress?.completionRate || 0}%。可以查看进度页复盘下一步。`;
+}
+
+function setFocusButton(button, disabled, handler) {
+  if (!button) return;
+  button.disabled = disabled;
+  button.onclick = disabled ? null : handler;
+}
+
+function renderTodayFocus(stats) {
+  const title = document.getElementById("focus-title");
+  if (!title) return;
+
+  const goal = getPrimaryGoal(stats);
+  const progress = goal ? getGoalProgress(goal.id) : null;
+  const goalTasks = goal ? stats.tasks.filter((task) => task.goalId === goal.id) : [];
+  const goalCompleted = goalTasks.filter((task) => task.done).length;
+  const remaining = goal ? getRemainingDays(goal.deadline) : "-";
+  const status = goal
+    ? progress?.completionRate >= 100
+      ? "已完成"
+      : "进行中"
+    : "未开始";
+
+  document.getElementById("focus-status").textContent = status;
+  document.getElementById("focus-badge").textContent = goal?.name ? goal.name.slice(0, 1) : "目";
+  title.textContent = goal ? goal.name : "先创建一个成长目标";
+  document.getElementById("focus-text").textContent = goal
+    ? `${goal.subject} | ${goal.level} | 每天 ${goal.dailyMinutes} 分钟`
+    : "设置目标后，系统会根据资料和截止时间生成行动计划。";
+  document.getElementById("focus-rate").textContent = `${progress?.completionRate || 0}%`;
+  document.getElementById("focus-remaining").textContent = goal ? `${remaining} 天` : "-";
+  document.getElementById("focus-today").textContent = goal ? `${goalCompleted}/${goalTasks.length}` : "0/0";
+  document.getElementById("focus-advice").textContent = buildTodayAdvice(goal, stats, progress);
+
+  setFocusButton(document.getElementById("focus-view-goal"), !goal, async () => {
+    await selectGoal(goal.id);
+    switchView("goals");
+  });
+  setFocusButton(document.getElementById("focus-view-progress"), !goal, () => switchView("progress"));
+  setFocusButton(document.getElementById("focus-generate-plan"), !goal, (event) => {
+    regenerateGoalPlan(goal.id, event.currentTarget, getPlanDays("quick-plan-days"));
+  });
+}
+
+function renderTodayDashboard() {
+  const ring = document.getElementById("today-progress-ring");
+  if (!ring) return;
+
+  const stats = getTodayStats();
+  const taskTotal = stats.tasks.length;
+  const pendingTotal = stats.pendingTasks.length;
+  const isToday = selectedTaskDate === todayString();
+  const dateText = isToday ? "今天" : selectedTaskDate;
+  const rate = Math.min(100, Math.max(0, stats.completionRate));
+  const nextTasks = (stats.pendingTasks.length ? stats.pendingTasks : stats.completedTasks).slice(0, 3);
+
+  ring.style.background = `conic-gradient(var(--blue) ${rate * 3.6}deg, #e8edf5 0deg)`;
+  document.getElementById("today-progress-value").textContent = `${rate}%`;
+  document.getElementById("today-progress-label").textContent = taskTotal ? "今日完成率" : "暂无任务";
+  document.getElementById("today-progress-bar").style.width = `${rate}%`;
+  document.getElementById("today-date-label").textContent = dateText;
+  document.getElementById("today-study-minutes").textContent = `${stats.completedMinutes}/${stats.totalMinutes} 分`;
+  document.getElementById("today-study-text").textContent = taskTotal
+    ? `已完成 ${stats.completedTasks.length} / ${taskTotal} 项任务`
+    : "今日暂无学习时长";
+  document.getElementById("today-next-count").textContent = taskTotal
+    ? `${pendingTotal} 项待完成`
+    : "0 项";
+  renderTodayFocus(stats);
+
+  if (state.goals.length === 0) {
+    document.getElementById("today-headline").textContent = "先创建目标，让系统生成今日行动";
+    document.getElementById("today-suggestion").textContent = "目标、资料和任务接入后，今日页会自动汇总学习节奏。";
+  } else if (taskTotal === 0) {
+    document.getElementById("today-headline").textContent = `${dateText} 暂无任务`;
+    document.getElementById("today-suggestion").textContent = "可以选择计划天数并生成计划，或切换日期查看其他任务。";
+  } else if (pendingTotal === 0) {
+    document.getElementById("today-headline").textContent = `${dateText} 任务已完成`;
+    document.getElementById("today-suggestion").textContent = "可以进入记忆训练复习闪卡，或查看进度页确认整体完成情况。";
+  } else {
+    document.getElementById("today-headline").textContent = `${dateText} 还有 ${pendingTotal} 项任务`;
+    document.getElementById("today-suggestion").textContent = "优先完成下方未打卡任务，再进入资料问答或闪卡复习巩固。";
+  }
+
+  const nextList = document.getElementById("today-next-list");
+  nextList.innerHTML = "";
+  if (nextTasks.length === 0) {
+    nextList.appendChild(emptyNode("暂无今日重点", "创建目标并生成计划后，这里会显示最应该先做的任务。"));
+    return;
+  }
+
+  nextTasks.forEach((task) => {
+    const goal = getTaskGoal(task);
+    const item = document.createElement("article");
+    item.className = `today-next-item ${task.done ? "done" : ""}`;
+    item.innerHTML = `
+      <span>${task.done ? "已完成" : "待完成"}</span>
+      <div>
+        <strong>${escapeHtml(task.title)}</strong>
+        <p>${escapeHtml(goal ? `${goal.name} · ${getTaskMinutes(task)} 分钟` : `${getTaskMinutes(task)} 分钟`)}</p>
+      </div>
+    `;
+    nextList.appendChild(item);
+  });
+}
+
 function renderToday() {
   const list = document.getElementById("today-task-list");
   document.getElementById("today-date-filter").value = selectedTaskDate;
   list.innerHTML = "";
+  renderTodayDashboard();
 
   if (state.tasks.length === 0) {
     list.appendChild(emptyNode("还没有任务", `${selectedTaskDate} 暂无任务，可以创建目标或重新生成计划。`));
@@ -215,14 +402,6 @@ function renderToday() {
       list.appendChild(item);
     });
   }
-
-  const currentGoal = state.goals[0];
-  document.getElementById("focus-title").textContent = currentGoal
-    ? currentGoal.name
-    : "先创建一个成长目标";
-  document.getElementById("focus-text").textContent = currentGoal
-    ? `${currentGoal.subject}｜${currentGoal.level}｜每天 ${currentGoal.dailyMinutes} 分钟`
-    : "设置目标后，系统会根据资料和截止时间生成行动计划。";
 }
 
 function renderGoals() {
