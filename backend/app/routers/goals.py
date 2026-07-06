@@ -74,6 +74,7 @@ def generate_plan(goal_id: str, payload: PlanGenerateRequest, user_id: str | Non
         goal=goal,
         days=payload.days,
         regenerate=payload.regenerate,
+        user_id=user_id,
     )
     return ok(tasks)
 

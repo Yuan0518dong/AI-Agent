@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.schemas.materials import FlashcardCreate, FlashcardStatusUpdate, MaterialCreate, MaterialUpdate
-from backend.app.services import material_ai_service, material_store, store
+from backend.app.schemas.materials import (
+    FlashcardCreate,
+    FlashcardStatusUpdate,
+    MaterialCreate,
+    MaterialUpdate,
+    QuizAnswerSubmit,
+)
+from backend.app.services import ai_learning_service, material_ai_service, material_store, store
 from backend.app.utils.auth import current_user_id
 from backend.app.utils.responses import ok
 
@@ -243,14 +249,21 @@ def list_material_quiz(material_id: str, user_id: str | None = Depends(current_u
 
 
 @router.post("/{material_id}/quiz")
-def generate_material_quiz(material_id: str, user_id: str | None = Depends(current_user_id)):
-    if not material_store.get_material(material_id, user_id):
+def generate_material_quiz(
+    material_id: str,
+    count: int | None = Query(default=None, ge=1, le=10),
+    user_id: str | None = Depends(current_user_id),
+):
+    material = material_store.get_material(material_id, user_id)
+    if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
     summary = material_store.get_material_summary(material_id)
     if not summary:
         raise HTTPException(status_code=409, detail="Material summary required")
 
+    question_count = count or max(1, len(summary["keyPoints"]))
+    generated = ai_learning_service.generate_quiz_questions(material, question_count)
     now = store.now_iso()
     questions = [
         {
@@ -264,9 +277,47 @@ def generate_material_quiz(material_id: str, user_id: str | None = Depends(curre
             "createdAt": now,
             "updatedAt": now,
         }
-        for question in material_ai_service.generate_quiz_questions(summary)
+        for question in generated["questions"]
     ]
     return ok(material_store.replace_quiz_questions_for_material(material_id, questions))
+
+
+@router.get("/{material_id}/quiz/attempts")
+def list_material_quiz_attempts(material_id: str, user_id: str | None = Depends(current_user_id)):
+    if not material_store.get_material(material_id, user_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    return ok(material_store.list_quiz_attempts_for_material(material_id))
+
+
+@router.post("/{material_id}/quiz/{quiz_id}/answer")
+def grade_material_quiz_answer(
+    material_id: str,
+    quiz_id: str,
+    payload: QuizAnswerSubmit,
+    user_id: str | None = Depends(current_user_id),
+):
+    if not material_store.get_material(material_id, user_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+
+    question = material_store.get_quiz_question(material_id, quiz_id)
+    if not question:
+        raise HTTPException(status_code=404, detail="Quiz question not found")
+
+    grading = ai_learning_service.grade_quiz_answer(question, payload.answer)
+    attempt = {
+        "id": store.make_id("attempt"),
+        "quizId": quiz_id,
+        "materialId": material_id,
+        "userAnswer": payload.answer,
+        "isCorrect": grading["isCorrect"],
+        "score": grading["score"],
+        "feedback": grading["feedback"],
+        "suggestion": grading["suggestion"],
+        "mode": grading["mode"],
+        "createdAt": store.now_iso(),
+    }
+    return ok(material_store.save_quiz_attempt(attempt))
 
 
 def _normalize_goal_id(goal_id: str | None) -> str | None:

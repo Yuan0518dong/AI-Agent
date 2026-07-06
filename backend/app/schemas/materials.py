@@ -32,3 +32,7 @@ class FlashcardCreate(BaseModel):
 
 class FlashcardStatusUpdate(BaseModel):
     status: str = Field(pattern="^(new|known|review)$")
+
+
+class QuizAnswerSubmit(BaseModel):
+    answer: str = Field(min_length=1)

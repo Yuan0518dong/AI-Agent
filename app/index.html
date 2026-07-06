@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>通用成长学习助手 App 原型</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=workspace-ui-20260703" />
+    <link rel="stylesheet" href="./styles.css?v=ai-learning-20260706" />
   </head>
   <body>
     <section class="auth-shell" id="auth-shell">
@@ -24,7 +24,7 @@
           <p>把目标、资料、计划和 AI 问答放在一个学习工作台里，登录后继续你的成长路径。</p>
           <div class="auth-highlights" aria-label="核心能力">
             <span>目标管理</span>
-            <span>资料问答</span>
+            <span>资料理解</span>
             <span>进度追踪</span>
           </div>
         </div>
@@ -280,7 +280,7 @@
               <h2>成长问答</h2>
               <div class="chat" id="chat-log"></div>
               <form id="chat-form" class="chat-form">
-                <input name="question" required placeholder="问一个知识点，例如：帮我解释重点内容" />
+                <input name="question" required placeholder="问一个知识点，或从右侧资料带入上下文" />
                 <button class="primary-button" type="submit">发送</button>
               </form>
             </section>
@@ -349,13 +349,13 @@
       </div>
     </template>
 
-    <script src="./api.js?v=user-cache-20260703"></script>
-    <script src="./modules/utils.js?v=user-cache-20260703"></script>
-    <script src="./modules/chat.js?v=user-cache-20260703"></script>
-    <script src="./modules/materials.js?v=user-cache-20260703"></script>
-    <script src="./modules/goals.js?v=user-cache-20260703"></script>
-    <script src="./modules/progress.js?v=user-cache-20260703"></script>
-    <script src="./app.js?v=user-cache-20260703"></script>
+    <script src="./api.js?v=ai-learning-20260706"></script>
+    <script src="./modules/utils.js?v=ai-learning-20260706"></script>
+    <script src="./modules/chat.js?v=ai-learning-20260706"></script>
+    <script src="./modules/materials.js?v=ai-learning-20260706"></script>
+    <script src="./modules/goals.js?v=ai-learning-20260706"></script>
+    <script src="./modules/progress.js?v=ai-learning-20260706"></script>
+    <script src="./app.js?v=ai-learning-20260706"></script>
   </body>
 </html>
 

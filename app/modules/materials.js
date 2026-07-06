@@ -99,9 +99,8 @@ function renderSummaries() {
       <ul>${actionItems}</ul>
       <div class="chunk-panel">
         <div class="chunk-panel-head">
-          <h4>学习片段</h4>
+          <h4>来源片段</h4>
           <div class="inline-actions">
-            <button class="ghost-button" data-action="ask-ai" data-material-id="${escapeHtml(material.id)}" type="button">问 AI</button>
             <button class="ghost-button" data-action="generate-chunks" data-material-id="${escapeHtml(material.id)}" type="button">生成片段</button>
           </div>
         </div>
@@ -109,23 +108,21 @@ function renderSummaries() {
       </div>
       <div class="qa-panel">
         <div class="qa-panel-head">
-          <h4>资料问答</h4>
-          <span>${(state.materialQaRecords[material.id] || []).length} 条记录</span>
+          <div>
+            <h4>关联问答记录</h4>
+            <span>${(state.materialQaRecords[material.id] || []).length} 条记录</span>
+          </div>
+          <button class="ghost-button" data-action="ask-ai" data-material-id="${escapeHtml(material.id)}" type="button">围绕此资料提问</button>
         </div>
-        <form class="material-qa-form" data-material-id="${escapeHtml(material.id)}">
-          <input name="question" required placeholder="围绕这份资料提问" />
-          <button class="ghost-button" type="submit">问 AI</button>
-        </form>
         ${renderMaterialQaRecords(state.materialQaRecords[material.id] || [])}
       </div>
     `;
-    item.querySelector('[data-action="ask-ai"]').addEventListener("click", (event) => {
+    item.querySelectorAll('[data-action="ask-ai"]').forEach((button) => button.addEventListener("click", (event) => {
       prefillQuestionFromMaterial(event.currentTarget.dataset.materialId);
-    });
+    }));
     item.querySelector('[data-action="generate-chunks"]').addEventListener("click", (event) => {
       generateChunksForMaterial(event.currentTarget.dataset.materialId, event.currentTarget);
     });
-    item.querySelector(".material-qa-form").addEventListener("submit", askMaterialQuestion);
     item.querySelectorAll('[data-action="qa-flashcard-draft"], [data-action="qa-review-point"]').forEach((button) => {
       button.addEventListener("click", createReviewDraftFromQa);
     });
@@ -193,7 +190,7 @@ function renderChunkSearchResults(container) {
 
 function renderMaterialQaRecords(records) {
   if (!records.length) {
-    return '<p class="muted-text">还没有围绕这份资料提问。</p>';
+    return '<p class="muted-text">暂无关联问答记录。点击上方按钮会把这份资料带入左侧成长问答。</p>';
   }
 
   return `
@@ -296,7 +293,7 @@ function renderReviewDrafts() {
 
   list.innerHTML = "";
   if (!drafts.length) {
-    list.appendChild(emptyNode("暂无复盘草稿", "可以从资料问答记录生成闪卡草稿或复习点。"));
+    list.appendChild(emptyNode("暂无复盘草稿", "可以从关联问答记录生成闪卡草稿或复习点。"));
     return;
   }
 
@@ -385,40 +382,9 @@ function getDraftFlashcardPayload(draft) {
   }
 
   return {
-    front: `请复述：${draft.question}`,
+    front: `请复习：${draft.question}`,
     back: draft.point
   };
-}
-
-async function askMaterialQuestion(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const materialId = form.dataset.materialId;
-  const material = state.materials.find((item) => item.id === materialId);
-  const question = new FormData(form).get("question").trim();
-  const button = form.querySelector("button[type='submit']");
-
-  if (!material || !question) return;
-
-  setButtonLoading(button, true, "提问中");
-
-  try {
-    await agentApi.ask({
-      question,
-      materialId,
-      goalId: material.goalId || selectedGoalId || undefined,
-      limit: 3
-    });
-    state.materialQaRecords[materialId] = await materialApi.listQaRecords(materialId);
-    saveState();
-    form.reset();
-    renderSummaries();
-    showSuccess("问答记录已保存");
-  } catch (error) {
-    showError(error);
-  } finally {
-    setButtonLoading(button, false);
-  }
 }
 
 async function generateChunksForMaterial(materialId, button) {
@@ -451,7 +417,7 @@ function prefillQuestionFromMaterial(materialId) {
   switchView("study");
   input.focus();
   input.select();
-  showSuccess("已带入资料问题，确认后发送");
+  showSuccess("已将资料带入左侧成长问答");
 }
 
 function renderFlashcard() {
@@ -485,26 +451,72 @@ function renderQuizzes() {
   list.innerHTML = "";
 
   if (state.quizzes.length === 0) {
-    list.appendChild(emptyNode("暂无测试题", "添加资料后会自动生成简单测试题。"));
+    list.appendChild(emptyNode("暂无测试题", "添加资料后会自动生成测试题。"));
     return;
   }
 
   state.quizzes.slice(0, 8).forEach((quiz) => {
     const item = document.createElement("article");
     item.className = "item";
+    const attempts = state.quizAttempts?.[quiz.materialId] || [];
+    const latestAttempt = attempts.find((attempt) => attempt.quizId === quiz.id);
+    const options = quiz.options && quiz.options.length
+      ? `<div class="quiz-options">${quiz.options.map((option) => `<span class="tag">${escapeHtml(option)}</span>`).join("")}</div>`
+      : "";
     item.innerHTML = `
       <h3>${escapeHtml(quiz.question)}</h3>
-      <p>参考答案：${escapeHtml(quiz.answer)}</p>
-      <p>解释：${escapeHtml(quiz.explanation)}</p>
+      ${options}
+      <form class="quiz-answer-form" data-material-id="${escapeHtml(quiz.materialId)}" data-quiz-id="${escapeHtml(quiz.id)}">
+        <textarea name="answer" rows="3" required placeholder="写下你的答案，再让 AI 批改"></textarea>
+        <button class="primary-button" type="submit">提交批改</button>
+      </form>
+      ${latestAttempt ? `
+        <div class="quiz-feedback ${latestAttempt.isCorrect ? "correct" : "review"}">
+          <strong>${latestAttempt.isCorrect ? "回答较好" : "需要复习"} · ${latestAttempt.score} 分</strong>
+          <p>${escapeHtml(latestAttempt.feedback)}</p>
+          <p>${escapeHtml(latestAttempt.suggestion)}</p>
+          <span class="tag">${escapeHtml(latestAttempt.mode || "mock")}</span>
+        </div>
+      ` : ""}
+      <details class="quiz-reference">
+        <summary>查看参考答案</summary>
+        <p>参考答案：${escapeHtml(quiz.answer)}</p>
+        <p>解释：${escapeHtml(quiz.explanation)}</p>
+      </details>
       <div class="tag-row">
         <span class="tag">${escapeHtml(getMaterialTitle(quiz.materialId))}</span>
         <span class="tag">${escapeHtml(quiz.type)}</span>
       </div>
     `;
+    item.querySelector(".quiz-answer-form").addEventListener("submit", submitQuizAnswer);
     list.appendChild(item);
   });
 }
 
+async function submitQuizAnswer(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  const materialId = form.dataset.materialId;
+  const quizId = form.dataset.quizId;
+  const answer = new FormData(form).get("answer").trim();
+  if (!answer) return;
+
+  setButtonLoading(button, true, "批改中");
+
+  try {
+    await materialApi.submitQuizAnswer(materialId, quizId, answer);
+    state.quizAttempts[materialId] = await materialApi.listQuizAttempts(materialId);
+    saveState();
+    form.reset();
+    renderQuizzes();
+    showSuccess("AI 批改完成");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
+}
 function summarizeContent(content, options = {}) {
   const sentences = splitSentences(content);
   const keyPoints = sentences.slice(0, 6).map((text) => text.slice(0, 60));
@@ -557,7 +569,6 @@ function createMemoryItems(material) {
     });
   });
 }
-
 function startMaterialEdit(id) {
   const material = state.materials.find((item) => item.id === id);
   if (!material) return;
@@ -593,7 +604,7 @@ function renderMaterialFormMode() {
     cancelButton.hidden = false;
   } else {
     title.textContent = "添加成长资料";
-    submitButton.textContent = "▣ 保存并整理";
+    submitButton.textContent = "保存并整理";
     cancelButton.hidden = true;
   }
 }
@@ -665,3 +676,5 @@ function getMaterialTypeLabel(type) {
   };
   return labels[type] || type || "资料";
 }
+
+

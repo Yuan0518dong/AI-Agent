@@ -18,6 +18,7 @@ const defaultState = {
   selectedGoalProgress: null,
   flashcards: [],
   quizzes: [],
+  quizAttempts: {},
   activeConversationId: "default-conversation",
   aiConversations: [
     {
@@ -451,12 +452,13 @@ async function loadMaterialDataFromApi() {
   const materials = await materialApi.listMaterials();
   const materialDetails = await Promise.all(
     materials.map(async (material) => {
-      const [summary, flashcards, quizzes, chunks, qaRecords] = await Promise.all([
+      const [summary, flashcards, quizzes, chunks, qaRecords, quizAttempts] = await Promise.all([
         materialApi.getSummary(material.id),
         materialApi.listFlashcards(material.id),
         materialApi.listQuiz(material.id),
         materialApi.listChunks(material.id),
-        materialApi.listQaRecords(material.id)
+        materialApi.listQaRecords(material.id),
+        materialApi.listQuizAttempts(material.id)
       ]);
 
       const normalizedMaterial = {
@@ -470,7 +472,8 @@ async function loadMaterialDataFromApi() {
         flashcards,
         quizzes,
         chunks,
-        qaRecords
+        qaRecords,
+        quizAttempts
       };
     })
   );
@@ -486,6 +489,10 @@ async function loadMaterialDataFromApi() {
     recordsByMaterial[item.material.id] = item.qaRecords;
     return recordsByMaterial;
   }, {});
+  state.quizAttempts = materialDetails.reduce((attemptsByMaterial, item) => {
+    attemptsByMaterial[item.material.id] = item.quizAttempts;
+    return attemptsByMaterial;
+  }, {});
   if (activeCardIndex >= state.flashcards.length) {
     activeCardIndex = 0;
   }
@@ -496,6 +503,7 @@ function normalizeState(nextState) {
   const materialsByTitle = new Map();
   nextState.materialChunks = nextState.materialChunks || {};
   nextState.materialQaRecords = nextState.materialQaRecords || {};
+  nextState.quizAttempts = nextState.quizAttempts || {};
   nextState.qaReviewDrafts = nextState.qaReviewDrafts || [];
   nextState.chunkSearch = nextState.chunkSearch || { query: "", results: [] };
 

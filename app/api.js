@@ -1,5 +1,22 @@
 const API_AUTH_STORAGE_KEY = "student-assistant-auth";
-const API_BASE_URL = localStorage.getItem("ai-agent-api-base-url") || "http://127.0.0.1:8001/api";
+const API_BASE_URL_STORAGE_KEY = "ai-agent-api-base-url";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8001/api";
+const STALE_API_BASE_URLS = new Set([
+  "http://127.0.0.1:8000/api",
+  "http://localhost:8000/api"
+]);
+const API_BASE_URL = getApiBaseUrl();
+
+function getApiBaseUrl() {
+  const savedUrl = localStorage.getItem(API_BASE_URL_STORAGE_KEY);
+  if (!savedUrl || STALE_API_BASE_URLS.has(savedUrl)) {
+    if (savedUrl) {
+      localStorage.removeItem(API_BASE_URL_STORAGE_KEY);
+    }
+    return DEFAULT_API_BASE_URL;
+  }
+  return savedUrl;
+}
 
 async function request(path, options = {}) {
   const userId = getCurrentApiUserId();
@@ -185,9 +202,20 @@ const materialApi = {
     return request(`/materials/${materialId}/quiz`);
   },
 
-  generateQuiz(materialId) {
-    return request(`/materials/${materialId}/quiz`, {
+  generateQuiz(materialId, count = 5) {
+    return request(`/materials/${materialId}/quiz?count=${encodeURIComponent(String(count))}`, {
       method: "POST"
+    });
+  },
+
+  listQuizAttempts(materialId) {
+    return request(`/materials/${materialId}/quiz/attempts`);
+  },
+
+  submitQuizAnswer(materialId, quizId, answer) {
+    return request(`/materials/${materialId}/quiz/${quizId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer })
     });
   },
 

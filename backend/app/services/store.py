@@ -156,6 +156,24 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quiz_attempts (
+                id TEXT PRIMARY KEY,
+                quiz_id TEXT NOT NULL,
+                material_id TEXT NOT NULL,
+                user_answer TEXT NOT NULL,
+                is_correct INTEGER NOT NULL,
+                score INTEGER NOT NULL,
+                feedback TEXT NOT NULL,
+                suggestion TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (quiz_id) REFERENCES quiz_questions(id) ON DELETE CASCADE,
+                FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+            )
+            """
+        )
 
 
 def reset() -> None:

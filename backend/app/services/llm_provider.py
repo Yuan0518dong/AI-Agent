@@ -110,6 +110,21 @@ def get_llm_provider() -> LLMProvider:
     provider_name = os.getenv("LLM_PROVIDER", "mock").strip().lower()
     if provider_name == "mock":
         return MockLLMProvider()
+    if provider_name in {"zhipu", "zhipuai", "bigmodel"}:
+        api_key = os.getenv("ZHIPU_API_KEY", "").strip() or os.getenv("LLM_API_KEY", "").strip()
+        model = os.getenv("ZHIPU_MODEL", "").strip() or os.getenv("LLM_MODEL", "glm-4-flash").strip()
+        base_url = (
+            os.getenv("ZHIPU_BASE_URL", "").strip()
+            or os.getenv("LLM_BASE_URL", "https://api.z.ai/api/paas/v4").strip()
+        )
+        timeout_seconds = _read_timeout_seconds()
+        if api_key and model:
+            return OpenAICompatibleLLMProvider(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                timeout_seconds=timeout_seconds,
+            )
     if provider_name in {"openai-compatible", "openai"}:
         api_key = os.getenv("LLM_API_KEY", "").strip()
         model = os.getenv("LLM_MODEL", "").strip()
@@ -128,20 +143,29 @@ def get_llm_provider() -> LLMProvider:
 
 def _load_env_file(path: Path | None = None) -> None:
     configured_path = os.getenv("LLM_ENV_FILE", "").strip()
-    env_path = path or (Path(configured_path) if configured_path else Path(__file__).resolve().parents[2] / ".env")
-    if not env_path.exists():
-        return
+    if path or configured_path:
+        env_paths = [path or Path(configured_path)]
+    else:
+        service_path = Path(__file__).resolve()
+        env_paths = [
+            service_path.parents[3] / ".env",
+            service_path.parents[2] / ".env",
+        ]
 
-    for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for env_path in env_paths:
+        if not env_path.exists():
             continue
 
-        key, value = line.split("=", 1)
-        key = key.strip().lstrip("\ufeff")
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+        for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip().lstrip("\ufeff")
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
 
 
 def _read_timeout_seconds() -> float:

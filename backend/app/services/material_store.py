@@ -100,6 +100,21 @@ def init_db() -> None:
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
                 );
+
+                CREATE TABLE IF NOT EXISTS quiz_attempts (
+                    id TEXT PRIMARY KEY,
+                    quiz_id TEXT NOT NULL,
+                    material_id TEXT NOT NULL,
+                    user_answer TEXT NOT NULL,
+                    is_correct INTEGER NOT NULL,
+                    score INTEGER NOT NULL,
+                    feedback TEXT NOT NULL,
+                    suggestion TEXT NOT NULL,
+                    mode TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY (quiz_id) REFERENCES quiz_questions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
+                );
                 """
             )
             _ensure_columns(conn)
@@ -109,6 +124,7 @@ def init_db() -> None:
 
 def clear_material_data() -> None:
     with _connect() as conn:
+        conn.execute("DELETE FROM quiz_attempts")
         conn.execute("DELETE FROM quiz_questions")
         conn.execute("DELETE FROM flashcards")
         conn.execute("DELETE FROM material_qa_records")
@@ -549,6 +565,57 @@ def replace_quiz_questions_for_material(
     return list_quiz_questions_for_material(material_id)
 
 
+def get_quiz_question(material_id: str, quiz_id: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            """
+            SELECT * FROM quiz_questions
+            WHERE id = ? AND material_id = ?
+            """,
+            (quiz_id, material_id),
+        ).fetchone()
+    return _quiz_question_from_row(row) if row else None
+
+
+def save_quiz_attempt(attempt: dict) -> dict:
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO quiz_attempts (
+                id, quiz_id, material_id, user_answer, is_correct, score,
+                feedback, suggestion, mode, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                attempt["id"],
+                attempt["quizId"],
+                attempt["materialId"],
+                attempt["userAnswer"],
+                1 if attempt["isCorrect"] else 0,
+                attempt["score"],
+                attempt["feedback"],
+                attempt["suggestion"],
+                attempt["mode"],
+                attempt["createdAt"],
+            ),
+        )
+    return attempt
+
+
+def list_quiz_attempts_for_material(material_id: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM quiz_attempts
+            WHERE material_id = ?
+            ORDER BY created_at DESC
+            """,
+            (material_id,),
+        ).fetchall()
+    return [_quiz_attempt_from_row(row) for row in rows]
+
+
 def extract_keywords(text: str) -> list[str]:
     return _extract_keywords(text)
 
@@ -647,6 +714,21 @@ def _quiz_question_from_row(row: sqlite3.Row) -> dict:
         "explanation": row["explanation"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
+    }
+
+
+def _quiz_attempt_from_row(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "quizId": row["quiz_id"],
+        "materialId": row["material_id"],
+        "userAnswer": row["user_answer"],
+        "isCorrect": bool(row["is_correct"]),
+        "score": row["score"],
+        "feedback": row["feedback"],
+        "suggestion": row["suggestion"],
+        "mode": row["mode"],
+        "createdAt": row["created_at"],
     }
 
 

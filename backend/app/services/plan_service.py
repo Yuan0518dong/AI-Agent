@@ -1,30 +1,34 @@
 from datetime import date, timedelta
 
-from backend.app.services import store
+from backend.app.services import ai_learning_service, store
 
 
 def delete_tasks_for_goal(goal_id: str) -> None:
     store.delete_tasks_for_goal(goal_id)
 
 
-def generate_plan_for_goal(goal: dict, days: int, regenerate: bool = True) -> list[dict]:
+def generate_plan_for_goal(
+    goal: dict,
+    days: int,
+    regenerate: bool = True,
+    user_id: str | None = None,
+) -> list[dict]:
     if regenerate:
         delete_tasks_for_goal(goal["id"])
 
-    topics = _collect_topics(goal)
+    plan = ai_learning_service.generate_learning_plan(goal, days, user_id)
     today = date.today()
     created_tasks = []
 
-    for index in range(days):
-        topic = topics[index % len(topics)]
+    for index, plan_task in enumerate(plan["tasks"]):
         now = store.now_iso()
         task = {
             "id": store.make_id("task"),
             "goal_id": goal["id"],
-            "title": f"Day {index + 1}: Learn {topic}",
-            "detail": f"Study for {goal['daily_minutes']} minutes and complete one review.",
+            "title": plan_task["title"],
+            "detail": plan_task["detail"],
             "date": (today + timedelta(days=index)).isoformat(),
-            "priority": "normal",
+            "priority": plan_task["priority"],
             "done": False,
             "completed_at": None,
             "created_at": now,

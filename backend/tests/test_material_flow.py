@@ -9,7 +9,8 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clean_store(tmp_path):
+def clean_store(tmp_path, monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
     test_db_path = tmp_path / "test_ai_agent.db"
     store.set_db_path(test_db_path)
     store.reset()
@@ -163,6 +164,21 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
     quiz_read_response = client.get(f"/api/materials/{material_id}/quiz")
     assert quiz_read_response.status_code == 200
     assert len(quiz_read_response.json()["data"]) == len(quiz_questions)
+
+    answer_response = client.post(
+        f"/api/materials/{material_id}/quiz/{quiz_questions[0]['id']}/answer",
+        json={"answer": quiz_questions[0]["answer"]},
+    )
+    assert answer_response.status_code == 200
+    attempt = answer_response.json()["data"]
+    assert attempt["quizId"] == quiz_questions[0]["id"]
+    assert attempt["materialId"] == material_id
+    assert 0 <= attempt["score"] <= 100
+    assert attempt["feedback"]
+
+    attempts_response = client.get(f"/api/materials/{material_id}/quiz/attempts")
+    assert attempts_response.status_code == 200
+    assert attempts_response.json()["data"][0]["id"] == attempt["id"]
 
     delete_response = client.delete(f"/api/materials/{material_id}")
     assert delete_response.status_code == 200
