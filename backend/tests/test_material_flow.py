@@ -159,6 +159,9 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
     assert quiz_response.status_code == 200
     quiz_questions = quiz_response.json()["data"]
     assert len(quiz_questions) == len(summary["keyPoints"])
+    assert quiz_questions[0]["question"].startswith("用自己的话解释：")
+    assert "资料中的作用或结论" in quiz_questions[0]["answer"]
+    assert "真正理解" in quiz_questions[0]["explanation"]
 
     quiz_read_response = client.get(f"/api/materials/{material_id}/quiz")
     assert quiz_read_response.status_code == 200

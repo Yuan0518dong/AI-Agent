@@ -53,6 +53,10 @@ function normalizeMessage(message) {
     isFromMaterial: message.isFromMaterial,
     confidence: message.confidence || "",
     mode: message.mode || "",
+    nextAction: message.nextAction || "",
+    requiresConfirmation: Boolean(message.requiresConfirmation),
+    insufficiencyReason: message.insufficiencyReason || "",
+    reviewDrafts: message.reviewDrafts || [],
     createdAt: timestamp
   };
 }
@@ -183,6 +187,18 @@ function agentAnswerMetaNode(message) {
     wrapper.appendChild(answerDetailNode("学习建议", message.suggestion));
   }
 
+  if (message.nextAction) {
+    wrapper.appendChild(answerDetailNode("下一步动作", getNextActionLabel(message.nextAction)));
+  }
+
+  if (message.insufficiencyReason) {
+    wrapper.appendChild(answerDetailNode("资料不足原因", message.insufficiencyReason));
+  }
+
+  if (message.reviewDrafts && message.reviewDrafts.length) {
+    wrapper.appendChild(answerDetailNode("待确认草稿", `已生成 ${message.reviewDrafts.length} 条，确认后再写入正式复习内容。`));
+  }
+
   if (message.references && message.references.length) {
     wrapper.appendChild(referenceChunksNode(message.references));
   } else if (message.relatedMaterialIds.length) {
@@ -201,6 +217,17 @@ function answerDetailNode(title, text) {
   body.textContent = text;
   detail.append(label, body);
   return detail;
+}
+
+function getNextActionLabel(action) {
+  const labels = {
+    answer_only: "先阅读回答，不生成复习内容",
+    review_material: "回看资料并整理复习点",
+    create_flashcards: "生成闪卡草稿，等待用户确认",
+    create_quiz: "生成测试题草稿，等待用户确认",
+    ask_for_more_material: "补充资料后再提问"
+  };
+  return labels[action] || action;
 }
 
 function referenceChunksNode(references) {

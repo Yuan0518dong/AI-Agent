@@ -209,6 +209,9 @@ function renderMaterialQaRecords(records) {
           </div>
           ${record.basis ? `<div class="qa-detail"><strong>依据</strong><span>${escapeHtml(record.basis)}</span></div>` : ""}
           ${record.suggestion ? `<div class="qa-detail"><strong>建议</strong><span>${escapeHtml(record.suggestion)}</span></div>` : ""}
+          ${record.nextAction ? `<div class="qa-detail"><strong>下一步</strong><span>${escapeHtml(getMaterialNextActionLabel(record.nextAction))}</span></div>` : ""}
+          ${record.insufficiencyReason ? `<div class="qa-detail"><strong>资料不足原因</strong><span>${escapeHtml(record.insufficiencyReason)}</span></div>` : ""}
+          ${record.reviewDrafts && record.reviewDrafts.length ? `<div class="qa-detail"><strong>待确认草稿</strong><span>Agent 已生成 ${record.reviewDrafts.length} 条，确认后再写入正式复习内容。</span></div>` : ""}
           <div class="qa-actions">
             <button
               class="ghost-button"
@@ -263,10 +266,14 @@ function createReviewDraftFromQa(event) {
   };
 
   if (type === "flashcard") {
-    draft.front = `请解释：${record.question}`;
-    draft.back = compactDraftText(record.answer, 220);
+    const agentDraft = getAgentReviewDraft(record, "flashcard");
+    draft.front = agentDraft && agentDraft.front ? agentDraft.front : `请解释：${record.question}`;
+    draft.back = agentDraft && agentDraft.back ? agentDraft.back : compactDraftText(record.answer, 220);
   } else {
-    draft.point = record.suggestion || record.basis || `回到资料重新复述：${record.question}`;
+    const agentDraft = getAgentReviewDraft(record, "review_point");
+    draft.point = agentDraft && agentDraft.point
+      ? agentDraft.point
+      : record.suggestion || record.basis || `回到资料重新复述：${record.question}`;
   }
 
   state.qaReviewDrafts.unshift(draft);
@@ -276,6 +283,21 @@ function createReviewDraftFromQa(event) {
 
 function findQaRecord(materialId, recordId) {
   return (state.materialQaRecords[materialId] || []).find((record) => record.id === recordId);
+}
+
+function getAgentReviewDraft(record, type) {
+  return (record.reviewDrafts || []).find((draft) => draft.type === type);
+}
+
+function getMaterialNextActionLabel(action) {
+  const labels = {
+    answer_only: "先阅读回答，不生成复习内容",
+    review_material: "回看资料并整理复习点",
+    create_flashcards: "生成闪卡草稿，等待用户确认",
+    create_quiz: "生成测试题草稿，等待用户确认",
+    ask_for_more_material: "补充资料后再提问"
+  };
+  return labels[action] || action;
 }
 
 function compactDraftText(text, maxLength) {
@@ -534,7 +556,7 @@ function summarizeContent(content, options = {}) {
 
 function createMemoryItems(material) {
   const timestamp = new Date().toISOString();
-  material.summary.keyPoints.forEach((point) => {
+  material.summary.keyPoints.forEach((point, index) => {
     state.flashcards.push({
       id: makeId(),
       materialId: material.id,
@@ -547,15 +569,45 @@ function createMemoryItems(material) {
     state.quizzes.push({
       id: makeId(),
       materialId: material.id,
-      type: "short",
+      type: index % 3 === 1 ? "application" : index % 3 === 2 ? "boundary" : "short",
       options: [],
-      question: `简答：${point} 的核心含义是什么？`,
-      answer: "先说明定义，再结合资料中的例子解释。",
-      explanation: `这道题对应资料《${material.title}》中的知识点“${point}”。`,
+      question: getLocalQuizQuestion(point, index),
+      answer: getLocalQuizAnswer(point, index),
+      explanation: getLocalQuizExplanation(material.title, point, index),
       createdAt: timestamp,
       updatedAt: timestamp
     });
   });
+}
+
+function getLocalQuizQuestion(point, index) {
+  if (index % 3 === 1) {
+    return `如果把“${point}”用到你的学习或项目里，第一步应该怎么做？`;
+  }
+  if (index % 3 === 2) {
+    return `判断并说明理由：学习“${point}”时，只记住结论就够了，不需要回到资料依据。`;
+  }
+  return `用自己的话解释：${point}`;
+}
+
+function getLocalQuizAnswer(point, index) {
+  if (index % 3 === 1) {
+    return `先找到资料中支撑“${point}”的依据，再把它转成一个可执行的小动作或复习问题。`;
+  }
+  if (index % 3 === 2) {
+    return "不对。需要回到资料依据核对来源，否则容易把自己的猜测当成资料结论。";
+  }
+  return `答案应围绕“${point}”展开，并能说出它在资料中的作用或结论。`;
+}
+
+function getLocalQuizExplanation(title, point, index) {
+  if (index % 3 === 1) {
+    return `这道题检查能不能把《${title}》中的“${point}”转成真实学习行动。`;
+  }
+  if (index % 3 === 2) {
+    return "这道题检查资料依据意识，也对应第三版智能体的资料不足判断规则。";
+  }
+  return `这道题检查你是否真正理解了《${title}》中的关键点，而不是只记住原句。`;
 }
 
 function startMaterialEdit(id) {

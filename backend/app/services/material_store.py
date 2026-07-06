@@ -73,6 +73,10 @@ def init_db() -> None:
                     is_from_material INTEGER NOT NULL,
                     confidence TEXT NOT NULL,
                     mode TEXT NOT NULL,
+                    next_action TEXT NOT NULL DEFAULT 'answer_only',
+                    requires_confirmation INTEGER NOT NULL DEFAULT 0,
+                    insufficiency_reason TEXT NOT NULL DEFAULT '',
+                    review_drafts TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL,
                     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
                 );
@@ -328,9 +332,10 @@ def save_qa_record(record: dict) -> dict:
             """
             INSERT INTO material_qa_records (
                 id, material_id, goal_id, question, answer, basis, suggestion, source_title,
-                is_from_material, confidence, mode, created_at
+                is_from_material, confidence, mode, next_action, requires_confirmation,
+                insufficiency_reason, review_drafts, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 record["id"],
@@ -344,6 +349,10 @@ def save_qa_record(record: dict) -> dict:
                 1 if record["isFromMaterial"] else 0,
                 record["confidence"],
                 record["mode"],
+                record.get("nextAction", "answer_only"),
+                1 if record.get("requiresConfirmation") else 0,
+                record.get("insufficiencyReason", ""),
+                json.dumps(record.get("reviewDrafts", []), ensure_ascii=False),
                 record["createdAt"],
             ),
         )
@@ -588,6 +597,21 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
                 f"ALTER TABLE material_summaries ADD COLUMN {column} TEXT NOT NULL DEFAULT {default}"
             )
 
+    qa_columns = _column_names(conn, "material_qa_records")
+    qa_defaults = {
+        "next_action": "'answer_only'",
+        "requires_confirmation": "0",
+        "insufficiency_reason": "''",
+        "review_drafts": "'[]'",
+    }
+    for column, default in qa_defaults.items():
+        if column not in qa_columns:
+            conn.execute(
+                f"ALTER TABLE material_qa_records ADD COLUMN {column} TEXT NOT NULL DEFAULT {default}"
+                if column != "requires_confirmation"
+                else f"ALTER TABLE material_qa_records ADD COLUMN {column} INTEGER NOT NULL DEFAULT {default}"
+            )
+
 
 def _column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {
@@ -675,6 +699,10 @@ def _qa_record_from_row(row: sqlite3.Row) -> dict:
         "isFromMaterial": bool(row["is_from_material"]),
         "confidence": row["confidence"],
         "mode": row["mode"],
+        "nextAction": row["next_action"],
+        "requiresConfirmation": bool(row["requires_confirmation"]),
+        "insufficiencyReason": row["insufficiency_reason"],
+        "reviewDrafts": json.loads(row["review_drafts"]),
         "createdAt": row["created_at"],
     }
 

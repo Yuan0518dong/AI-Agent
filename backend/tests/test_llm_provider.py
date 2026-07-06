@@ -32,6 +32,11 @@ def test_mock_llm_provider_generates_material_answer():
     assert answer.source_title == "RAG notes"
     assert "资料片段" in answer.answer
     assert "Agent learning" in answer.suggestion
+    assert answer.next_action == "create_flashcards"
+    assert answer.requires_confirmation is True
+    assert answer.insufficiency_reason == ""
+    assert answer.review_drafts
+    assert answer.review_drafts[0]["type"] == "flashcard"
 
 
 def test_mock_llm_provider_generates_fallback_answer():
@@ -51,6 +56,10 @@ def test_mock_llm_provider_generates_fallback_answer():
     assert answer.source_title == ""
     assert "资料不足" in answer.answer
     assert "补充更相关的资料" in answer.suggestion
+    assert answer.next_action == "ask_for_more_material"
+    assert answer.requires_confirmation is False
+    assert answer.insufficiency_reason
+    assert answer.review_drafts == []
 
 
 def test_unknown_llm_provider_falls_back_to_mock(monkeypatch):
@@ -139,7 +148,11 @@ def test_openai_compatible_provider_maps_json_response(monkeypatch):
                             '"basis":"Based on the retrieved chunk.",'
                             '"suggestion":"Turn this into one flashcard.",'
                             '"isFromMaterial":true,'
-                            '"confidence":"high"}'
+                            '"confidence":"high",'
+                            '"nextAction":"create_flashcards",'
+                            '"requiresConfirmation":true,'
+                            '"insufficiencyReason":"",'
+                            '"reviewDrafts":[{"type":"flashcard","front":"How does retrieval work?","back":"It grounds answers."}]}'
                         )
                     }
                 }
@@ -172,6 +185,9 @@ def test_openai_compatible_provider_maps_json_response(monkeypatch):
     assert answer.is_from_material is True
     assert answer.confidence == "high"
     assert answer.source_title == "RAG notes"
+    assert answer.next_action == "create_flashcards"
+    assert answer.requires_confirmation is True
+    assert answer.review_drafts[0]["type"] == "flashcard"
 
 
 def test_openai_compatible_provider_downgrades_insufficient_material(monkeypatch):
@@ -219,6 +235,9 @@ def test_openai_compatible_provider_downgrades_insufficient_material(monkeypatch
 
     assert answer.is_from_material is False
     assert answer.confidence == "low"
+    assert answer.next_action == "ask_for_more_material"
+    assert answer.requires_confirmation is False
+    assert answer.review_drafts == []
 
 
 def test_openai_compatible_provider_downgrades_missing_question_terms(monkeypatch):
@@ -268,3 +287,61 @@ def test_openai_compatible_provider_downgrades_missing_question_terms(monkeypatc
     assert answer.confidence == "low"
     assert "LangChain" in answer.answer
     assert "未提及" in answer.answer
+    assert answer.next_action == "ask_for_more_material"
+    assert answer.requires_confirmation is False
+    assert answer.review_drafts == []
+
+
+def test_openai_compatible_provider_recovers_current_material_summary_question(monkeypatch):
+    provider = llm_provider.OpenAICompatibleLLMProvider(
+        api_key="test-key",
+        base_url="https://example.test/v1",
+        model="test-model",
+    )
+
+    def fake_completion(payload):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": (
+                            '{"answer":"资料不足，无法提供具体回答。",'
+                            '"basis":"资料片段不足。",'
+                            '"suggestion":"请补充资料。",'
+                            '"isFromMaterial":false,'
+                            '"confidence":"low",'
+                            '"nextAction":"ask_for_more_material",'
+                            '"requiresConfirmation":false,'
+                            '"insufficiencyReason":"资料不足",'
+                            '"reviewDrafts":[]}'
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(provider, "_post_chat_completion", fake_completion)
+
+    answer = provider.generate_answer(
+        llm_provider.LLMAnswerContext(
+            question="请基于《春江花月夜》解释这份资料的核心内容，并给我下一步复习建议。",
+            goal=None,
+            material_id="material_1",
+            references=[
+                {
+                    "materialId": "material_1",
+                    "materialTitle": "春江花月夜",
+                    "chunkIndex": 0,
+                    "content": "春江潮水连海平，海上明月共潮生。江天一色无纤尘。",
+                    "score": 1,
+                }
+            ],
+        )
+    )
+
+    assert answer.is_from_material is True
+    assert answer.confidence == "medium"
+    assert answer.next_action == "review_material"
+    assert answer.insufficiency_reason == ""
+    assert "春江花月夜" in answer.answer
+    assert answer.review_drafts

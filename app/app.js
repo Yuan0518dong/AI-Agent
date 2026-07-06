@@ -273,6 +273,10 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
       isFromMaterial: answer.isFromMaterial,
       confidence: answer.confidence,
       mode: answer.mode,
+      nextAction: answer.nextAction,
+      requiresConfirmation: answer.requiresConfirmation,
+      insufficiencyReason: answer.insufficiencyReason,
+      reviewDrafts: answer.reviewDrafts || [],
       createdAt: new Date().toISOString()
     });
     conversation.relatedMaterialIds = mergeUniqueIds(conversation.relatedMaterialIds, relatedMaterialIds);
