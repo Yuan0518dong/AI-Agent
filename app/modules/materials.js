@@ -1,5 +1,8 @@
 // materials module extracted from app.js.
 
+let highlightedReviewDraftId = "";
+let highlightedMaterialQaRecordId = "";
+
 function normalizeSummary(material) {
   const timestamp = material.createdAt || new Date().toISOString();
   const fallback = summarizeContent(material.content || "", {
@@ -123,7 +126,7 @@ function renderSummaries() {
     item.querySelector('[data-action="generate-chunks"]').addEventListener("click", (event) => {
       generateChunksForMaterial(event.currentTarget.dataset.materialId, event.currentTarget);
     });
-    item.querySelectorAll('[data-action="qa-flashcard-draft"], [data-action="qa-review-point"]').forEach((button) => {
+    item.querySelectorAll('[data-action="qa-agent-draft"], [data-action="qa-flashcard-draft"], [data-action="qa-review-point"]').forEach((button) => {
       button.addEventListener("click", createReviewDraftFromQa);
     });
     list.appendChild(item);
@@ -196,7 +199,7 @@ function renderMaterialQaRecords(records) {
   return `
     <div class="qa-list">
       ${records.slice().reverse().map((record) => `
-        <article class="qa-item">
+        <article class="qa-item ${record.isFromMaterial === false ? "qa-item-insufficient" : ""} ${record.id === highlightedMaterialQaRecordId ? "qa-item-active" : ""}" data-qa-record-id="${escapeHtml(record.id)}">
           <div class="qa-question">${escapeHtml(record.question)}</div>
           <p>${escapeHtml(record.answer)}</p>
           <div class="qa-meta">
@@ -206,10 +209,19 @@ function renderMaterialQaRecords(records) {
           </div>
           ${record.basis ? `<div class="qa-detail"><strong>依据</strong><span>${escapeHtml(record.basis)}</span></div>` : ""}
           ${record.suggestion ? `<div class="qa-detail"><strong>建议</strong><span>${escapeHtml(record.suggestion)}</span></div>` : ""}
-          ${record.nextAction ? `<div class="qa-detail"><strong>下一步</strong><span>${escapeHtml(getMaterialNextActionLabel(record.nextAction))}</span></div>` : ""}
+          ${record.nextAction ? `<div class="qa-next-action"><strong>Agent 建议</strong><span>${escapeHtml(getMaterialNextActionLabel(record.nextAction))}</span></div>` : ""}
           ${record.insufficiencyReason ? `<div class="qa-detail"><strong>资料不足原因</strong><span>${escapeHtml(record.insufficiencyReason)}</span></div>` : ""}
           ${record.reviewDrafts && record.reviewDrafts.length ? `<div class="qa-detail"><strong>待确认草稿</strong><span>Agent 已生成 ${record.reviewDrafts.length} 条，确认后再写入正式复习内容。</span></div>` : ""}
           <div class="qa-actions">
+            ${record.reviewDrafts && record.reviewDrafts.length ? `
+              <button
+                class="primary-button"
+                data-action="qa-agent-draft"
+                data-material-id="${escapeHtml(record.materialId || "")}"
+                data-record-id="${escapeHtml(record.id)}"
+                type="button"
+              >采纳 Agent 草稿</button>
+            ` : ""}
             <button
               class="ghost-button"
               data-action="qa-flashcard-draft"
@@ -242,12 +254,27 @@ function createReviewDraftFromQa(event) {
     return;
   }
 
-  const type = button.dataset.action === "qa-flashcard-draft" ? "flashcard" : "review-point";
-  const exists = state.qaReviewDrafts.some((draft) => {
+  const action = button.dataset.action;
+  const preferredAgentDraft = action === "qa-agent-draft" ? getPreferredAgentReviewDraft(record) : null;
+  if (action === "qa-agent-draft" && !preferredAgentDraft) {
+    showError(new Error("这条问答没有可采纳的 Agent 草稿"));
+    return;
+  }
+
+  const type = resolveQaDraftType(action, preferredAgentDraft);
+  const existingDraft = state.qaReviewDrafts.find((draft) => {
     return draft.type === type && draft.qaRecordId === record.id;
   });
 
-  if (exists) {
+  if (existingDraft) {
+    if (action === "qa-agent-draft") {
+      highlightedReviewDraftId = existingDraft.id;
+      saveAndRender();
+      switchView("memory");
+      focusReviewDraft(existingDraft.id);
+      showSuccess("这条问答已有对应草稿，已定位到复盘草稿区");
+      return;
+    }
     showSuccess(type === "flashcard" ? "这条问答已有闪卡草稿" : "这条问答已有复习点");
     return;
   }
@@ -259,22 +286,30 @@ function createReviewDraftFromQa(event) {
     materialId,
     qaRecordId: record.id,
     question: record.question,
+    source: action === "qa-agent-draft" ? "agent" : "manual",
     createdAt: timestamp
   };
 
   if (type === "flashcard") {
-    const agentDraft = getAgentReviewDraft(record, "flashcard");
+    const agentDraft = preferredAgentDraft || getAgentReviewDraft(record, "flashcard");
     draft.front = agentDraft && agentDraft.front ? agentDraft.front : `请解释：${record.question}`;
     draft.back = agentDraft && agentDraft.back ? agentDraft.back : compactDraftText(record.answer, 220);
   } else {
-    const agentDraft = getAgentReviewDraft(record, "review_point");
+    const agentDraft = preferredAgentDraft || getAgentReviewDraft(record, "review_point");
     draft.point = agentDraft && agentDraft.point
       ? agentDraft.point
       : record.suggestion || record.basis || `回到资料重新复述：${record.question}`;
   }
 
+  highlightedReviewDraftId = draft.id;
   state.qaReviewDrafts.unshift(draft);
   saveAndRender();
+  if (action === "qa-agent-draft") {
+    switchView("memory");
+    focusReviewDraft(draft.id);
+    showSuccess("已采纳 Agent 草稿，已放入复盘草稿区");
+    return;
+  }
   showSuccess(type === "flashcard" ? "已生成闪卡草稿" : "已记录复习点");
 }
 
@@ -282,8 +317,66 @@ function findQaRecord(materialId, recordId) {
   return (state.materialQaRecords[materialId] || []).find((record) => record.id === recordId);
 }
 
+function syncMaterialQaRecordFromAgentAnswer(answer, question) {
+  if (!answer || !answer.materialId || !answer.id) return;
+
+  const record = {
+    id: answer.id,
+    materialId: answer.materialId,
+    goalId: answer.goalId || "",
+    question: answer.question || question,
+    answer: answer.answer,
+    basis: answer.basis || "",
+    suggestion: answer.suggestion || "",
+    sourceTitle: answer.sourceTitle || "",
+    isFromMaterial: answer.isFromMaterial,
+    confidence: answer.confidence || "",
+    mode: answer.mode || "",
+    nextAction: answer.nextAction || "",
+    requiresConfirmation: Boolean(answer.requiresConfirmation),
+    insufficiencyReason: answer.insufficiencyReason || "",
+    reviewDrafts: answer.reviewDrafts || [],
+    createdAt: answer.createdAt || new Date().toISOString()
+  };
+
+  const records = state.materialQaRecords[answer.materialId] || [];
+  const index = records.findIndex((item) => item.id === answer.id);
+  if (index >= 0) {
+    records[index] = record;
+  } else {
+    records.push(record);
+  }
+  state.materialQaRecords[answer.materialId] = records;
+  highlightedMaterialQaRecordId = answer.id;
+}
+
+function focusMaterialQaRecord(recordId) {
+  if (!recordId) return;
+  requestAnimationFrame(() => {
+    const qaNode = Array.from(document.querySelectorAll("[data-qa-record-id]")).find((item) => {
+      return item.dataset.qaRecordId === recordId;
+    });
+    if (qaNode) {
+      qaNode.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+}
+
 function getAgentReviewDraft(record, type) {
   return (record.reviewDrafts || []).find((draft) => draft.type === type);
+}
+
+function getPreferredAgentReviewDraft(record) {
+  return getAgentReviewDraft(record, "flashcard")
+    || getAgentReviewDraft(record, "review_point")
+    || (record.reviewDrafts || [])[0];
+}
+
+function resolveQaDraftType(action, agentDraft) {
+  if (action === "qa-flashcard-draft") return "flashcard";
+  if (action === "qa-review-point") return "review-point";
+  if (agentDraft && agentDraft.type === "flashcard") return "flashcard";
+  return "review-point";
 }
 
 function getMaterialNextActionLabel(action) {
@@ -319,12 +412,16 @@ function renderReviewDrafts() {
     return;
   }
 
-  list.innerHTML = drafts.slice(0, 6).map((draft) => `
-    <article class="review-draft-item">
+  list.innerHTML = drafts.slice(0, 6).map((draft) => {
+    const isHighlighted = draft.id === highlightedReviewDraftId;
+    return `
+    <article class="review-draft-item${isHighlighted ? " review-draft-item-active" : ""}" data-review-draft-id="${escapeHtml(draft.id)}">
       <div class="review-draft-head">
         <div class="tag-row">
           <span class="tag">${draft.type === "flashcard" ? "闪卡草稿" : "复习点"}</span>
+          <span class="tag">${draft.source === "agent" ? "Agent 草稿" : "手动草稿"}</span>
           <span class="tag">${escapeHtml(getMaterialTitle(draft.materialId))}</span>
+          ${isHighlighted ? `<span class="tag tag-accent">当前草稿</span>` : ""}
         </div>
         <button
           class="ghost-button"
@@ -335,7 +432,7 @@ function renderReviewDrafts() {
         >×</button>
       </div>
       ${draft.type === "flashcard"
-        ? `<h3>${escapeHtml(draft.front)}</h3><p>${escapeHtml(draft.back)}</p>`
+        ? `<h3>${escapeHtml(draft.front)}</h3><p>${escapeHtml(draft.back)}</p><p>来源问题：${escapeHtml(draft.question)}</p>`
         : `<h3>${escapeHtml(draft.point)}</h3><p>来源问题：${escapeHtml(draft.question)}</p>`}
       <div class="review-draft-actions">
         <button
@@ -346,7 +443,8 @@ function renderReviewDrafts() {
         >加入闪卡</button>
       </div>
     </article>
-  `).join("");
+  `;
+  }).join("");
 
   list.querySelectorAll('[data-action="delete-review-draft"]').forEach((button) => {
     button.addEventListener("click", deleteReviewDraft);
@@ -359,8 +457,22 @@ function renderReviewDrafts() {
 function deleteReviewDraft(event) {
   const draftId = event.currentTarget.dataset.draftId;
   state.qaReviewDrafts = state.qaReviewDrafts.filter((draft) => draft.id !== draftId);
+  if (highlightedReviewDraftId === draftId) {
+    highlightedReviewDraftId = "";
+  }
   saveAndRender();
   showSuccess("复盘草稿已删除");
+}
+
+function focusReviewDraft(draftId) {
+  requestAnimationFrame(() => {
+    const draftNode = Array.from(document.querySelectorAll("[data-review-draft-id]")).find((item) => {
+      return item.dataset.reviewDraftId === draftId;
+    });
+    if (draftNode) {
+      draftNode.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
 }
 
 async function addReviewDraftToFlashcards(event) {
@@ -440,6 +552,66 @@ function prefillQuestionFromMaterial(materialId) {
   input.focus();
   input.select();
   showSuccess("已将资料带入左侧成长问答");
+}
+
+function prefillAgentSampleQuestion(sampleKey) {
+  const material = getAgentSampleMaterial();
+  if (!material) {
+    showError(new Error("请先添加一份资料，再进行智能体验收"));
+    return;
+  }
+
+  if (material.goalId) {
+    selectedGoalId = material.goalId;
+  }
+  pendingChatMaterialId = material.id;
+
+  const input = document.querySelector('#chat-form input[name="question"]');
+  input.value = buildAgentSampleQuestion(sampleKey, material);
+  switchView("study");
+  input.focus();
+  input.select();
+  renderAgentSampleState();
+  showSuccess(`已基于《${material.title}》填入验收问题`);
+}
+
+function renderAgentSampleState() {
+  const badge = document.getElementById("agent-sample-material");
+  if (!badge) return;
+
+  const material = getAgentSampleMaterial();
+  if (!material) {
+    badge.textContent = "未绑定资料";
+    badge.title = "";
+    return;
+  }
+
+  badge.textContent = `当前：${material.title}`;
+  badge.title = material.title;
+}
+
+function getAgentSampleMaterial() {
+  if (pendingChatMaterialId) {
+    const pendingMaterial = state.materials.find((item) => item.id === pendingChatMaterialId);
+    if (pendingMaterial) return pendingMaterial;
+  }
+
+  if (selectedGoalId) {
+    const goalMaterial = state.materials.find((item) => item.goalId === selectedGoalId);
+    if (goalMaterial) return goalMaterial;
+  }
+
+  return state.materials[0] || null;
+}
+
+function buildAgentSampleQuestion(sampleKey, material) {
+  const title = material.title;
+  const samples = {
+    evidence: `请只根据《${title}》回答：这份资料里最重要的概念、人物、意象或知识点是什么？请说明依据。`,
+    review: `请基于《${title}》解释这份资料的核心内容，并给我下一步复习建议。`,
+    insufficient: `请只根据《${title}》回答：Transformer 的多头注意力公式是什么？如果资料没有依据，请说明资料不足。`
+  };
+  return samples[sampleKey] || samples.review;
 }
 
 function renderFlashcard() {

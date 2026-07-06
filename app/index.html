@@ -340,6 +340,17 @@
                 <input name="question" required placeholder="问一个知识点，或从右侧资料带入上下文" />
                 <button class="primary-button" type="submit">发送</button>
               </form>
+              <div class="agent-sample-panel">
+                <div class="agent-sample-head">
+                  <h3>智能体验收</h3>
+                  <span class="panel-count" id="agent-sample-material">未绑定资料</span>
+                </div>
+                <div class="agent-sample-actions">
+                  <button class="ghost-button" data-agent-sample="evidence" type="button">资料内回答</button>
+                  <button class="ghost-button" data-agent-sample="review" type="button">复习建议</button>
+                  <button class="ghost-button" data-agent-sample="insufficient" type="button">资料不足</button>
+                </div>
+              </div>
             </section>
 
             <section class="panel summary-panel">
