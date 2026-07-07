@@ -1,89 +1,90 @@
 # 文档索引
 
-本目录按用途拆分，避免文档都堆在 `docs/` 根目录。当前项目已经从实习期原型推进到个人作品集化阶段；优先读“当前入口”，历史文档只在需要追溯版本演进时查看。
+本目录只保留当前开发和作品集展示需要的入口文档。历史计划、日报、阶段验收和早期草案已归档到 `docs/archive/`，需要追溯项目演进时再查看。
 
-## 当前入口
+## 当前必读
 
 ```text
 docs/status/当前状态.md
 docs/planning/个人项目简历化与第四版智能体方案.md
-docs/planning/第三版项目计划书.md
-docs/status/第三版资料学习智能体验收样例.md
-docs/README.md
+README.md
 ```
 
-## status
-
-记录项目当前状态、验收结果、长期进度和历史问题。每天启动优先读取 `docs/status/当前状态.md`。
+用途：
 
 ```text
-docs/status/当前状态.md
-docs/status/MVP第一版验收记录.md
-docs/status/第二版阶段验收记录.md
-docs/status/第二版最终验收记录.md
-docs/status/第二版验收样例与演示脚本.md
-docs/status/第三版资料学习智能体验收样例.md
-docs/status/真实模型联调记录.md
-docs/status/MVP第一版进度评估与下一步计划.md
-docs/status/项目进度记录.md
-docs/status/dev-demo-smoke.png
+当前状态：记录最新阶段、分支、验证结果和下一步。
+第四版方案：记录个人项目定位、简历表达边界和完整学习 Agent 路线。
+README：面向 GitHub 访客和面试官，说明项目价值、启动方式和当前能力。
 ```
 
-## planning
-
-记录版本计划、技术方案、协作规则和长期工作规则。第二版、第三版计划书保留为历史阶段文档；当前主线以 `docs/planning/个人项目简历化与第四版智能体方案.md` 为准。
+## 当前计划
 
 ```text
 docs/planning/个人项目简历化与第四版智能体方案.md
-docs/planning/第二版项目计划书.md
 docs/planning/第三版项目计划书.md
-docs/planning/第一版技术实现方案.md
-docs/planning/第一版功能开发边界与分工.md
-docs/planning/两人协作开发分工文档.md
-docs/planning/每日工作安排规则.md
 ```
 
-## api
-
-记录数据对象、字段命名和 API 草案。
+说明：
 
 ```text
-docs/api/第一阶段数据对象与API草案.md
-docs/api/资料与AI模块字段和API草案.md
-docs/api/RAG-chunks接口说明.md
-docs/api/第二版AI问答接口交接.md
+个人项目简历化与第四版智能体方案：当前主线。
+第三版项目计划书：上一阶段可控学习智能体 MVP 的计划记录，仍作为第四版前置背景。
+```
+
+## 当前验收
+
+```text
+docs/status/第三版资料学习智能体验收样例.md
+```
+
+说明：
+
+```text
+记录资料内回答、复习建议、资料不足三类真实模型验收样例。
+```
+
+## 工程说明
+
+```text
 docs/api/LLM-provider设计说明.md
-```
-
-## modules
-
-记录具体模块的前后端接口对照、测试清单和模块级验收内容。
-
-```text
+docs/api/RAG-chunks接口说明.md
 docs/modules/目标模块前后端接口对照.md
-docs/modules/目标模块测试清单.md
 docs/modules/资料模块前后端接口对照.md
 ```
 
-## daily
-
-记录每天的工作安排、联调记录和日终小结。每日文件使用 `YYYY-MM-DD工作安排.md`。
+说明：
 
 ```text
-docs/daily/2026-06-30工作安排.md
-docs/daily/2026-07-01工作安排.md
-docs/daily/2026-07-02工作安排.md
-docs/daily/2026-07-03工作安排.md
+LLM Provider：mock / OpenAI-compatible Provider 配置和行为。
+RAG chunks：资料片段生成、检索和接口说明。
+目标模块接口对照：目标、任务、打卡、进度链路。
+资料模块接口对照：资料、摘要、chunks、问答、复盘、闪卡链路。
 ```
 
-## 归档规则
+## 历史归档
 
 ```text
-1. 当前状态只维护 docs/status/当前状态.md。
-2. 版本计划统一放 docs/planning/。
-3. API 字段草案统一放 docs/api/。
-4. 模块级接口对照和测试清单统一放 docs/modules/。
-5. 每日安排和当天记录统一放 docs/daily/。
-6. 第一版、第二版、第三版文档保留，不删除；当前只把它们作为历史依据。
-7. 个人项目简历化和第四版 Agent 方向统一从 `docs/planning/个人项目简历化与第四版智能体方案.md` 进入。
+docs/archive/README.md
+```
+
+归档内容包括：
+
+```text
+第一版 / 第二版计划
+旧协作分工
+每日工作安排
+旧阶段验收记录
+早期 API 草案
+旧测试清单和截图
+```
+
+## 维护规则
+
+```text
+1. 当前主线只更新 docs/status/当前状态.md 和第四版方案文档。
+2. README 面向外部展示，避免堆过程细节。
+3. 历史证据不删除，统一移入 docs/archive/。
+4. 新增第四版工程设计时，优先放在 docs/planning/ 或 docs/api/，不要再散落 daily/status。
+5. 如果文档不再指导当前开发，就移入 archive。
 ```

@@ -282,25 +282,16 @@ python -m http.server 5501 --directory app
 
 ## 重要文档
 
-- 通用成长学习助手App简单版PRD.md
 - docs/README.md
 - docs/status/当前状态.md
 - docs/planning/个人项目简历化与第四版智能体方案.md
 - docs/planning/第三版项目计划书.md
 - docs/status/第三版资料学习智能体验收样例.md
-- docs/status/第二版阶段验收记录.md
-- docs/status/第二版最终验收记录.md
-- docs/status/第二版验收样例与演示脚本.md
-- docs/status/项目进度记录.md
-- docs/status/MVP第一版进度评估与下一步计划.md
-- docs/daily/2026-07-02工作安排.md
-- docs/planning/第二版项目计划书.md
-- docs/api/资料与AI模块字段和API草案.md
 - docs/api/RAG-chunks接口说明.md
-- docs/api/第二版AI问答接口交接.md
 - docs/api/LLM-provider设计说明.md
 - docs/modules/目标模块前后端接口对照.md
 - docs/modules/资料模块前后端接口对照.md
+- docs/archive/README.md
 
 ## 版本控制
 
