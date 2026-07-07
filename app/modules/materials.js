@@ -497,6 +497,7 @@ async function addReviewDraftToFlashcards(event) {
     const flashcard = await materialApi.createFlashcard(draft.materialId, getDraftFlashcardPayload(draft));
     state.flashcards.push(flashcard);
     state.qaReviewDrafts = state.qaReviewDrafts.filter((item) => item.id !== draft.id);
+    await loadAgentContextFromApi();
     activeCardIndex = Math.max(0, state.flashcards.length - 1);
     saveAndRender();
     showSuccess("已加入闪卡复习");
@@ -552,6 +553,59 @@ function prefillQuestionFromMaterial(materialId) {
   input.focus();
   input.select();
   showSuccess("已将资料带入左侧成长问答");
+}
+
+function prefillMaterialFormFromAgent(log) {
+  editingMaterialId = "";
+  renderMaterialFormMode();
+
+  const form = document.getElementById("material-form");
+  if (!form) return;
+
+  const title = getAgentMaterialDraftTitle(log);
+  form.elements.title.value = title;
+  form.elements.type.value = "text";
+  form.elements.content.value = getAgentMaterialDraftContent(log);
+  switchView("materials");
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+  form.elements.content.focus();
+  form.elements.content.select();
+}
+
+function getAgentMaterialDraftTitle(log) {
+  const insufficiency = getAgentInsufficiencyRecord(log);
+  if (insufficiency?.materialTitle) {
+    return `补充资料：${insufficiency.materialTitle}`;
+  }
+  return "补充资料：待完善来源";
+}
+
+function getAgentMaterialDraftContent(log) {
+  const insufficiency = getAgentInsufficiencyRecord(log);
+  const lines = [
+    "Agent 建议补充资料：",
+    log.proposedPayload?.description || log.observation || "当前资料不足以支撑后续学习判断。",
+    ""
+  ];
+
+  if (insufficiency?.question) {
+    lines.push(`待补充问题：${insufficiency.question}`);
+  }
+  if (insufficiency?.insufficiencyReason) {
+    lines.push(`资料不足原因：${insufficiency.insufficiencyReason}`);
+  }
+  lines.push("", "请在这里粘贴新的资料正文或来源摘录，再保存并整理。");
+  return lines.join("\n");
+}
+
+function getAgentInsufficiencyRecord(log) {
+  const payload = log.proposedPayload?.payload || {};
+  const materialIds = payload.materialIds || [];
+  const records = state.agentContext?.qa?.insufficiencies || [];
+  if (!materialIds.length) {
+    return records[0] || null;
+  }
+  return records.find((record) => materialIds.includes(record.materialId)) || records[0] || null;
 }
 
 function prefillAgentSampleQuestion(sampleKey) {
@@ -843,6 +897,7 @@ async function deleteMaterial(id) {
       cancelMaterialEdit();
     }
     await loadMaterialDataFromApi();
+    await loadAgentContextFromApi();
     state.qaReviewDrafts = state.qaReviewDrafts.filter((draft) => draft.materialId !== id);
     state.aiConversations = state.aiConversations.map((conversation) => ({
       ...conversation,
@@ -872,6 +927,7 @@ async function rateCard(status) {
       : { ...card, status, updatedAt: new Date().toISOString() };
 
     state.flashcards[activeCardIndex] = updatedCard;
+    await loadAgentContextFromApi();
     activeCardIndex = state.flashcards.length ? (activeCardIndex + 1) % state.flashcards.length : 0;
     saveAndRender();
     showSuccess(status === "known" ? "已标记为掌握" : "已加入复习队列");

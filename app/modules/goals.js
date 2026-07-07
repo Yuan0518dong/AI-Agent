@@ -58,6 +58,7 @@ async function generatePlansForAllGoals(days = 7, triggerButton = null) {
     }
 
     await loadGoalDataFromApi();
+    await loadAgentContextFromApi();
     render();
     showSuccess("计划已重新生成");
   } catch (error) {
@@ -69,7 +70,9 @@ async function generatePlansForAllGoals(days = 7, triggerButton = null) {
 
 async function regenerateGoalPlan(goalId, triggerButton = null, days = getPlanDays("goal-plan-days")) {
   const hasTasks = selectedGoalId === goalId && state.selectedGoalTasks.length > 0;
-  if (hasTasks && !window.confirm(`将覆盖该目标已有任务，并重新生成 ${days} 天计划。确认继续吗？`)) return;
+  if (hasTasks && !window.confirm(`将覆盖该目标已有任务，并重新生成 ${days} 天计划。确认继续吗？`)) {
+    return false;
+  }
 
   setButtonLoading(triggerButton, true, "生成中");
 
@@ -77,10 +80,13 @@ async function regenerateGoalPlan(goalId, triggerButton = null, days = getPlanDa
     selectedGoalId = goalId;
     await generatePlanForGoalApi(goalId, days);
     await loadGoalDataFromApi();
+    await loadAgentContextFromApi();
     render();
     showSuccess("目标计划已更新");
+    return true;
   } catch (error) {
     showError(error);
+    return false;
   } finally {
     setButtonLoading(triggerButton, false);
   }
@@ -171,6 +177,7 @@ function getPlanDays(elementId) {
 async function refreshGoalData(successMessage = "") {
   try {
     await loadGoalDataFromApi();
+    await loadAgentContextFromApi();
     render();
     if (successMessage) showSuccess(successMessage);
   } catch (error) {
@@ -392,6 +399,7 @@ function renderToday() {
         try {
           await goalApi.checkinTask(task.id, checked);
           await loadGoalDataFromApi();
+          await loadAgentContextFromApi();
           render();
           showSuccess(checked ? "任务已打卡" : "已取消打卡");
         } catch (error) {
@@ -483,6 +491,8 @@ function renderGoalDetail() {
   };
   const tasks = state.selectedGoalTasks;
   const remaining = getRemainingDays(goal.deadline);
+  const taskDrafts = getAgentTaskDraftsForGoal(goal.id);
+  const taskDraftRows = renderAgentTaskDrafts(taskDrafts);
   const taskRows = tasks.length
     ? tasks.map((task) => `
       <div class="task-row ${task.done ? "done" : ""}">
@@ -525,6 +535,7 @@ function renderGoalDetail() {
         <div class="detail-stat"><span>今日进度</span><strong>${progress.todayCompleted}/${progress.todayTotal}</strong></div>
         <div class="detail-stat"><span>剩余天数</span><strong>${remaining}</strong></div>
       </div>
+      ${taskDraftRows}
       <h4>行动任务</h4>
       <div class="task-list">${taskRows}</div>
     </article>
@@ -538,6 +549,99 @@ function renderGoalDetail() {
     checkbox.addEventListener("change", (event) => {
       checkinTaskFromDetail(event.currentTarget.dataset.taskId, event.currentTarget.checked);
     });
+  });
+  detail.querySelectorAll('[data-action="apply-agent-task-draft"]').forEach((button) => {
+    button.addEventListener("click", (event) => {
+      applyAgentTaskDraft(event.currentTarget.dataset.draftId, event.currentTarget);
+    });
+  });
+  detail.querySelectorAll('[data-action="delete-agent-task-draft"]').forEach((button) => {
+    button.addEventListener("click", (event) => {
+      deleteAgentTaskDraft(event.currentTarget.dataset.draftId);
+    });
+  });
+}
+
+function getAgentTaskDraftsForGoal(goalId) {
+  return (state.agentTaskDrafts || []).filter((draft) => draft.goalId === goalId);
+}
+
+function renderAgentTaskDrafts(drafts) {
+  if (!drafts.length) return "";
+
+  return `
+    <section class="agent-task-draft-panel">
+      <div class="agent-task-draft-head">
+        <div>
+          <h4>Agent 任务草稿</h4>
+          <p>草稿不会直接改任务表，确认后才进入正式计划生成。</p>
+        </div>
+        <span>${drafts.length} 条</span>
+      </div>
+      <div class="agent-task-draft-list">
+        ${drafts.slice(0, 3).map((draft) => renderAgentTaskDraftItem(draft)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderAgentTaskDraftItem(draft) {
+  return `
+    <article class="agent-task-draft-item" data-agent-task-draft-id="${escapeHtml(draft.id)}">
+      <div class="agent-task-draft-title">
+        <div>
+          <strong>${escapeHtml(draft.title)}</strong>
+          <p>${escapeHtml(draft.reason || "Agent 建议先生成待确认任务草稿。")}</p>
+        </div>
+        <span>${draft.suggestedDays} 天</span>
+      </div>
+      <div class="agent-task-draft-tasks">
+        ${(draft.tasks || []).slice(0, 4).map((task) => `
+          <div>
+            <span>${escapeHtml(task.date || "")}</span>
+            <p>${escapeHtml(task.title || "")}</p>
+          </div>
+        `).join("")}
+      </div>
+      <div class="agent-task-draft-actions">
+        <button class="primary-button" data-action="apply-agent-task-draft" data-draft-id="${escapeHtml(draft.id)}" type="button">按草稿生成计划</button>
+        <button class="ghost-button" data-action="delete-agent-task-draft" data-draft-id="${escapeHtml(draft.id)}" type="button">删除草稿</button>
+      </div>
+    </article>
+  `;
+}
+
+async function applyAgentTaskDraft(draftId, triggerButton = null) {
+  const draft = (state.agentTaskDrafts || []).find((item) => item.id === draftId);
+  if (!draft) {
+    showError(new Error("没有找到这条任务草稿"));
+    return;
+  }
+
+  const days = Number(draft.suggestedDays || getPlanDays("goal-plan-days"));
+  const applied = await regenerateGoalPlan(draft.goalId, triggerButton, days);
+  if (!applied) return;
+
+  state.agentTaskDrafts = state.agentTaskDrafts.filter((item) => item.id !== draftId);
+  saveState();
+  render();
+}
+
+function deleteAgentTaskDraft(draftId) {
+  state.agentTaskDrafts = (state.agentTaskDrafts || []).filter((draft) => draft.id !== draftId);
+  saveAndRender();
+  showSuccess("任务草稿已删除");
+}
+
+function focusAgentTaskDraft(draftId) {
+  if (!draftId) return;
+  requestAnimationFrame(() => {
+    const draftNode = Array.from(document.querySelectorAll("[data-agent-task-draft-id]")).find((item) => {
+      return item.dataset.agentTaskDraftId === draftId;
+    });
+    if (draftNode) {
+      draftNode.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   });
 }
 
@@ -580,6 +684,7 @@ async function deleteGoal(id) {
       cancelGoalEdit();
     }
     await loadGoalDataFromApi();
+    await loadAgentContextFromApi();
     render();
     showSuccess("目标已删除");
   } catch (error) {
@@ -591,6 +696,7 @@ async function checkinTaskFromDetail(taskId, done) {
   try {
     await goalApi.checkinTask(taskId, done);
     await loadGoalDataFromApi();
+    await loadAgentContextFromApi();
     render();
     showSuccess(done ? "任务已打卡" : "已取消打卡");
   } catch (error) {

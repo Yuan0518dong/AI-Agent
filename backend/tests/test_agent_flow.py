@@ -115,6 +115,280 @@ def test_agent_ask_returns_mock_answer_with_references():
     assert history[0]["reviewDrafts"] == data["reviewDrafts"]
 
 
+def test_agent_context_collects_learning_state():
+    goal = create_goal("Context goal")
+    material = create_material(
+        goal["id"],
+        "Context notes",
+        "Retrieval practice connects materials, quiz feedback, and review cards.",
+    )
+    material_id = material["id"]
+
+    plan_response = client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 2, "regenerate": True},
+    )
+    assert plan_response.status_code == 200
+    task_id = plan_response.json()["data"][0]["id"]
+    assert client.post(f"/api/tasks/{task_id}/checkin", json={"done": True}).status_code == 200
+
+    assert client.post(f"/api/materials/{material_id}/summarize").status_code == 200
+    flashcard_response = client.post(
+        f"/api/materials/{material_id}/flashcards/custom",
+        json={"front": "What links the loop?", "back": "Material, quiz, and review state."},
+    )
+    assert flashcard_response.status_code == 200
+    flashcard = flashcard_response.json()["data"]
+    assert client.patch(
+        f"/api/materials/{material_id}/flashcards/{flashcard['id']}",
+        json={"status": "review"},
+    ).status_code == 200
+
+    quiz_response = client.post(f"/api/materials/{material_id}/quiz", params={"count": 1})
+    assert quiz_response.status_code == 200
+    quiz = quiz_response.json()["data"][0]
+    attempt_response = client.post(
+        f"/api/materials/{material_id}/quiz/{quiz['id']}/answer",
+        json={"answer": "not sure"},
+    )
+    assert attempt_response.status_code == 200
+
+    ask_response = client.post(
+        "/api/agent/ask",
+        json={
+            "goalId": goal["id"],
+            "materialId": material_id,
+            "question": "What does retrieval practice connect?",
+        },
+    )
+    assert ask_response.status_code == 200
+
+    context_response = client.get("/api/agent/context", params={"goalId": goal["id"]})
+
+    assert context_response.status_code == 200
+    context = context_response.json()["data"]
+    assert context["scope"]["goalId"] == goal["id"]
+    assert context["summary"]["goalCount"] == 1
+    assert context["summary"]["materialTotal"] == 1
+    assert context["summary"]["taskTotal"] == 2
+    assert context["summary"]["taskCompleted"] == 1
+    assert context["summary"]["flashcardTotal"] == 1
+    assert context["goals"][0]["id"] == goal["id"]
+    assert context["tasks"][0]["completed"] == 1
+    assert context["materials"][0]["id"] == material_id
+    assert context["materials"][0]["hasSummary"] is True
+    assert context["materials"][0]["chunkCount"] >= 1
+    assert context["materials"][0]["qaCount"] == 1
+    assert context["materials"][0]["recentQa"][0]["nextAction"] == ask_response.json()["data"]["nextAction"]
+    assert context["review"]["review"] == 1
+    assert context["review"]["materialsNeedingReview"][0]["materialId"] == material_id
+    assert context["quiz"]["questionTotal"] == 1
+    assert context["quiz"]["attemptTotal"] == 1
+    assert context["progress"][0]["goal_id"] == goal["id"]
+
+
+def test_agent_context_supports_global_scope_and_missing_goal():
+    first_goal = create_goal("First context goal")
+    second_goal = create_goal("Second context goal")
+    first_material = create_material(
+        first_goal["id"],
+        "First context notes",
+        "First material has generated chunks for Agent context.",
+    )
+    second_material = create_material(
+        second_goal["id"],
+        "Second context notes",
+        "Second material is also visible in global context.",
+    )
+
+    response = client.get("/api/agent/context")
+
+    assert response.status_code == 200
+    context = response.json()["data"]
+    assert context["scope"]["goalId"] is None
+    assert context["summary"]["goalCount"] == 2
+    assert {goal["id"] for goal in context["goals"]} == {first_goal["id"], second_goal["id"]}
+    assert {material["id"] for material in context["materials"]} == {
+        first_material["id"],
+        second_material["id"],
+    }
+
+    missing_response = client.get("/api/agent/context", params={"goalId": "goal_missing"})
+    assert missing_response.status_code == 404
+
+
+def test_agent_decision_prioritizes_context_problems():
+    goal = create_goal("Decision goal")
+    material = create_material(
+        goal["id"],
+        "Decision notes",
+        "Decision making should use materials, quiz attempts, and review cards.",
+    )
+    material_id = material["id"]
+
+    plan_response = client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 1, "regenerate": True},
+    )
+    assert plan_response.status_code == 200
+    assert client.post(f"/api/materials/{material_id}/summarize").status_code == 200
+    flashcard_response = client.post(
+        f"/api/materials/{material_id}/flashcards/custom",
+        json={"front": "What needs review?", "back": "Weak points need review."},
+    )
+    flashcard = flashcard_response.json()["data"]
+    assert client.patch(
+        f"/api/materials/{material_id}/flashcards/{flashcard['id']}",
+        json={"status": "review"},
+    ).status_code == 200
+    quiz_response = client.post(f"/api/materials/{material_id}/quiz", params={"count": 1})
+    quiz = quiz_response.json()["data"][0]
+    assert client.post(
+        f"/api/materials/{material_id}/quiz/{quiz['id']}/answer",
+        json={"answer": "not sure"},
+    ).status_code == 200
+
+    decision_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+
+    assert decision_response.status_code == 200
+    decision = decision_response.json()["data"]
+    assert decision["mode"] == "rule-based"
+    assert decision["scope"]["goalId"] == goal["id"]
+    assert decision["stateSummary"]
+    assert decision["problems"]
+    problem_types = {problem["type"] for problem in decision["problems"]}
+    assert "weak_quiz_attempts" in problem_types
+    assert "review_queue" in problem_types
+    action_types = [action["type"] for action in decision["proposedActions"]]
+    assert "create_flashcards" in action_types
+    assert decision["nextAction"] == decision["proposedActions"][0]["type"]
+    assert decision["reason"]
+    assert decision["requiresConfirmation"] is True
+
+
+def test_agent_decision_handles_empty_context_and_missing_goal():
+    response = client.post("/api/agent/decide")
+
+    assert response.status_code == 200
+    decision = response.json()["data"]
+    assert decision["nextAction"] == "create_followup_tasks"
+    assert decision["problems"][0]["type"] == "missing_goal"
+    assert decision["requiresConfirmation"] is False
+
+    missing_response = client.post("/api/agent/decide", params={"goalId": "goal_missing"})
+    assert missing_response.status_code == 404
+
+
+def test_agent_action_logs_persist_user_feedback():
+    goal = create_goal("Action log goal")
+    decision_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+    assert decision_response.status_code == 200
+    decision = decision_response.json()["data"]
+    proposed_action = decision["proposedActions"][0]
+
+    create_response = client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": goal["id"],
+            "actionType": proposed_action["type"],
+            "observation": decision["stateSummary"],
+            "decision": decision,
+            "proposedPayload": proposed_action,
+            "status": "accepted",
+        },
+    )
+
+    assert create_response.status_code == 200
+    action_log = create_response.json()["data"]
+    assert action_log["id"].startswith("actionlog_")
+    assert action_log["goalId"] == goal["id"]
+    assert action_log["actionType"] == proposed_action["type"]
+    assert action_log["observation"] == decision["stateSummary"]
+    assert action_log["decision"]["nextAction"] == decision["nextAction"]
+    assert action_log["proposedPayload"]["type"] == proposed_action["type"]
+    assert action_log["status"] == "accepted"
+    assert action_log["createdAt"]
+    assert action_log["updatedAt"]
+
+    list_response = client.get("/api/agent/action-logs", params={"goalId": goal["id"]})
+    assert list_response.status_code == 200
+    logs = list_response.json()["data"]
+    assert len(logs) == 1
+    assert logs[0]["id"] == action_log["id"]
+
+    update_response = client.patch(
+        f"/api/agent/action-logs/{action_log['id']}",
+        json={"status": "later"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["data"]["status"] == "later"
+
+    applied_response = client.patch(
+        f"/api/agent/action-logs/{action_log['id']}",
+        json={"status": "applied"},
+    )
+    assert applied_response.status_code == 200
+    assert applied_response.json()["data"]["status"] == "applied"
+
+
+def test_agent_action_log_validation_and_missing_resources():
+    assert client.get("/api/agent/action-logs", params={"goalId": "goal_missing"}).status_code == 404
+    assert client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": "goal_missing",
+            "actionType": "review_material",
+            "status": "accepted",
+        },
+    ).status_code == 404
+    assert client.post(
+        "/api/agent/action-logs",
+        json={
+            "actionType": "review_material",
+            "status": "bad_status",
+        },
+    ).status_code == 422
+    assert client.patch(
+        "/api/agent/action-logs/actionlog_missing",
+        json={"status": "accepted"},
+    ).status_code == 404
+
+
+def test_agent_context_reads_back_confirmed_flashcard_write():
+    goal = create_goal("Context readback goal")
+    material = create_material(
+        goal["id"],
+        "Readback notes",
+        "Confirmed drafts should become visible to the next Agent context build.",
+    )
+
+    before_context_response = client.get("/api/agent/context", params={"goalId": goal["id"]})
+    assert before_context_response.status_code == 200
+    before_context = before_context_response.json()["data"]
+    assert before_context["summary"]["flashcardTotal"] == 0
+
+    flashcard_response = client.post(
+        f"/api/materials/{material['id']}/flashcards/custom",
+        json={
+            "front": "What proves the Agent write-back loop?",
+            "back": "The next AgentContext reads the confirmed flashcard.",
+        },
+    )
+    assert flashcard_response.status_code == 200
+
+    after_context_response = client.get("/api/agent/context", params={"goalId": goal["id"]})
+    assert after_context_response.status_code == 200
+    after_context = after_context_response.json()["data"]
+    assert after_context["summary"]["flashcardTotal"] == 1
+    assert after_context["review"]["new"] == 1
+
+    decision_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+    assert decision_response.status_code == 200
+    decision = decision_response.json()["data"]
+    problem_types = {problem["type"] for problem in decision["problems"]}
+    assert "review_queue" in problem_types
+
+
 def test_agent_ask_filters_references_by_goal():
     target_goal = create_goal("Target goal")
     other_goal = create_goal("Other goal")

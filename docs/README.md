@@ -7,6 +7,7 @@
 ```text
 docs/status/当前状态.md
 docs/planning/个人项目简历化与第四版智能体方案.md
+docs/planning/AI-Agent简历与面试讲解稿.md
 README.md
 ```
 
@@ -15,6 +16,7 @@ README.md
 ```text
 当前状态：记录最新阶段、分支、验证结果和下一步。
 第四版方案：记录个人项目定位、简历表达边界和完整学习 Agent 路线。
+简历与面试讲解稿：记录架构图文字版、简历 bullet、1 分钟介绍和追问回答。
 README：面向 GitHub 访客和面试官，说明项目价值、启动方式和当前能力。
 ```
 
@@ -22,6 +24,7 @@ README：面向 GitHub 访客和面试官，说明项目价值、启动方式和
 
 ```text
 docs/planning/个人项目简历化与第四版智能体方案.md
+docs/planning/AI-Agent简历与面试讲解稿.md
 docs/planning/第三版项目计划书.md
 ```
 

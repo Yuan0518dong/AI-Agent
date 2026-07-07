@@ -42,3 +42,16 @@ class AgentAskResponse(BaseModel):
     requiresConfirmation: bool = False
     insufficiencyReason: str = ""
     reviewDrafts: list[dict] = Field(default_factory=list)
+
+
+class AgentActionLogCreate(BaseModel):
+    goalId: str | None = None
+    actionType: str = Field(min_length=1)
+    observation: str = ""
+    decision: dict = Field(default_factory=dict)
+    proposedPayload: dict = Field(default_factory=dict)
+    status: str = Field(default="proposed", pattern="^(proposed|accepted|rejected|later|applied)$")
+
+
+class AgentActionLogUpdate(BaseModel):
+    status: str = Field(pattern="^(proposed|accepted|rejected|later|applied)$")

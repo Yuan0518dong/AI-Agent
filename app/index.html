@@ -97,6 +97,7 @@
           <button class="nav-item" data-view="goals"><span>＋</span>目标</button>
           <button class="nav-item" data-view="materials"><span>▣</span>资料</button>
           <button class="nav-item" data-view="study"><span>?</span>学习</button>
+          <button class="nav-item" data-view="agent"><span>◎</span>智能体</button>
           <button class="nav-item" data-view="memory"><span>◇</span>记忆</button>
           <button class="nav-item" data-view="progress"><span>▥</span>进度</button>
         </nav>
@@ -399,6 +400,122 @@
           </div>
         </section>
 
+        <section class="view" id="view-agent">
+          <section class="agent-workbench" id="agent-workbench" aria-label="智能体工作台">
+            <div class="agent-workbench-head">
+              <div>
+                <p class="eyebrow">AgentContext</p>
+                <h2>智能体工作台</h2>
+                <p id="agent-context-updated">未刷新</p>
+              </div>
+              <div class="inline-actions">
+                <span class="panel-count" id="agent-scope-label">全部目标</span>
+                <button class="primary-button" id="agent-decide-button" type="button">生成建议</button>
+                <button class="ghost-button" id="agent-refresh-button" type="button">刷新状态</button>
+              </div>
+            </div>
+
+            <div class="agent-metric-grid">
+              <article class="agent-metric">
+                <span>目标</span>
+                <strong id="agent-goal-total">0</strong>
+              </article>
+              <article class="agent-metric">
+                <span>未完成任务</span>
+                <strong id="agent-task-open-total">0</strong>
+              </article>
+              <article class="agent-metric">
+                <span>资料</span>
+                <strong id="agent-material-total">0</strong>
+              </article>
+              <article class="agent-metric">
+                <span>闪卡</span>
+                <strong id="agent-review-total">0</strong>
+              </article>
+            </div>
+
+            <div class="workspace agent-layout">
+              <section class="panel agent-decision-panel">
+                <div class="panel-head">
+                  <h2>智能体建议</h2>
+                  <span class="panel-count" id="agent-decision-mode">未生成</span>
+                </div>
+                <div class="agent-decision-body" id="agent-decision-body"></div>
+              </section>
+
+              <section class="panel agent-action-log-panel">
+                <div class="panel-head">
+                  <h2>反馈记录</h2>
+                  <span class="panel-count" id="agent-action-log-count">0 条</span>
+                </div>
+                <div class="agent-action-log-list" id="agent-action-log-list"></div>
+              </section>
+
+              <section class="panel agent-observation-panel">
+                <div class="panel-head">
+                  <h2>观察摘要</h2>
+                  <button class="ghost-button" id="agent-open-progress" type="button">看进度</button>
+                </div>
+                <div class="agent-observation-list" id="agent-observation-list"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>任务风险</h2>
+                  <button class="ghost-button" id="agent-open-goals" type="button">看目标</button>
+                </div>
+                <div class="agent-context-list" id="agent-task-list"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>资料状态</h2>
+                  <button class="ghost-button" id="agent-open-materials" type="button">看资料</button>
+                </div>
+                <div class="agent-context-list" id="agent-material-list"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>复习队列</h2>
+                  <button class="ghost-button" id="agent-open-memory" type="button">去复习</button>
+                </div>
+                <div class="agent-inline-stats">
+                  <div><span>新卡</span><strong id="agent-review-new">0</strong></div>
+                  <div><span>待复习</span><strong id="agent-review-review">0</strong></div>
+                  <div><span>已掌握</span><strong id="agent-review-known">0</strong></div>
+                </div>
+                <div class="agent-context-list" id="agent-review-list"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>测试薄弱点</h2>
+                  <button class="ghost-button" id="agent-open-quiz" type="button">做测试</button>
+                </div>
+                <div class="agent-inline-stats">
+                  <div><span>题目</span><strong id="agent-quiz-total">0</strong></div>
+                  <div><span>作答</span><strong id="agent-quiz-attempts">0</strong></div>
+                  <div><span>薄弱</span><strong id="agent-quiz-weak">0</strong></div>
+                </div>
+                <div class="agent-context-list" id="agent-quiz-list"></div>
+              </section>
+
+              <section class="panel">
+                <div class="panel-head">
+                  <h2>资料不足</h2>
+                  <button class="ghost-button" id="agent-open-study" type="button">去提问</button>
+                </div>
+                <div class="agent-inline-stats">
+                  <div><span>最近问答</span><strong id="agent-qa-recent">0</strong></div>
+                  <div><span>不足记录</span><strong id="agent-qa-insufficient">0</strong></div>
+                </div>
+                <div class="agent-context-list" id="agent-qa-list"></div>
+              </section>
+            </div>
+          </section>
+        </section>
+
         <section class="view" id="view-progress">
           <section class="progress-overview" aria-label="学习进度总览">
             <article class="progress-score-card">
@@ -455,6 +572,7 @@
     <script src="./api.js?v=ai-learning-20260706"></script>
     <script src="./modules/utils.js?v=ai-learning-20260706"></script>
     <script src="./modules/chat.js?v=ai-learning-20260706"></script>
+    <script src="./modules/agent-workbench.js?v=v4-agent-context-20260707"></script>
     <script src="./modules/materials.js?v=ai-learning-20260706"></script>
     <script src="./modules/goals.js?v=v3-page-boundary-20260706"></script>
     <script src="./modules/progress.js?v=v3-page-boundary-20260706"></script>

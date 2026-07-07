@@ -92,6 +92,20 @@ def init_db() -> None:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS agent_action_logs (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                goal_id TEXT,
+                action_type TEXT NOT NULL,
+                observation TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                proposed_payload TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
+            );
             """
         )
         _ensure_columns(conn)
@@ -179,6 +193,7 @@ def init_db() -> None:
 def reset() -> None:
     init_db()
     with db_connection() as conn:
+        conn.execute("DELETE FROM agent_action_logs")
         conn.execute("DELETE FROM checkins")
         conn.execute("DELETE FROM tasks")
         conn.execute("DELETE FROM goals")

@@ -8,7 +8,11 @@ const defaultState = {
   progress: [],
   materialChunks: {},
   materialQaRecords: {},
+  agentContext: null,
+  agentDecision: null,
+  agentActionLogs: [],
   qaReviewDrafts: [],
+  agentTaskDrafts: [],
   chunkSearch: {
     query: "",
     results: []
@@ -54,6 +58,7 @@ const views = {
   goals: "成长目标",
   materials: "成长资料",
   study: "成长问答",
+  agent: "智能体工作台",
   memory: "记忆训练",
   progress: "成长进度"
 };
@@ -133,6 +138,21 @@ document.getElementById("sidebar-toggle").addEventListener("click", () => {
 document.querySelectorAll(".nav-item").forEach((button) => {
   button.addEventListener("click", () => switchView(button.dataset.view));
 });
+
+document.getElementById("agent-refresh-button").addEventListener("click", async (event) => {
+  await refreshAgentContext(event.currentTarget);
+});
+
+document.getElementById("agent-decide-button").addEventListener("click", async (event) => {
+  await generateAgentDecision(event.currentTarget);
+});
+
+document.getElementById("agent-open-progress").addEventListener("click", () => switchView("progress"));
+document.getElementById("agent-open-goals").addEventListener("click", () => switchView("goals"));
+document.getElementById("agent-open-materials").addEventListener("click", () => switchView("materials"));
+document.getElementById("agent-open-memory").addEventListener("click", () => switchView("memory"));
+document.getElementById("agent-open-quiz").addEventListener("click", () => switchView("memory"));
+document.getElementById("agent-open-study").addEventListener("click", () => switchView("study"));
 
 document.querySelectorAll("[data-agent-sample]").forEach((button) => {
   button.addEventListener("click", () => prefillAgentSampleQuestion(button.dataset.agentSample));
@@ -225,6 +245,7 @@ document.getElementById("material-form").addEventListener("submit", async (event
     await materialApi.generateQuiz(material.id);
     editingMaterialId = "";
     await loadMaterialDataFromApi();
+    await loadAgentContextFromApi();
     render();
     form.reset();
     showSuccess("资料已保存，并完成摘要、闪卡和测试题");
@@ -289,6 +310,7 @@ document.getElementById("chat-form").addEventListener("submit", async (event) =>
     conversation.relatedMaterialIds = mergeUniqueIds(conversation.relatedMaterialIds, relatedMaterialIds);
     conversation.updatedAt = new Date().toISOString();
     syncMaterialQaRecordFromAgentAnswer(answer, question);
+    await loadAgentContextFromApi();
     pendingChatMaterialId = "";
     saveAndRender();
     focusMaterialQaRecord(answer.id);
@@ -406,6 +428,8 @@ async function enterApp(user) {
 async function loadAppDataFromApi() {
   await loadGoalDataFromApi();
   await loadMaterialDataFromApi();
+  await loadAgentContextFromApi();
+  await loadAgentActionLogsFromApi();
 }
 
 function loadCurrentUser() {
@@ -515,8 +539,12 @@ function normalizeState(nextState) {
   const materialsByTitle = new Map();
   nextState.materialChunks = nextState.materialChunks || {};
   nextState.materialQaRecords = nextState.materialQaRecords || {};
+  nextState.agentContext = nextState.agentContext || null;
+  nextState.agentDecision = nextState.agentDecision || null;
+  nextState.agentActionLogs = nextState.agentActionLogs || [];
   nextState.quizAttempts = nextState.quizAttempts || {};
   nextState.qaReviewDrafts = nextState.qaReviewDrafts || [];
+  nextState.agentTaskDrafts = nextState.agentTaskDrafts || [];
   nextState.chunkSearch = nextState.chunkSearch || { query: "", results: [] };
 
   nextState.materials = nextState.materials.map((material) => {
@@ -572,6 +600,22 @@ function normalizeState(nextState) {
     };
   });
 
+  nextState.agentTaskDrafts = nextState.agentTaskDrafts.map((draft) => {
+    const timestamp = draft.createdAt || new Date().toISOString();
+    return {
+      id: draft.id || makeId(),
+      goalId: draft.goalId || "",
+      actionType: draft.actionType || "create_followup_tasks",
+      agentActionLogId: draft.agentActionLogId || "",
+      title: draft.title || "",
+      reason: draft.reason || "",
+      suggestedDays: Number(draft.suggestedDays || 3),
+      tasks: Array.isArray(draft.tasks) ? draft.tasks : [],
+      source: draft.source || "agent",
+      createdAt: timestamp
+    };
+  });
+
   nextState.chat = nextState.chat.map((message) => {
     const timestamp = message.createdAt || new Date().toISOString();
     return {
@@ -620,6 +664,7 @@ function render() {
   renderMaterials();
   renderSummaries();
   renderChat();
+  renderAgentWorkbench();
   renderAgentSampleState();
   renderFlashcard();
   renderReviewDrafts();

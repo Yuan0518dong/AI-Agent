@@ -139,6 +139,42 @@ def main() -> None:
             flashcards_get_response.raise_for_status()
             flashcards_get = flashcards_get_response.json()["data"]
 
+            agent_context_before_custom_flashcard_response = client.get(
+                "/api/agent/context",
+                params={"goalId": goal_id},
+            )
+            agent_context_before_custom_flashcard_response.raise_for_status()
+            agent_context_before_custom_flashcard = (
+                agent_context_before_custom_flashcard_response.json()["data"]
+            )
+
+            custom_flashcard_response = client.post(
+                f"/api/materials/{material_id}/flashcards/custom",
+                json={
+                    "front": "What does context read-back prove?",
+                    "back": "Confirmed writes become visible to the next AgentContext.",
+                },
+            )
+            custom_flashcard_response.raise_for_status()
+
+            agent_context_after_custom_flashcard_response = client.get(
+                "/api/agent/context",
+                params={"goalId": goal_id},
+            )
+            agent_context_after_custom_flashcard_response.raise_for_status()
+            agent_context_after_custom_flashcard = (
+                agent_context_after_custom_flashcard_response.json()["data"]
+            )
+
+            agent_decision_after_custom_flashcard_response = client.post(
+                "/api/agent/decide",
+                params={"goalId": goal_id},
+            )
+            agent_decision_after_custom_flashcard_response.raise_for_status()
+            agent_decision_after_custom_flashcard = (
+                agent_decision_after_custom_flashcard_response.json()["data"]
+            )
+
             quiz_response = client.post(f"/api/materials/{material_id}/quiz")
             quiz_response.raise_for_status()
             quiz_questions = quiz_response.json()["data"]
@@ -166,6 +202,56 @@ def main() -> None:
 
             progress_response = client.get(f"/api/progress/{goal_id}")
             progress_response.raise_for_status()
+
+            agent_context_response = client.get(
+                "/api/agent/context",
+                params={"goalId": goal_id},
+            )
+            agent_context_response.raise_for_status()
+            agent_context = agent_context_response.json()["data"]
+
+            agent_decision_response = client.post(
+                "/api/agent/decide",
+                params={"goalId": goal_id},
+            )
+            agent_decision_response.raise_for_status()
+            agent_decision = agent_decision_response.json()["data"]
+
+            first_action = agent_decision["proposedActions"][0]
+            action_log_create_response = client.post(
+                "/api/agent/action-logs",
+                json={
+                    "goalId": goal_id,
+                    "actionType": first_action["type"],
+                    "observation": agent_decision["stateSummary"],
+                    "decision": agent_decision,
+                    "proposedPayload": first_action,
+                    "status": "accepted",
+                },
+            )
+            action_log_create_response.raise_for_status()
+            action_log = action_log_create_response.json()["data"]
+
+            action_log_list_response = client.get(
+                "/api/agent/action-logs",
+                params={"goalId": goal_id},
+            )
+            action_log_list_response.raise_for_status()
+            action_logs = action_log_list_response.json()["data"]
+
+            action_log_update_response = client.patch(
+                f"/api/agent/action-logs/{action_log['id']}",
+                json={"status": "later"},
+            )
+            action_log_update_response.raise_for_status()
+            updated_action_log = action_log_update_response.json()["data"]
+
+            action_log_apply_response = client.patch(
+                f"/api/agent/action-logs/{action_log['id']}",
+                json={"status": "applied"},
+            )
+            action_log_apply_response.raise_for_status()
+            applied_action_log = action_log_apply_response.json()["data"]
 
             material_delete_response = client.delete(f"/api/materials/{material_id}")
             material_delete_response.raise_for_status()
@@ -196,6 +282,30 @@ def main() -> None:
                 "agent_confidence": agent_answer["confidence"],
                 "agent_next_action": agent_answer["nextAction"],
                 "agent_requires_confirmation": agent_answer["requiresConfirmation"],
+                "agent_context_goal_count": agent_context["summary"]["goalCount"],
+                "agent_context_material_count": agent_context["summary"]["materialTotal"],
+                "agent_context_task_total": agent_context["summary"]["taskTotal"],
+                "agent_context_flashcard_total": agent_context["summary"]["flashcardTotal"],
+                "agent_decision_mode": agent_decision["mode"],
+                "agent_decision_next_action": agent_decision["nextAction"],
+                "agent_decision_problem_count": len(agent_decision["problems"]),
+                "agent_decision_action_count": len(agent_decision["proposedActions"]),
+                "agent_action_log_count": len(action_logs),
+                "agent_action_log_status": updated_action_log["status"],
+                "agent_action_log_applied_status": applied_action_log["status"],
+                "agent_context_flashcard_before_confirmed_write": (
+                    agent_context_before_custom_flashcard["summary"]["flashcardTotal"]
+                ),
+                "agent_context_flashcard_after_confirmed_write": (
+                    agent_context_after_custom_flashcard["summary"]["flashcardTotal"]
+                ),
+                "agent_decision_after_confirmed_write_has_review_queue": (
+                    "review_queue"
+                    in [
+                        problem["type"]
+                        for problem in agent_decision_after_custom_flashcard["problems"]
+                    ]
+                ),
                 "qa_record_count": len(material_qa_records),
                 "flashcard_count": len(flashcards),
                 "flashcard_readback": len(flashcards_get) == len(flashcards),
