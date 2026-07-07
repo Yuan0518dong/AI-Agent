@@ -1,17 +1,14 @@
 # 文档索引
 
-本目录按用途拆分，避免文档都堆在 `docs/` 根目录。第二版开发期间，优先读“当前入口”，历史文档只在需要追溯时查看。
+本目录按用途拆分，避免文档都堆在 `docs/` 根目录。当前项目已经从实习期原型推进到个人作品集化阶段；优先读“当前入口”，历史文档只在需要追溯版本演进时查看。
 
 ## 当前入口
 
 ```text
 docs/status/当前状态.md
-docs/status/MVP第一版验收记录.md
-docs/status/第二版阶段验收记录.md
-docs/status/第二版最终验收记录.md
-docs/status/第二版验收样例与演示脚本.md
-docs/planning/第二版项目计划书.md
+docs/planning/个人项目简历化与第四版智能体方案.md
 docs/planning/第三版项目计划书.md
+docs/status/第三版资料学习智能体验收样例.md
 docs/README.md
 ```
 
@@ -25,6 +22,7 @@ docs/status/MVP第一版验收记录.md
 docs/status/第二版阶段验收记录.md
 docs/status/第二版最终验收记录.md
 docs/status/第二版验收样例与演示脚本.md
+docs/status/第三版资料学习智能体验收样例.md
 docs/status/真实模型联调记录.md
 docs/status/MVP第一版进度评估与下一步计划.md
 docs/status/项目进度记录.md
@@ -33,9 +31,10 @@ docs/status/dev-demo-smoke.png
 
 ## planning
 
-记录版本计划、技术方案、协作规则和长期工作规则。第二版以 `docs/planning/第二版项目计划书.md` 为主；第三版以 `docs/planning/第三版项目计划书.md` 为主。
+记录版本计划、技术方案、协作规则和长期工作规则。第二版、第三版计划书保留为历史阶段文档；当前主线以 `docs/planning/个人项目简历化与第四版智能体方案.md` 为准。
 
 ```text
+docs/planning/个人项目简历化与第四版智能体方案.md
 docs/planning/第二版项目计划书.md
 docs/planning/第三版项目计划书.md
 docs/planning/第一版技术实现方案.md
@@ -85,5 +84,6 @@ docs/daily/2026-07-03工作安排.md
 3. API 字段草案统一放 docs/api/。
 4. 模块级接口对照和测试清单统一放 docs/modules/。
 5. 每日安排和当天记录统一放 docs/daily/。
-6. 第一版文档保留，不删除；第二版开发时只把它们作为历史依据。
+6. 第一版、第二版、第三版文档保留，不删除；当前只把它们作为历史依据。
+7. 个人项目简历化和第四版 Agent 方向统一从 `docs/planning/个人项目简历化与第四版智能体方案.md` 进入。
 ```

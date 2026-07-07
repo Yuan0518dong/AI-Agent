@@ -1,8 +1,27 @@
 # AI-Agent
 
-通用成长学习助手 App 的第二版开发原型。
+实习期间个人主导的 AI 学习智能体项目。项目从通用成长学习助手原型演进而来，当前目标是沉淀为可作为简历和作品集展示的完整学习 Agent。
 
-## 当前版本
+## 当前定位
+
+```text
+AI-Agent：面向个人学习规划的可控学习智能体
+```
+
+项目核心目标：
+
+```text
+把目标、资料、任务、问答、测试、复习和进度反馈串成完整学习闭环，让 Agent 能根据当前学习状态判断下一步动作，并在用户确认后写入任务或复习内容。
+```
+
+当前主线：
+
+```text
+第三版已经完成资料学习智能体最小闭环。
+下一阶段推进第四版：完整学习智能体闭环 MVP。
+```
+
+## 当前能力
 
 - 创建成长目标
 - 添加学习或成长资料
@@ -19,7 +38,7 @@
 - 支持基础登录注册和用户数据隔离
 - 目标、任务、打卡、资料、摘要、闪卡、测试题、资料片段、资料问答记录已接入后端 SQLite 持久化
 
-当前第二版已完成的 AI 学习链路：
+当前已完成的 AI 学习链路：
 
 ```text
 添加资料 -> 生成 chunks -> 搜索资料片段 -> 围绕资料问 AI -> 展示 answer / basis / suggestion / references -> 保存并读回历史问答 -> 从问答生成复盘草稿 -> 加入正式闪卡 -> 复习打分保存
@@ -28,11 +47,11 @@
 当前限制：
 
 ```text
-1. /api/agent/ask 默认仍使用 mock / rule-based 问答底座。
-2. 已提供 OpenAI-compatible Provider 入口；配置 LLM_PROVIDER、LLM_API_KEY 和 LLM_MODEL 后可切换真实模型。
+1. 当前已经具备资料学习智能体闭环，但还不是完整学习 Agent。
+2. Agent 还缺统一 AgentContext，尚未完整读取目标、任务、资料、测试、复习和进度状态。
 3. 复盘草稿本身仍保存在前端 localStorage，用户点击“加入闪卡”后会写入后端 flashcards 表。
-4. 第二版只保存 new / known / review 状态，不做完整间隔重复日程。
-5. 资料不足判断已有提示和真实模型联调样例，后续更换模型时需要复跑评估样例。
+4. 当前只保存 new / known / review 状态，不做完整间隔重复日程。
+5. 资料不足判断已有真实模型验收样例，后续更换模型时需要复跑评估样例。
 ```
 
 ## 环境要求
@@ -70,23 +89,20 @@ python -m pip install -r backend/requirements.txt
 在项目根目录执行：
 
 ```bash
-python -m uvicorn backend.app.main:app --reload
+python -m uvicorn backend.app.main:app --reload --port 8001
 ```
 
 启动成功后可以访问：
 
 ```text
-后端服务：http://127.0.0.1:8000
-接口文档：http://127.0.0.1:8000/docs
-健康检查：http://127.0.0.1:8000/api/health
+后端服务：http://127.0.0.1:8001
+接口文档：http://127.0.0.1:8001/docs
+健康检查：http://127.0.0.1:8001/api/health
 ```
 
 看到类似下面内容，说明后端正常：
 
-```text
-Uvicorn running on http://127.0.0.1:8000
-Application startup complete.
-```
+前端默认请求 `http://127.0.0.1:8001/api`。如果后端改用其他端口，需要同步调整 `app/api.js` 中的默认 API 地址。
 
 ## 可选：配置真实模型 Provider
 
@@ -211,15 +227,15 @@ material_qa_records
 
 ## 常见问题
 
-### 1. 打开 http://127.0.0.1:8000 显示 404
+### 1. 打开 http://127.0.0.1:8001 显示 404
 
 这是正常的。当前后端没有定义首页接口。
 
 请访问：
 
 ```text
-http://127.0.0.1:8000/docs
-http://127.0.0.1:8000/api/health
+http://127.0.0.1:8001/docs
+http://127.0.0.1:8001/api/health
 ```
 
 ### 2. 请求返回 422
@@ -235,7 +251,7 @@ http://127.0.0.1:8000/api/health
 4. 数字范围不合法，例如 daily_minutes <= 0。
 ```
 
-### 3. 端口 8000 或 5500 被占用
+### 3. 端口 8001 或 5500 被占用
 
 先关闭之前启动服务的终端，或按 `Ctrl + C` 停止服务。
 
@@ -253,9 +269,9 @@ python -m http.server 5501 --directory app
 
 ```text
 1. 后端是否启动。
-2. http://127.0.0.1:8000/api/health 是否返回 success。
+2. http://127.0.0.1:8001/api/health 是否返回 success。
 3. 前端是否通过 http://127.0.0.1:5500/index.html 打开。
-4. app/api.js 中 API_BASE_URL 是否是 http://127.0.0.1:8000/api。
+4. app/api.js 中 API_BASE_URL 是否是 http://127.0.0.1:8001/api。
 ```
 
 ### 5. 成长问答回答不准确
@@ -269,16 +285,15 @@ python -m http.server 5501 --directory app
 - 通用成长学习助手App简单版PRD.md
 - docs/README.md
 - docs/status/当前状态.md
+- docs/planning/个人项目简历化与第四版智能体方案.md
+- docs/planning/第三版项目计划书.md
+- docs/status/第三版资料学习智能体验收样例.md
 - docs/status/第二版阶段验收记录.md
 - docs/status/第二版最终验收记录.md
 - docs/status/第二版验收样例与演示脚本.md
 - docs/status/项目进度记录.md
 - docs/status/MVP第一版进度评估与下一步计划.md
 - docs/daily/2026-07-02工作安排.md
-- docs/planning/两人协作开发分工文档.md
-- docs/planning/第一版功能开发边界与分工.md
-- docs/planning/第一版技术实现方案.md
-- docs/planning/每日工作安排规则.md
 - docs/planning/第二版项目计划书.md
 - docs/api/资料与AI模块字段和API草案.md
 - docs/api/RAG-chunks接口说明.md
@@ -306,10 +321,11 @@ python -m http.server 5501 --directory app
 
 ## 后续计划
 
-- 增加 AI 回答评估样例
+- 设计 AgentContext，统一读取目标、任务、资料、问答、测试、复习和进度状态
+- 设计 AgentDecision，让模型输出结构化观察、判断、建议和待确认动作
+- 新增 Agent 工作台，展示观察、判断、建议动作和采纳状态
+- 增加 AgentActionLog，记录 Agent 建议和用户采纳结果
 - 更换真实模型时复跑 OpenAI-compatible Provider 三类验收样例
-- 评估是否接入 LangChain 问答链
-- 评估是否增加完整间隔重复日程
 - 支持 PDF 文件上传和解析
 - 增加 GitHub Actions CI
 - 部署后端和前端
