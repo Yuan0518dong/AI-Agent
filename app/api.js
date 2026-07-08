@@ -142,14 +142,18 @@ const agentApi = {
     return request(`/agent/context${query}`);
   },
 
-  decide(goalId = "") {
-    const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
-    return request(`/agent/decide${query}`, {
-      method: "POST"
-    });
-  },
+    decide(goalId = "") {
+      const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
+      return request(`/agent/decide${query}`, {
+        method: "POST"
+      });
+    },
 
-  listActionLogs(goalId = "", limit = 20) {
+    listTools() {
+      return request("/agent/tools");
+    },
+  
+    listActionLogs(goalId = "", limit = 20) {
     const params = new URLSearchParams({ limit: String(limit) });
     if (goalId) {
       params.set("goalId", goalId);

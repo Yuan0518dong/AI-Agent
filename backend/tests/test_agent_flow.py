@@ -261,10 +261,37 @@ def test_agent_decision_prioritizes_context_problems():
     assert "review_queue" in problem_types
     action_types = [action["type"] for action in decision["proposedActions"]]
     assert "create_flashcards" in action_types
+    for action in decision["proposedActions"]:
+        assert action["toolName"]
+        assert action["riskLevel"] in {"low", "medium", "high"}
+        assert "draftOnly" in action
+        assert action["applyTarget"]
     assert decision["nextAction"] == decision["proposedActions"][0]["type"]
     assert decision["reason"]
     assert decision["requiresConfirmation"] is True
     assert decision["feedbackMemory"]["recentActionCount"] == 0
+
+
+def test_agent_tools_registry_is_exposed_and_decision_actions_are_enriched():
+    tools_response = client.get("/api/agent/tools")
+
+    assert tools_response.status_code == 200
+    tools = tools_response.json()["data"]
+    tool_names = {tool["name"] for tool in tools}
+    assert {"review_material", "create_review_draft", "create_task_draft"}.issubset(tool_names)
+
+    goal = create_goal("Tool registry goal")
+    decision_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+
+    assert decision_response.status_code == 200
+    decision = decision_response.json()["data"]
+    action = decision["proposedActions"][0]
+    assert action["type"] == "create_followup_tasks"
+    assert action["toolName"] == "create_task_draft"
+    assert action["riskLevel"] == "high"
+    assert action["draftOnly"] is True
+    assert action["applyTarget"] == "task_drafts"
+    assert action["requiresConfirmation"] is True
 
 
 def test_agent_decision_avoids_recently_rejected_action_type():
@@ -353,7 +380,7 @@ def test_agent_decision_handles_empty_context_and_missing_goal():
     decision = response.json()["data"]
     assert decision["nextAction"] == "create_followup_tasks"
     assert decision["problems"][0]["type"] == "missing_goal"
-    assert decision["requiresConfirmation"] is False
+    assert decision["requiresConfirmation"] is True
 
     missing_response = client.post("/api/agent/decide", params={"goalId": "goal_missing"})
     assert missing_response.status_code == 404

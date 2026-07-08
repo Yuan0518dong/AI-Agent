@@ -421,6 +421,10 @@ function agentDecisionActionsNode(actions) {
       <p>${escapeHtml(action.description || "")}</p>
       <div class="agent-chip-row">
         <span>${escapeHtml(getAgentActionLabel(action.type))}</span>
+        <span>${escapeHtml(action.toolName || action.type)}</span>
+        <span>${escapeHtml(getAgentRiskLabel(action.riskLevel))}</span>
+        <span>${action.draftOnly ? "草稿态" : "直接入口"}</span>
+        <span>${escapeHtml(action.applyTarget || "agent")}</span>
         <span>${escapeHtml(action.status || "proposed")}</span>
       </div>
       <div class="agent-action-feedback">
@@ -694,6 +698,15 @@ function getAgentActionLabel(action) {
     ask_for_more_material: "补充资料"
   };
   return labels[action] || action || "未知动作";
+}
+
+function getAgentRiskLabel(riskLevel) {
+  const labels = {
+    low: "低风险",
+    medium: "中风险",
+    high: "高风险"
+  };
+  return labels[riskLevel] || riskLevel || "未分级";
 }
 
 function getAgentProblemLabel(type) {

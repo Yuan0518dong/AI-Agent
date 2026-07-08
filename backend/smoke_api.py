@@ -217,6 +217,10 @@ def main() -> None:
             agent_decision_response.raise_for_status()
             agent_decision = agent_decision_response.json()["data"]
 
+            agent_tools_response = client.get("/api/agent/tools")
+            agent_tools_response.raise_for_status()
+            agent_tools = agent_tools_response.json()["data"]
+
             first_action = agent_decision["proposedActions"][0]
             action_log_create_response = client.post(
                 "/api/agent/action-logs",
@@ -311,6 +315,10 @@ def main() -> None:
                 "agent_decision_next_action": agent_decision["nextAction"],
                 "agent_decision_problem_count": len(agent_decision["problems"]),
                 "agent_decision_action_count": len(agent_decision["proposedActions"]),
+                "agent_tool_count": len(agent_tools),
+                "agent_decision_first_tool": first_action["toolName"],
+                "agent_decision_first_risk": first_action["riskLevel"],
+                "agent_decision_first_draft_only": first_action["draftOnly"],
                 "agent_action_log_count": len(action_logs),
                 "agent_action_log_status": updated_action_log["status"],
                 "agent_action_log_applied_status": applied_action_log["status"],

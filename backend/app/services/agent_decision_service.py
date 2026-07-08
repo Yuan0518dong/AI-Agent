@@ -1,4 +1,9 @@
-from backend.app.services import agent_action_log_service, agent_context_service, store
+from backend.app.services import (
+    agent_action_log_service,
+    agent_context_service,
+    agent_tool_registry_service,
+    store,
+)
 
 
 def decide_next_action(
@@ -392,7 +397,7 @@ def _action(
     payload: dict,
     requires_confirmation: bool,
 ) -> dict:
-    return {
+    action = {
         "type": action_type,
         "label": label,
         "description": description,
@@ -400,6 +405,7 @@ def _action(
         "requiresConfirmation": requires_confirmation,
         "status": "proposed",
     }
+    return agent_tool_registry_service.enrich_action(action)
 
 
 def _join_names(items: list[dict], key: str) -> str:

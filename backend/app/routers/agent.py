@@ -13,6 +13,7 @@ from backend.app.services import (
     agent_decision_service,
     agent_run_service,
     agent_service,
+    agent_tool_registry_service,
     material_store,
     store,
 )
@@ -94,6 +95,11 @@ def update_agent_action_log(
         raise HTTPException(status_code=404, detail="Action log not found")
 
     return ok(action_log)
+
+
+@router.get("/tools")
+def list_agent_tools():
+    return ok(agent_tool_registry_service.list_tools())
 
 
 @router.post("/runs")
