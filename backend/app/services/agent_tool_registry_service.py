@@ -72,6 +72,10 @@ def list_tools() -> list[dict]:
     return [TOOLS[name] for name in TOOLS]
 
 
+def is_known_action(action_type: str) -> bool:
+    return action_type in ACTION_TOOL_MAP
+
+
 def get_tool_for_action(action_type: str) -> dict:
     tool_name = ACTION_TOOL_MAP.get(action_type, "answer_only")
     return TOOLS[tool_name]

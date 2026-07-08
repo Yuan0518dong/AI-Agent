@@ -1,6 +1,7 @@
 from backend.app.services import (
     agent_action_log_service,
     agent_context_service,
+    agent_decision_provider,
     agent_tool_registry_service,
     store,
 )
@@ -9,11 +10,24 @@ from backend.app.services import (
 def decide_next_action(
     goal_id: str | None = None,
     user_id: str | None = None,
+    decision_mode: str = "rule-based",
 ) -> dict:
     context = agent_context_service.build_agent_context(goal_id, user_id)
     summary = context["summary"]
     action_logs = agent_action_log_service.list_action_logs(goal_id, user_id, limit=20)
     feedback_memory = _feedback_memory(action_logs)
+    rule_based_decision = _rule_based_decision(context, summary, feedback_memory)
+    if decision_mode == "rule-based":
+        return rule_based_decision
+
+    return agent_decision_provider.decide_with_llm_json(
+        context,
+        rule_based_decision,
+        decision_mode,
+    )
+
+
+def _rule_based_decision(context: dict, summary: dict, feedback_memory: dict) -> dict:
     problems = _collect_problems(context)
     primary_problem = problems[0] if problems else None
     proposed_actions = _apply_feedback_memory(
@@ -25,6 +39,8 @@ def decide_next_action(
     return {
         "generatedAt": store.now_iso(),
         "mode": "rule-based",
+        "requestedMode": "rule-based",
+        "fallbackReason": "",
         "scope": context["scope"],
         "stateSummary": _state_summary(summary),
         "problems": problems,
@@ -33,6 +49,7 @@ def decide_next_action(
         "requiresConfirmation": any(action["requiresConfirmation"] for action in proposed_actions),
         "proposedActions": proposed_actions,
         "feedbackMemory": feedback_memory,
+        "reflection": "",
     }
 
 

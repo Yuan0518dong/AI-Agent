@@ -39,13 +39,14 @@ def get_agent_context(
 @router.post("/decide")
 def decide_agent_next_action(
     goalId: str | None = Query(default=None),
+    decisionMode: str = Query(default="rule-based", pattern="^(rule-based|llm-json|hybrid)$"),
     user_id: str | None = Depends(current_user_id),
 ):
     goal_id = _normalize_goal_id(goalId)
     if goal_id and not store.get_goal(goal_id, user_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    return ok(agent_decision_service.decide_next_action(goal_id, user_id))
+    return ok(agent_decision_service.decide_next_action(goal_id, user_id, decisionMode))
 
 
 @router.get("/action-logs")

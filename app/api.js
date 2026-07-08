@@ -142,9 +142,12 @@ const agentApi = {
     return request(`/agent/context${query}`);
   },
 
-    decide(goalId = "") {
-      const query = goalId ? `?goalId=${encodeURIComponent(goalId)}` : "";
-      return request(`/agent/decide${query}`, {
+    decide(goalId = "", decisionMode = "rule-based") {
+      const params = new URLSearchParams({ decisionMode });
+      if (goalId) {
+        params.set("goalId", goalId);
+      }
+      return request(`/agent/decide?${params.toString()}`, {
         method: "POST"
       });
     },

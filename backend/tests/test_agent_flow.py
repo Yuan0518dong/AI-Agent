@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from backend.app.main import app
-from backend.app.services import store
+from backend.app.services import agent_decision_provider, store
 
 
 client = TestClient(app)
@@ -292,6 +292,96 @@ def test_agent_tools_registry_is_exposed_and_decision_actions_are_enriched():
     assert action["draftOnly"] is True
     assert action["applyTarget"] == "task_drafts"
     assert action["requiresConfirmation"] is True
+
+
+def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
+    class FakeDecisionProvider:
+        mode = "openai-compatible"
+        model = "test-decision-model"
+
+        def _post_chat_completion(self, payload):
+            assert payload["response_format"]["type"] == "json_object"
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"stateSummary":"LLM sees a stable learning state.",'
+                                '"problems":[{"type":"review_queue","severity":"low","message":"Review cards are waiting.","evidence":"1 card"}],'
+                                '"nextAction":"review_material",'
+                                '"reason":"Review existing material before adding more.",'
+                                '"requiresConfirmation":false,'
+                                '"proposedActions":[{"type":"review_material","label":"Review now","description":"Open the review queue.","payload":{},"requiresConfirmation":false}],'
+                                '"reflection":"Prefer a low-risk review action."}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(
+        agent_decision_provider.llm_provider,
+        "get_llm_provider",
+        lambda: FakeDecisionProvider(),
+    )
+    goal = create_goal("Hybrid decision goal")
+
+    response = client.post(
+        "/api/agent/decide",
+        params={"goalId": goal["id"], "decisionMode": "hybrid"},
+    )
+
+    assert response.status_code == 200
+    decision = response.json()["data"]
+    assert decision["mode"] == "hybrid"
+    assert decision["requestedMode"] == "hybrid"
+    assert decision["fallbackReason"] == ""
+    assert decision["nextAction"] == "review_material"
+    assert decision["reflection"] == "Prefer a low-risk review action."
+    assert decision["proposedActions"][0]["toolName"] == "review_material"
+    assert decision["proposedActions"][0]["riskLevel"] == "low"
+
+
+def test_agent_decision_hybrid_falls_back_on_invalid_llm_action(monkeypatch):
+    class BadDecisionProvider:
+        mode = "openai-compatible"
+        model = "test-decision-model"
+
+        def _post_chat_completion(self, payload):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"stateSummary":"bad",'
+                                '"nextAction":"delete_everything",'
+                                '"reason":"bad action",'
+                                '"proposedActions":[{"type":"delete_everything"}]}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(
+        agent_decision_provider.llm_provider,
+        "get_llm_provider",
+        lambda: BadDecisionProvider(),
+    )
+    goal = create_goal("Hybrid fallback goal")
+
+    response = client.post(
+        "/api/agent/decide",
+        params={"goalId": goal["id"], "decisionMode": "hybrid"},
+    )
+
+    assert response.status_code == 200
+    decision = response.json()["data"]
+    assert decision["mode"] == "rule-based"
+    assert decision["requestedMode"] == "hybrid"
+    assert decision["fallbackReason"]
+    assert decision["nextAction"] == "create_followup_tasks"
+    assert decision["proposedActions"][0]["toolName"] == "create_task_draft"
 
 
 def test_agent_decision_avoids_recently_rejected_action_type():
