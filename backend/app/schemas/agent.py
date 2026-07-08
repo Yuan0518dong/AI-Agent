@@ -55,3 +55,12 @@ class AgentActionLogCreate(BaseModel):
 
 class AgentActionLogUpdate(BaseModel):
     status: str = Field(pattern="^(proposed|accepted|rejected|later|applied)$")
+
+
+class AgentRunCreate(BaseModel):
+    goalId: str | None = None
+    trigger: str = Field(default="manual", pattern="^(manual|after_write|scheduled)$")
+
+
+class AgentRunUpdate(BaseModel):
+    status: str = Field(pattern="^(created|decided|feedback_recorded|executed|closed)$")

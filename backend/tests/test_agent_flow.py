@@ -411,6 +411,66 @@ def test_agent_action_logs_persist_user_feedback():
     assert applied_response.json()["data"]["status"] == "applied"
 
 
+def test_agent_run_records_context_decision_and_feedback_summary():
+    goal = create_goal("Agent run goal")
+    material = create_material(
+        goal["id"],
+        "Agent run notes",
+        "Agent runs preserve context and decision snapshots.",
+    )
+
+    create_response = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "trigger": "manual"},
+    )
+
+    assert create_response.status_code == 200
+    agent_run = create_response.json()["data"]
+    assert agent_run["id"].startswith("agentrun_")
+    assert agent_run["goalId"] == goal["id"]
+    assert agent_run["trigger"] == "manual"
+    assert agent_run["status"] == "decided"
+    assert agent_run["contextSummary"]["goalCount"] == 1
+    assert agent_run["contextSummary"]["materialTotal"] == 1
+    assert agent_run["decisionSummary"]["nextAction"]
+    assert agent_run["feedbackSummary"]["total"] == 0
+    assert agent_run["contextSnapshot"]["materials"][0]["id"] == material["id"]
+    assert agent_run["decisionSnapshot"]["scope"]["goalId"] == goal["id"]
+
+    list_response = client.get("/api/agent/runs", params={"goalId": goal["id"]})
+    assert list_response.status_code == 200
+    runs = list_response.json()["data"]
+    assert len(runs) == 1
+    assert runs[0]["id"] == agent_run["id"]
+    assert "contextSnapshot" not in runs[0]
+    assert "decisionSnapshot" not in runs[0]
+
+    proposed_action = agent_run["decisionSnapshot"]["proposedActions"][0]
+    assert client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": goal["id"],
+            "actionType": proposed_action["type"],
+            "observation": agent_run["decisionSnapshot"]["stateSummary"],
+            "decision": agent_run["decisionSnapshot"],
+            "proposedPayload": proposed_action,
+            "status": "accepted",
+        },
+    ).status_code == 200
+
+    update_response = client.patch(
+        f"/api/agent/runs/{agent_run['id']}",
+        json={"status": "feedback_recorded"},
+    )
+
+    assert update_response.status_code == 200
+    updated_run = update_response.json()["data"]
+    assert updated_run["status"] == "feedback_recorded"
+    assert updated_run["feedbackSummary"]["total"] == 1
+    assert updated_run["feedbackSummary"]["byStatus"]["accepted"] == 1
+    assert updated_run["feedbackSummary"]["latestStatus"] == "accepted"
+
+
 def test_agent_action_log_validation_and_missing_resources():
     assert client.get("/api/agent/action-logs", params={"goalId": "goal_missing"}).status_code == 404
     assert client.post(
@@ -431,6 +491,84 @@ def test_agent_action_log_validation_and_missing_resources():
     assert client.patch(
         "/api/agent/action-logs/actionlog_missing",
         json={"status": "accepted"},
+    ).status_code == 404
+    assert client.get("/api/agent/runs", params={"goalId": "goal_missing"}).status_code == 404
+    assert client.post(
+        "/api/agent/runs",
+        json={"goalId": "goal_missing"},
+    ).status_code == 404
+    assert client.post(
+        "/api/agent/runs",
+        json={"trigger": "bad_trigger"},
+    ).status_code == 422
+    assert client.patch(
+        "/api/agent/runs/agentrun_missing",
+        json={"status": "closed"},
+    ).status_code == 404
+
+
+def test_agent_runs_are_isolated_by_user_header():
+    first_user = client.post(
+        "/api/auth/register",
+        json={"name": "First", "email": "first-run@example.com", "password": "secret123"},
+    ).json()["data"]
+    second_user = client.post(
+        "/api/auth/register",
+        json={"name": "Second", "email": "second-run@example.com", "password": "secret123"},
+    ).json()["data"]
+
+    first_goal_response = client.post(
+        "/api/goals",
+        headers={"X-User-Id": first_user["id"]},
+        json={
+            "name": "First user run goal",
+            "subject": "AI Agent",
+            "level": "basic",
+            "deadline": "2026-07-15",
+            "daily_minutes": 30,
+            "notes": "",
+        },
+    )
+    second_goal_response = client.post(
+        "/api/goals",
+        headers={"X-User-Id": second_user["id"]},
+        json={
+            "name": "Second user run goal",
+            "subject": "AI Agent",
+            "level": "basic",
+            "deadline": "2026-07-15",
+            "daily_minutes": 30,
+            "notes": "",
+        },
+    )
+    first_goal = first_goal_response.json()["data"]
+    second_goal = second_goal_response.json()["data"]
+
+    first_run = client.post(
+        "/api/agent/runs",
+        headers={"X-User-Id": first_user["id"]},
+        json={"goalId": first_goal["id"]},
+    ).json()["data"]
+    second_run = client.post(
+        "/api/agent/runs",
+        headers={"X-User-Id": second_user["id"]},
+        json={"goalId": second_goal["id"]},
+    ).json()["data"]
+
+    first_runs = client.get(
+        "/api/agent/runs",
+        headers={"X-User-Id": first_user["id"]},
+    ).json()["data"]
+    second_runs = client.get(
+        "/api/agent/runs",
+        headers={"X-User-Id": second_user["id"]},
+    ).json()["data"]
+
+    assert [run["id"] for run in first_runs] == [first_run["id"]]
+    assert [run["id"] for run in second_runs] == [second_run["id"]]
+    assert client.get(
+        f"/api/agent/runs/{second_run['id']}",
+        headers={"X-User-Id": first_user["id"]},
     ).status_code == 404
 
 

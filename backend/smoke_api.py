@@ -253,6 +253,27 @@ def main() -> None:
             action_log_apply_response.raise_for_status()
             applied_action_log = action_log_apply_response.json()["data"]
 
+            agent_run_create_response = client.post(
+                "/api/agent/runs",
+                json={"goalId": goal_id, "trigger": "manual"},
+            )
+            agent_run_create_response.raise_for_status()
+            agent_run = agent_run_create_response.json()["data"]
+
+            agent_run_list_response = client.get(
+                "/api/agent/runs",
+                params={"goalId": goal_id},
+            )
+            agent_run_list_response.raise_for_status()
+            agent_runs = agent_run_list_response.json()["data"]
+
+            agent_run_update_response = client.patch(
+                f"/api/agent/runs/{agent_run['id']}",
+                json={"status": "feedback_recorded"},
+            )
+            agent_run_update_response.raise_for_status()
+            updated_agent_run = agent_run_update_response.json()["data"]
+
             material_delete_response = client.delete(f"/api/materials/{material_id}")
             material_delete_response.raise_for_status()
             pending_material_delete_response = client.delete(f"/api/materials/{pending_material_id}")
@@ -293,6 +314,12 @@ def main() -> None:
                 "agent_action_log_count": len(action_logs),
                 "agent_action_log_status": updated_action_log["status"],
                 "agent_action_log_applied_status": applied_action_log["status"],
+                "agent_run_count": len(agent_runs),
+                "agent_run_status": updated_agent_run["status"],
+                "agent_run_feedback_total": updated_agent_run["feedbackSummary"]["total"],
+                "agent_run_latest_feedback_status": (
+                    updated_agent_run["feedbackSummary"]["latestStatus"]
+                ),
                 "agent_context_flashcard_before_confirmed_write": (
                     agent_context_before_custom_flashcard["summary"]["flashcardTotal"]
                 ),

@@ -37,6 +37,7 @@ AI-Agent：面向个人学习规划的可控学习智能体
 - 支持用户确认后把复盘草稿加入正式闪卡，并保存已掌握 / 还要复习状态
 - 支持智能体工作台读取 AgentContext，并基于当前状态生成结构化 AgentDecision
 - 支持 AgentActionLog 记录用户对建议的采纳、忽略、稍后和已执行状态
+- 支持 AgentRun 记录一次智能体运行的上下文快照、决策快照和反馈摘要
 - 支持草稿态执行：任务建议进入任务草稿，复习建议进入复盘草稿，补资料建议预填资料表单
 - 支持确认写入后的上下文回读验收，下一轮 AgentDecision 能基于新状态继续判断
 - 支持任务打卡和进度查看
@@ -220,6 +221,7 @@ quiz_questions
 material_chunks
 material_qa_records
 agent_action_logs
+agent_runs
 ```
 
 说明：

@@ -1,10 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.schemas.agent import AgentActionLogCreate, AgentActionLogUpdate, AgentAskRequest
+from backend.app.schemas.agent import (
+    AgentActionLogCreate,
+    AgentActionLogUpdate,
+    AgentAskRequest,
+    AgentRunCreate,
+    AgentRunUpdate,
+)
 from backend.app.services import (
     agent_action_log_service,
     agent_context_service,
     agent_decision_service,
+    agent_run_service,
     agent_service,
     material_store,
     store,
@@ -87,6 +94,56 @@ def update_agent_action_log(
         raise HTTPException(status_code=404, detail="Action log not found")
 
     return ok(action_log)
+
+
+@router.post("/runs")
+def create_agent_run(
+    payload: AgentRunCreate,
+    user_id: str | None = Depends(current_user_id),
+):
+    goal_id = _normalize_goal_id(payload.goalId)
+    if goal_id and not store.get_goal(goal_id, user_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    return ok(agent_run_service.create_agent_run(goal_id, user_id, payload.trigger))
+
+
+@router.get("/runs")
+def list_agent_runs(
+    goalId: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    user_id: str | None = Depends(current_user_id),
+):
+    goal_id = _normalize_goal_id(goalId)
+    if goal_id and not store.get_goal(goal_id, user_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    return ok(agent_run_service.list_agent_runs(goal_id, user_id, limit))
+
+
+@router.get("/runs/{run_id}")
+def get_agent_run(
+    run_id: str,
+    user_id: str | None = Depends(current_user_id),
+):
+    agent_run = agent_run_service.get_agent_run(run_id, user_id)
+    if not agent_run:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+
+    return ok(agent_run)
+
+
+@router.patch("/runs/{run_id}")
+def update_agent_run(
+    run_id: str,
+    payload: AgentRunUpdate,
+    user_id: str | None = Depends(current_user_id),
+):
+    agent_run = agent_run_service.update_agent_run_status(run_id, payload.status, user_id)
+    if not agent_run:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+
+    return ok(agent_run)
 
 
 @router.post("/ask")
