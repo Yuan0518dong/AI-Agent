@@ -264,6 +264,86 @@ def test_agent_decision_prioritizes_context_problems():
     assert decision["nextAction"] == decision["proposedActions"][0]["type"]
     assert decision["reason"]
     assert decision["requiresConfirmation"] is True
+    assert decision["feedbackMemory"]["recentActionCount"] == 0
+
+
+def test_agent_decision_avoids_recently_rejected_action_type():
+    goal = create_goal("Feedback memory goal")
+    material = create_material(
+        goal["id"],
+        "Feedback memory notes",
+        "Feedback memory should prevent repeated Agent suggestions.",
+    )
+    assert client.post(f"/api/materials/{material['id']}/summarize").status_code == 200
+    flashcard_response = client.post(
+        f"/api/materials/{material['id']}/flashcards/custom",
+        json={"front": "What should be remembered?", "back": "Rejected suggestions."},
+    )
+    flashcard = flashcard_response.json()["data"]
+    assert client.patch(
+        f"/api/materials/{material['id']}/flashcards/{flashcard['id']}",
+        json={"status": "review"},
+    ).status_code == 200
+    quiz_response = client.post(f"/api/materials/{material['id']}/quiz", params={"count": 1})
+    quiz = quiz_response.json()["data"][0]
+    assert client.post(
+        f"/api/materials/{material['id']}/quiz/{quiz['id']}/answer",
+        json={"answer": "not sure"},
+    ).status_code == 200
+
+    first_decision = client.post("/api/agent/decide", params={"goalId": goal["id"]}).json()["data"]
+    assert first_decision["nextAction"] == "create_flashcards"
+
+    assert client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": goal["id"],
+            "actionType": "create_flashcards",
+            "observation": first_decision["stateSummary"],
+            "decision": first_decision,
+            "proposedPayload": first_decision["proposedActions"][0],
+            "status": "rejected",
+        },
+    ).status_code == 200
+
+    second_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+
+    assert second_response.status_code == 200
+    second_decision = second_response.json()["data"]
+    action_types = [action["type"] for action in second_decision["proposedActions"]]
+    assert "create_flashcards" not in action_types
+    assert second_decision["nextAction"] == "review_material"
+    assert second_decision["feedbackMemory"]["recentlyRejected"][0]["actionType"] == "create_flashcards"
+    assert "rejected action type" in second_decision["reason"]
+
+
+def test_agent_decision_remembers_accepted_action_before_repeating_it():
+    goal = create_goal("Accepted memory goal")
+    first_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+    assert first_response.status_code == 200
+    first_decision = first_response.json()["data"]
+    assert first_decision["nextAction"] == "create_followup_tasks"
+
+    assert client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": goal["id"],
+            "actionType": "create_followup_tasks",
+            "observation": first_decision["stateSummary"],
+            "decision": first_decision,
+            "proposedPayload": first_decision["proposedActions"][0],
+            "status": "accepted",
+        },
+    ).status_code == 200
+
+    second_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
+
+    assert second_response.status_code == 200
+    second_decision = second_response.json()["data"]
+    assert second_decision["feedbackMemory"]["pendingAccepted"][0]["actionType"] == "create_followup_tasks"
+    assert second_decision["proposedActions"][0]["status"] == "accepted"
+    assert second_decision["proposedActions"][0]["payload"]["actionLogId"]
+    assert second_decision["proposedActions"][0]["label"].startswith("Continue accepted action")
 
 
 def test_agent_decision_handles_empty_context_and_missing_goal():

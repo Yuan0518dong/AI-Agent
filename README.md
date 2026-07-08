@@ -19,7 +19,7 @@ AI-Agent：面向个人学习规划的可控学习智能体
 ```text
 第三版已经完成资料学习智能体最小闭环。
 第四版已经补齐 AgentContext、AgentDecision、AgentActionLog、草稿态执行和上下文回读验收。
-下一阶段重点是简历化和面试讲解沉淀。
+第五版开始把项目升级为更完整的可控学习 Agent：AgentRun、Tool Registry、LLM JSON Decision 和反馈记忆增强。
 ```
 
 ## 当前能力
@@ -291,6 +291,7 @@ python -m http.server 5501 --directory app
 - docs/README.md
 - docs/status/当前状态.md
 - docs/planning/个人项目简历化与第四版智能体方案.md
+- docs/planning/第五版可控学习智能体升级计划书.md
 - docs/planning/第三版项目计划书.md
 - docs/status/第三版资料学习智能体验收样例.md
 - docs/api/RAG-chunks接口说明.md
@@ -318,11 +319,11 @@ python -m http.server 5501 --directory app
 
 ## 后续计划
 
-- 设计 AgentContext，统一读取目标、任务、资料、问答、测试、复习和进度状态
-- 设计 AgentDecision，让模型输出结构化观察、判断、建议和待确认动作
-- 新增 Agent 工作台，展示观察、判断、建议动作和采纳状态
-- 增加 AgentActionLog，记录 Agent 建议和用户采纳结果
-- 更换真实模型时复跑 OpenAI-compatible Provider 三类验收样例
+- 新增 AgentRun，记录观察、决策、反馈、执行和下一轮回读轨迹
+- 抽象 Tool Registry，为 Agent 动作补充工具定义、风险等级和确认规则
+- 增强 LLM JSON Decision，在真实模型结构化决策失败时回退 rule-based
+- 显式展示 Feedback Memory，避免重复推荐用户已拒绝或已采纳未执行的动作
+- 沉淀任务逾期、测试薄弱、资料不足、反馈记忆四类第五版验收场景
 - 支持 PDF 文件上传和解析
 - 增加 GitHub Actions CI
 - 部署后端和前端
