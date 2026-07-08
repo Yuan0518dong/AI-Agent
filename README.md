@@ -297,6 +297,7 @@ python -m http.server 5501 --directory app
 - docs/planning/个人项目简历化与第四版智能体方案.md
 - docs/planning/第五版可控学习智能体升级计划书.md
 - docs/planning/第三版项目计划书.md
+- docs/status/第五版可控学习智能体验收样例.md
 - docs/status/第三版资料学习智能体验收样例.md
 - docs/api/RAG-chunks接口说明.md
 - docs/api/LLM-provider设计说明.md
