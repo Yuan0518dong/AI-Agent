@@ -10,7 +10,10 @@ from backend.app.services import store
 
 # 本地开发默认允许 localhost:5500；部署时通过 CORS_ORIGINS 环境变量覆盖
 # 示例：CORS_ORIGINS=* 或 CORS_ORIGINS=https://your-frontend.pages.dev
-_cors_raw = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500")
+_cors_raw = os.getenv(
+    "CORS_ORIGINS",
+    "http://127.0.0.1:5500,http://localhost:5500,https://yuan0518dong.github.io",
+)
 CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 CORS_ALLOW_ALL = CORS_ORIGINS == ["*"]
 
