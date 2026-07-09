@@ -1833,6 +1833,55 @@ textarea {
   background: #fffaf0;
 }
 
+/* Decision Guard 评审面板 */
+.agent-mode-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.agent-guard-section {
+  border-left: 3px solid #6c757d;
+  padding-left: 12px;
+}
+
+.agent-guard-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.agent-guard-badge.accepted {
+  background: #d4edda;
+  color: #155724;
+}
+
+.agent-guard-badge.sanitized {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.agent-guard-badge.fallback {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.agent-guard-reason {
+  color: #856404;
+  font-size: 0.875rem;
+  margin: 4px 0 8px;
+}
+
+.agent-guard-ok {
+  color: #155724;
+  font-size: 0.875rem;
+  margin: 4px 0;
+}
+
 .agent-action-feedback {
   display: flex;
   flex-wrap: wrap;

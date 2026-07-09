@@ -1,5 +1,13 @@
 // Agent workbench module.
 
+let currentDecisionMode = "rule-based";
+
+function toggleAgentDecisionMode() {
+  currentDecisionMode = currentDecisionMode === "rule-based" ? "hybrid" : "rule-based";
+  const btn = document.getElementById("agent-mode-toggle-btn");
+  if (btn) btn.textContent = currentDecisionMode === "rule-based" ? "切换为 hybrid" : "切换为 rule-based";
+}
+
 async function loadAgentContextFromApi(goalId = selectedGoalId || "") {
   state.agentContext = await agentApi.getContext(goalId);
   saveState();
@@ -16,7 +24,7 @@ async function generateAgentDecision(triggerButton = null, goalId = selectedGoal
   setButtonLoading(triggerButton, true, "生成中");
 
   try {
-    state.agentDecision = await agentApi.decide(goalId);
+    state.agentDecision = await agentApi.decide(goalId, currentDecisionMode);
     await loadAgentActionLogsFromApi(goalId);
     saveState();
     renderAgentWorkbench();
@@ -357,6 +365,22 @@ function renderAgentDecisionPanel() {
   }
 
   mode.textContent = decision.mode || "rule-based";
+  if (decision.requestedMode && decision.requestedMode !== decision.mode) {
+    mode.textContent = `${decision.requestedMode} → ${decision.mode}`;
+  }
+
+  // 模式切换控制条
+  const modeBar = document.createElement("div");
+  modeBar.className = "agent-mode-bar";
+  const toggleBtn = document.createElement("button");
+  toggleBtn.id = "agent-mode-toggle-btn";
+  toggleBtn.className = "ghost-button";
+  toggleBtn.textContent = currentDecisionMode === "rule-based" ? "切换为 hybrid" : "切换为 rule-based";
+  toggleBtn.addEventListener("click", () => {
+    toggleAgentDecisionMode();
+  });
+  modeBar.appendChild(toggleBtn);
+  body.appendChild(modeBar);
 
   const summary = document.createElement("article");
   summary.className = "agent-decision-summary";
@@ -370,8 +394,59 @@ function renderAgentDecisionPanel() {
   `;
   body.appendChild(summary);
 
+  // Guard 评审面板：hybrid 模式或 decisionGuard 数据存在时展示
+  if (decision.requestedMode === "hybrid" || decision.decisionGuard) {
+    body.appendChild(agentDecisionGuardNode(decision));
+  }
+
   body.appendChild(agentDecisionProblemsNode(decision.problems || []));
   body.appendChild(agentDecisionActionsNode(decision.proposedActions || []));
+}
+
+function agentDecisionGuardNode(decision) {
+  const guard = decision.decisionGuard || {};
+  const status = guard.status || (decision.fallbackReason ? "fallback" : "accepted");
+  const interventions = guard.interventions || [];
+
+  const STATUS_LABELS = { accepted: "通过", sanitized: "已修正", fallback: "已回退" };
+  const INTERVENTION_LABELS = {
+    force_confirmation: "强制确认要求",
+    reject_unknown_action: "拒绝未知动作",
+    fallback_to_rule_based: "回退规则决策"
+  };
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "agent-decision-section agent-guard-section";
+  wrapper.innerHTML = `<h3>Decision Guard 评审 <span class="agent-guard-badge ${status}">${STATUS_LABELS[status] || status}</span></h3>`;
+
+  if (decision.fallbackReason) {
+    const reason = document.createElement("p");
+    reason.className = "agent-guard-reason";
+    reason.textContent = `回退原因：${decision.fallbackReason}`;
+    wrapper.appendChild(reason);
+  }
+
+  if (interventions.length > 0) {
+    interventions.forEach((iv) => {
+      const item = document.createElement("article");
+      item.className = "agent-decision-problem medium";
+      item.innerHTML = `
+        <div class="agent-card-head">
+          <strong>${escapeHtml(INTERVENTION_LABELS[iv.type] || iv.type)}</strong>
+          <span>${escapeHtml(iv.action || "")}</span>
+        </div>
+        <p>${escapeHtml(iv.reason || "")}</p>
+      `;
+      wrapper.appendChild(item);
+    });
+  } else if (status === "accepted") {
+    const ok = document.createElement("p");
+    ok.className = "agent-guard-ok";
+    ok.textContent = "模型输出合规，所有动作已通过评审，无需修正。";
+    wrapper.appendChild(ok);
+  }
+
+  return wrapper;
 }
 
 function agentDecisionProblemsNode(problems) {
