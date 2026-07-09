@@ -53,6 +53,14 @@ AI-Agent：面向个人学习规划的可控学习智能体
 添加资料 -> 生成 chunks -> 搜索资料片段 -> 围绕资料问 AI -> 展示 answer / basis / suggestion / references -> 保存并读回历史问答 -> 从问答生成复盘草稿 -> 加入正式闪卡 -> 复习打分保存
 ```
 
+## 界面截图
+
+### Decision Guard 可观察化
+
+Hybrid 模式下，模型输出会先经过 Decision Guard 校验；当模型动作不合规时，系统会自动回退到 rule-based 决策，并在前端展示回退状态与原因。
+
+![Decision Guard hybrid fallback](docs/images/agent-guard-hybrid-fallback.png)
+
 当前限制：
 
 ```text
@@ -297,6 +305,7 @@ python -m http.server 5501 --directory app
 - docs/status/当前状态.md
 - docs/planning/个人项目简历化与第四版智能体方案.md
 - docs/planning/第五版可控学习智能体升级计划书.md
+- docs/planning/语义检索升级计划.md
 - docs/planning/第三版项目计划书.md
 - docs/status/第五版可控学习智能体验收样例.md
 - docs/status/第三版资料学习智能体验收样例.md
@@ -325,7 +334,7 @@ python -m http.server 5501 --directory app
 
 ## 后续计划
 
-- 前端工作台可观察化：展示 Decision Guard 状态、fallback 原因、强制确认记录
+- 语义检索升级：将资料 chunks 从关键词匹配升级为 embedding + cosine similarity 的 Top-K 检索，并保留关键词 fallback
 - 支持 PDF 文件上传和解析
 - 增加 GitHub Actions CI
 - 部署后端和前端
