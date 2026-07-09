@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ai-agent-backend
+    runtime: python
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONPATH
+        value: .
+      - key: LLM_PROVIDER
+        value: mock
+      # 部署后把下面的值改为你的 GitHub Pages 或前端地址
+      # 例如：https://yuan0518dong.github.io/AI-Agent
+      - key: CORS_ORIGINS
+        value: "*"
+    healthCheckPath: /api/health

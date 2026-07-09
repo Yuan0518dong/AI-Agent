@@ -19,7 +19,7 @@ AI-Agent：面向个人学习规划的可控学习智能体
 ```text
 第三版已经完成资料学习智能体最小闭环。
 第四版已经补齐 AgentContext、AgentDecision、AgentActionLog、草稿态执行和上下文回读验收。
-第五版开始把项目升级为更完整的可控学习 Agent：AgentRun、Tool Registry、LLM JSON Decision 和反馈记忆增强。
+第五版已完成可控学习 Agent 升级：AgentRun、Tool Registry、LLM JSON Decision hybrid、反馈记忆增强和 Decision Guard 输出评审。
 ```
 
 ## 当前能力
@@ -40,6 +40,7 @@ AI-Agent：面向个人学习规划的可控学习智能体
 - 支持 AgentRun 记录一次智能体运行的上下文快照、决策快照和反馈摘要
 - 支持 Tool Registry 为 Agent 动作补充工具名、风险等级、草稿态和执行目标
 - 支持 LLM JSON Decision hybrid：真实模型结构化决策失败时回退 rule-based
+- 支持 Decision Guard 评审模型输出：非法 actionType 回退 rule-based，高风险动作漏标确认时强制修正为用户确认
 - 支持草稿态执行：任务建议进入任务草稿，复习建议进入复盘草稿，补资料建议预填资料表单
 - 支持确认写入后的上下文回读验收，下一轮 AgentDecision 能基于新状态继续判断
 - 支持任务打卡和进度查看
@@ -324,11 +325,7 @@ python -m http.server 5501 --directory app
 
 ## 后续计划
 
-- 新增 AgentRun，记录观察、决策、反馈、执行和下一轮回读轨迹
-- 抽象 Tool Registry，为 Agent 动作补充工具定义、风险等级和确认规则
-- 增强 LLM JSON Decision，在真实模型结构化决策失败时回退 rule-based
-- 显式展示 Feedback Memory，避免重复推荐用户已拒绝或已采纳未执行的动作
-- 沉淀任务逾期、测试薄弱、资料不足、反馈记忆四类第五版验收场景
+- 前端工作台可观察化：展示 Decision Guard 状态、fallback 原因、强制确认记录
 - 支持 PDF 文件上传和解析
 - 增加 GitHub Actions CI
 - 部署后端和前端

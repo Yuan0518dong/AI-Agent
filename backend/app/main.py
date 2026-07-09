@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +7,12 @@ from fastapi.routing import APIRoute, APIRouter
 
 from backend.app.routers import agent, auth, goals, materials, progress, tasks
 from backend.app.services import store
+
+# 本地开发默认允许 localhost:5500；部署时通过 CORS_ORIGINS 环境变量覆盖
+# 示例：CORS_ORIGINS=* 或 CORS_ORIGINS=https://your-frontend.pages.dev
+_cors_raw = os.getenv("CORS_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500")
+CORS_ORIGINS = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+CORS_ALLOW_ALL = CORS_ORIGINS == ["*"]
 
 
 @asynccontextmanager
@@ -18,8 +25,9 @@ app = FastAPI(title="AI-Agent API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500", "http://localhost:5500"],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.onrender\.com" if not CORS_ALLOW_ALL else None,
+    allow_credentials=not CORS_ALLOW_ALL,
     allow_methods=["*"],
     allow_headers=["*"],
 )
