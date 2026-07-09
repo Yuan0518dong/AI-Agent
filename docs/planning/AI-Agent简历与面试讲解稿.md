@@ -11,7 +11,7 @@ AI-Agent 是一个面向个人学习规划的可控学习智能体，能够聚�
 第五版增强版：
 
 ```text
-AI-Agent 是一个面向学习规划场景的可控 AI Agent，支持状态感知、结构化决策、工具风险分层、用户反馈记忆、运行轨迹记录和 LLM JSON 决策兜底回退。
+AI-Agent 是一个面向学习规划场景的可控 AI Agent，支持状态感知、结构化决策、模型输出评审、工具风险分层、用户反馈记忆、运行轨迹记录和 LLM JSON 决策兜底回退。
 ```
 
 ## 2. 架构图文字版
@@ -20,6 +20,7 @@ AI-Agent 是一个面向学习规划场景的可控 AI Agent，支持状态感�
 前端工作台
 -> 调用 AgentContext 接口读取当前学习状态
 -> 调用 AgentDecision 接口生成结构化建议
+-> Decision Guard 评审 LLM 结构化输出，非法动作回退，高风险动作强制确认
 -> Tool Registry 为建议补充工具名、风险等级、草稿态和执行目标
 -> 用户采纳 / 忽略 / 稍后处理
 -> ActionLog 记录反馈和状态
@@ -36,6 +37,7 @@ AI-Agent 是一个面向学习规划场景的可控 AI Agent，支持状态感�
 ```text
 AgentContext：Agent 能看见什么。
 AgentDecision：Agent 如何判断下一步。
+Decision Guard：模型输出能不能进入系统，是否需要回退或修正。
 Tool Registry：Agent 建议要调用什么工具、风险多高、是否只能生成草稿。
 AgentActionLog：用户如何反馈，系统如何留下可追踪记录。
 AgentRun：一次 Agent 运行当时看到了什么、为什么建议、后来反馈如何。
@@ -51,7 +53,7 @@ AI-Agent：个人主导的可控学习智能体项目
 - 基于 FastAPI + SQLite + 原生 JavaScript 实现学习 Agent，覆盖目标管理、资料理解、任务规划、资料问答、闪卡复习、测试批改和进度统计等学习闭环。
 - 设计 AgentContext / AgentDecision / AgentActionLog / Draft Execute 四层闭环，使 Agent 能聚合学习状态、输出结构化建议、记录用户反馈，并在用户确认后转入任务草稿或复习草稿。
 - 构建 AgentRun 与 Tool Registry 机制，为每次 Agent 运行保留上下文/决策快照，并为 proposedActions 标注工具名、风险等级、草稿态和执行目标。
-- 增加 LLM JSON Decision hybrid 决策层，支持真实模型输出结构化建议；当 JSON 解析失败、字段缺失或 action 非法时回退 rule-based，并继续通过工具注册表校验风险。
+- 增加 LLM JSON Decision hybrid 与 Decision Guard，支持真实模型输出结构化建议；当 JSON 解析失败、字段缺失或 action 非法时回退 rule-based，高风险动作漏标确认时自动修正为用户确认。
 - 实现用户确认式执行机制：高风险动作先生成草稿，不直接覆盖任务表或写入正式学习内容，降低自动化破坏用户计划的风险。
 - 设计 mock 与 OpenAI-compatible LLM Provider 切换机制，保证本地测试稳定，同时支持真实模型联调和资料不足判断验收。
 - 使用 pytest、smoke API 和 node --check 验证核心链路，其中上下文回读验收覆盖“确认写入 -> AgentContext 读回 -> AgentDecision 重新判断”。
@@ -62,7 +64,7 @@ AI-Agent：个人主导的可控学习智能体项目
 ```text
 - 设计并实现可控学习 Agent，基于 AgentContext / AgentDecision / AgentActionLog / Draft Execute 串联目标、资料、任务、复习和测试状态。
 - 引入 AgentRun、Tool Registry 和 Feedback Memory，为 Agent 建议提供运行轨迹、工具风险分层和用户反馈记忆。
-- 建立 mock / OpenAI-compatible LLM Provider 与 LLM JSON Decision hybrid 机制，模型结构化决策失败时回退 rule-based，并通过 pytest + smoke 验证。
+- 建立 mock / OpenAI-compatible LLM Provider、LLM JSON Decision hybrid 与 Decision Guard，模型结构化决策失败时回退 rule-based，高风险动作强制用户确认，并通过 pytest + smoke 验证。
 ```
 
 ## 4. 1 分钟项目介绍
@@ -76,7 +78,7 @@ AI-Agent：个人主导的可控学习智能体项目
 第五版 20 秒版：
 
 ```text
-这是一个面向学习规划的可控 AI Agent。我在原有 Context、Decision、ActionLog 和草稿执行闭环上继续加入 AgentRun、Tool Registry 和 LLM JSON Decision hybrid，让每次建议都能追踪当时上下文、映射到受控工具，并在真实模型结构化决策失败时回退规则决策，保证可解释、可确认、可验证。
+这是一个面向学习规划的可控 AI Agent。我在原有 Context、Decision、ActionLog 和草稿执行闭环上继续加入 AgentRun、Decision Guard、Tool Registry 和 LLM JSON Decision hybrid，让每次建议都能追踪上下文、评审模型输出、映射到受控工具，并在结构化决策失败时回退规则决策。
 ```
 
 ### 4.2 1 分钟展开版
@@ -94,9 +96,9 @@ AI-Agent：个人主导的可控学习智能体项目
 ```text
 第五版我重点做的是把这个学习 Agent 从“能给建议”升级成“可追踪、可校验、可回退”的 Agent 系统。
 
-在原来的 AgentContext、AgentDecision、ActionLog 和草稿执行基础上，我新增了三层能力：第一是 AgentRun，用来记录一次智能体运行的上下文快照、决策快照和反馈摘要，这样可以复盘当时 Agent 为什么这么建议；第二是 Tool Registry，把原来的 actionType 映射成受控工具，并标注 riskLevel、draftOnly 和 applyTarget，比如任务类动作是高风险，只能先进入任务草稿；第三是 LLM JSON Decision hybrid，让真实模型可以输出结构化决策，但如果 JSON 解析失败、字段缺失或 action 不合法，就回退到 rule-based 决策。
+在原来的 AgentContext、AgentDecision、ActionLog 和草稿执行基础上，我新增了几层能力：AgentRun 用来记录一次智能体运行的上下文快照、决策快照和反馈摘要；Tool Registry 把原来的 actionType 映射成受控工具，并标注 riskLevel、draftOnly 和 applyTarget；LLM JSON Decision hybrid 让真实模型可以输出结构化决策；Decision Guard 则负责评审模型输出，如果 JSON 解析失败、字段缺失或 action 不合法，就回退到 rule-based，如果高风险动作漏标确认，就强制改成用户确认。
 
-这个设计的核心取舍是，我没有为了“智能”让模型直接执行，而是让模型只能提出可校验的 proposedActions，再经过工具注册表和用户确认流程。最后我用 pytest 和 smoke 覆盖了反馈记忆、AgentRun、Tool Registry、hybrid 回退和上下文回读，证明它不是一次性问答，而是一个可控闭环。
+这个设计的核心取舍是，我没有为了“智能”让模型直接执行，而是让模型只能提出可校验的 proposedActions，再经过 Decision Guard、Tool Registry 和用户确认流程。最后我用 pytest 和 smoke 覆盖了反馈记忆、AgentRun、Tool Registry、Decision Guard、hybrid 回退和上下文回读，证明它不是一次性问答，而是一个可控闭环。
 ```
 
 ## 5. 面试追问回答
@@ -154,15 +156,23 @@ Tool Registry 解决的是 Agent 动作边界问题。原来 proposedActions 只
 ### 5.8 LLM JSON Decision hybrid 为什么需要回退？
 
 ```text
-真实模型输出不一定稳定，可能 JSON 解析失败、缺字段，或者返回系统不支持的 actionType。所以我没有让 LLM 直接控制系统，而是让它输出结构化建议，再由 Tool Registry 校验；如果失败就回退 rule-based。这样模型是增强层，不是单点风险，测试环境也不会依赖真实 Key。
+真实模型输出不一定稳定，可能 JSON 解析失败、缺字段，或者返回系统不支持的 actionType。所以我没有让 LLM 直接控制系统，而是让它输出结构化建议，再由 Decision Guard 评审；非法输出回退 rule-based，高风险但漏标确认的动作会被修正为需要用户确认，之后再进入 Tool Registry 风险映射。这样模型是增强层，不是单点风险。
 ```
 
 关键词：结构化输出、规则兜底、模型不可控风险。
 
-### 5.9 这个项目体现了什么工程化思维？
+### 5.9 Decision Guard 和 Tool Registry 有什么区别？
 
 ```text
-第五版不是推倒重做，而是兼容式迭代。我保留已有 actionType、rule-based 决策和草稿执行链路，在外层逐步增加 AgentRun、Tool Registry、Feedback Memory 和 LLM JSON Decision hybrid。这样旧流程继续稳定，新能力逐步接管解释、校验和展示，每一步都有测试和 smoke 证明没有破坏原闭环。
+Decision Guard 解决的是模型输出治理问题：模型输出能不能进入系统，非法 action 要不要回退，高风险动作是否漏了确认。Tool Registry 解决的是工具边界问题：合法 action 对应哪个工具、风险多高、是否只能草稿执行。简单说，Guard 是入口评审，Registry 是工具规则。
+```
+
+关键词：输出治理、入口评审、工具规则。
+
+### 5.10 这个项目体现了什么工程化思维？
+
+```text
+第五版不是推倒重做，而是兼容式迭代。我保留已有 actionType、rule-based 决策和草稿执行链路，在外层逐步增加 AgentRun、Decision Guard、Tool Registry、Feedback Memory 和 LLM JSON Decision hybrid。这样旧流程继续稳定，新能力逐步接管解释、校验和展示，每一步都有测试和 smoke 证明没有破坏原闭环。
 ```
 
 关键词：兼容式演进、稳定基线、持续验证。
@@ -176,5 +186,5 @@ Tool Registry 解决的是 Agent 动作边界问题。原来 proposedActions 只
 第五版复述句：
 
 ```text
-第五版的核心是把 Agent 从“能给建议”升级成“可追踪、可校验、可回退”：AgentRun 记录运行轨迹，Tool Registry 控制工具风险，Feedback Memory 读取用户反馈，LLM JSON Decision 只作为增强层，失败时回退 rule-based。
+第五版的核心是把 Agent 从“能给建议”升级成“可追踪、可校验、可回退”：AgentRun 记录运行轨迹，Decision Guard 评审模型输出，Tool Registry 控制工具风险，Feedback Memory 读取用户反馈，LLM JSON Decision 只作为增强层，失败时回退 rule-based。
 ```

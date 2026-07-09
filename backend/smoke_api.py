@@ -325,6 +325,7 @@ def main() -> None:
                 "agent_hybrid_decision_mode": agent_hybrid_decision["mode"],
                 "agent_hybrid_requested_mode": agent_hybrid_decision["requestedMode"],
                 "agent_hybrid_fallback": bool(agent_hybrid_decision["fallbackReason"]),
+                "agent_hybrid_guard_status": agent_hybrid_decision.get("decisionGuard", {}).get("status"),
                 "agent_tool_count": len(agent_tools),
                 "agent_decision_first_tool": first_action["toolName"],
                 "agent_decision_first_risk": first_action["riskLevel"],

@@ -338,8 +338,59 @@ def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
     assert decision["fallbackReason"] == ""
     assert decision["nextAction"] == "review_material"
     assert decision["reflection"] == "Prefer a low-risk review action."
+    assert decision["decisionGuard"]["status"] == "accepted"
+    assert decision["decisionGuard"]["interventions"] == []
     assert decision["proposedActions"][0]["toolName"] == "review_material"
     assert decision["proposedActions"][0]["riskLevel"] == "low"
+
+
+def test_agent_decision_guard_forces_confirmation_for_high_risk_llm_action(monkeypatch):
+    class RiskyDecisionProvider:
+        mode = "openai-compatible"
+        model = "test-decision-model"
+
+        def _post_chat_completion(self, payload):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"stateSummary":"LLM wants to plan tasks.",'
+                                '"nextAction":"reschedule_tasks",'
+                                '"reason":"Overdue tasks should be rescheduled.",'
+                                '"requiresConfirmation":false,'
+                                '"proposedActions":[{"type":"reschedule_tasks","label":"Reschedule now","description":"Move overdue tasks.","payload":{},"requiresConfirmation":false}],'
+                                '"reflection":"This is high risk and must be guarded."}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(
+        agent_decision_provider.llm_provider,
+        "get_llm_provider",
+        lambda: RiskyDecisionProvider(),
+    )
+    goal = create_goal("Decision guard goal")
+
+    response = client.post(
+        "/api/agent/decide",
+        params={"goalId": goal["id"], "decisionMode": "hybrid"},
+    )
+
+    assert response.status_code == 200
+    decision = response.json()["data"]
+    action = decision["proposedActions"][0]
+    assert decision["mode"] == "hybrid"
+    assert decision["requiresConfirmation"] is True
+    assert decision["decisionGuard"]["status"] == "sanitized"
+    assert decision["decisionGuard"]["interventions"][0]["type"] == "force_confirmation"
+    assert action["type"] == "reschedule_tasks"
+    assert action["toolName"] == "create_task_draft"
+    assert action["riskLevel"] == "high"
+    assert action["draftOnly"] is True
+    assert action["requiresConfirmation"] is True
 
 
 def test_agent_decision_hybrid_falls_back_on_invalid_llm_action(monkeypatch):
@@ -379,7 +430,9 @@ def test_agent_decision_hybrid_falls_back_on_invalid_llm_action(monkeypatch):
     decision = response.json()["data"]
     assert decision["mode"] == "rule-based"
     assert decision["requestedMode"] == "hybrid"
-    assert decision["fallbackReason"]
+    assert "Decision Guard rejected model output" in decision["fallbackReason"]
+    assert decision["decisionGuard"]["status"] == "fallback"
+    assert decision["decisionGuard"]["errors"]
     assert decision["nextAction"] == "create_followup_tasks"
     assert decision["proposedActions"][0]["toolName"] == "create_task_draft"
 
