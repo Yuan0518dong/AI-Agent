@@ -1,15 +1,35 @@
+import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi.testclient import TestClient
 import pytest
 
 from backend.app.main import app
-from backend.app.services import agent_decision_provider, store
+from backend.app.services import (
+    agent_context_service,
+    agent_decision_provider,
+    agent_decision_service,
+    agent_draft_service,
+    agent_loop_service,
+    agent_run_service,
+    agent_action_log_service,
+    agent_tool_execution_service,
+    agent_tool_registry_service,
+    store,
+)
 
 
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clean_store(tmp_path):
+def clean_store(tmp_path, monkeypatch):
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
+    monkeypatch.setenv("LLM_ENV_FILE", str(tmp_path / "missing.env"))
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "mock")
+    monkeypatch.setenv("EMBEDDING_ENV_FILE", str(tmp_path / "missing.env"))
     test_db_path = tmp_path / "test_ai_agent.db"
     store.set_db_path(test_db_path)
     store.reset()
@@ -33,7 +53,12 @@ def create_goal(name: str = "Agent goal") -> dict:
     return response.json()["data"]
 
 
-def create_material(goal_id: str, title: str, content: str) -> dict:
+def create_material(
+    goal_id: str,
+    title: str,
+    content: str,
+    generate_chunks: bool = True,
+) -> dict:
     response = client.post(
         "/api/materials",
         json={
@@ -47,9 +72,10 @@ def create_material(goal_id: str, title: str, content: str) -> dict:
     assert response.status_code == 200
     material = response.json()["data"]
 
-    chunks_response = client.post(f"/api/materials/{material['id']}/chunks")
-    assert chunks_response.status_code == 200
-    assert len(chunks_response.json()["data"]) >= 1
+    if generate_chunks:
+        chunks_response = client.post(f"/api/materials/{material['id']}/chunks")
+        assert chunks_response.status_code == 200
+        assert len(chunks_response.json()["data"]) >= 1
     return material
 
 
@@ -268,7 +294,7 @@ def test_agent_decision_prioritizes_context_problems():
         assert action["applyTarget"]
     assert decision["nextAction"] == decision["proposedActions"][0]["type"]
     assert decision["reason"]
-    assert decision["requiresConfirmation"] is True
+    assert decision["requiresConfirmation"] is False
     assert decision["feedbackMemory"]["recentActionCount"] == 0
 
 
@@ -278,7 +304,13 @@ def test_agent_tools_registry_is_exposed_and_decision_actions_are_enriched():
     assert tools_response.status_code == 200
     tools = tools_response.json()["data"]
     tool_names = {tool["name"] for tool in tools}
-    assert {"review_material", "create_review_draft", "create_task_draft"}.issubset(tool_names)
+    assert {
+        "review_material",
+        "search_materials",
+        "answer_with_sources",
+        "create_review_draft",
+        "create_task_draft",
+    }.issubset(tool_names)
 
     goal = create_goal("Tool registry goal")
     decision_response = client.post("/api/agent/decide", params={"goalId": goal["id"]})
@@ -288,10 +320,10 @@ def test_agent_tools_registry_is_exposed_and_decision_actions_are_enriched():
     action = decision["proposedActions"][0]
     assert action["type"] == "create_followup_tasks"
     assert action["toolName"] == "create_task_draft"
-    assert action["riskLevel"] == "high"
+    assert action["riskLevel"] == "medium"
     assert action["draftOnly"] is True
     assert action["applyTarget"] == "task_drafts"
-    assert action["requiresConfirmation"] is True
+    assert action["requiresConfirmation"] is False
 
 
 def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
@@ -301,6 +333,8 @@ def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
 
         def _post_chat_completion(self, payload):
             assert payload["response_format"]["type"] == "json_object"
+            assert '"availableTools"' in payload["messages"][1]["content"]
+            assert '"review_material"' in payload["messages"][1]["content"]
             return {
                 "choices": [
                     {
@@ -337,14 +371,16 @@ def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
     assert decision["requestedMode"] == "hybrid"
     assert decision["fallbackReason"] == ""
     assert decision["nextAction"] == "review_material"
-    assert decision["reflection"] == "Prefer a low-risk review action."
+    assert decision["reflection"] == ""
+    assert decision["providerMetadata"]["provider"] == "openai-compatible"
+    assert decision["providerMetadata"]["promptVersion"] == "batch-c-v1"
     assert decision["decisionGuard"]["status"] == "accepted"
     assert decision["decisionGuard"]["interventions"] == []
     assert decision["proposedActions"][0]["toolName"] == "review_material"
     assert decision["proposedActions"][0]["riskLevel"] == "low"
 
 
-def test_agent_decision_guard_forces_confirmation_for_high_risk_llm_action(monkeypatch):
+def test_agent_decision_guard_allows_llm_draft_creation_without_confirmation(monkeypatch):
     class RiskyDecisionProvider:
         mode = "openai-compatible"
         model = "test-decision-model"
@@ -356,11 +392,12 @@ def test_agent_decision_guard_forces_confirmation_for_high_risk_llm_action(monke
                         "message": {
                             "content": (
                                 '{"stateSummary":"LLM wants to plan tasks.",'
+                                '"problems":[],'
                                 '"nextAction":"reschedule_tasks",'
                                 '"reason":"Overdue tasks should be rescheduled.",'
                                 '"requiresConfirmation":false,'
                                 '"proposedActions":[{"type":"reschedule_tasks","label":"Reschedule now","description":"Move overdue tasks.","payload":{},"requiresConfirmation":false}],'
-                                '"reflection":"This is high risk and must be guarded."}'
+                                '"reflection":"Draft creation does not write a formal task."}'
                             )
                         }
                     }
@@ -383,14 +420,14 @@ def test_agent_decision_guard_forces_confirmation_for_high_risk_llm_action(monke
     decision = response.json()["data"]
     action = decision["proposedActions"][0]
     assert decision["mode"] == "hybrid"
-    assert decision["requiresConfirmation"] is True
-    assert decision["decisionGuard"]["status"] == "sanitized"
-    assert decision["decisionGuard"]["interventions"][0]["type"] == "force_confirmation"
+    assert decision["requiresConfirmation"] is False
+    assert decision["decisionGuard"]["status"] == "accepted"
+    assert decision["decisionGuard"]["interventions"] == []
     assert action["type"] == "reschedule_tasks"
     assert action["toolName"] == "create_task_draft"
-    assert action["riskLevel"] == "high"
+    assert action["riskLevel"] == "medium"
     assert action["draftOnly"] is True
-    assert action["requiresConfirmation"] is True
+    assert action["requiresConfirmation"] is False
 
 
 def test_agent_decision_hybrid_falls_back_on_invalid_llm_action(monkeypatch):
@@ -431,6 +468,50 @@ def test_agent_decision_hybrid_falls_back_on_invalid_llm_action(monkeypatch):
     assert decision["mode"] == "rule-based"
     assert decision["requestedMode"] == "hybrid"
     assert "Decision Guard rejected model output" in decision["fallbackReason"]
+    assert decision["decisionGuard"]["status"] == "fallback"
+
+
+def test_agent_decision_guard_rejects_invalid_tool_payload(monkeypatch):
+    class BadPayloadProvider:
+        mode = "openai-compatible"
+        model = "test-decision-model"
+
+        def _post_chat_completion(self, payload):
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"stateSummary":"bad payload",'
+                                '"problems":[],'
+                                '"nextAction":"review_material",'
+                                '"reason":"bad payload",'
+                                '"requiresConfirmation":false,'
+                                '"proposedActions":[{"type":"review_material",'
+                                '"payload":{"unexpected":true}}],'
+                                '"reflection":""}'
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(
+        agent_decision_provider.llm_provider,
+        "get_llm_provider",
+        lambda: BadPayloadProvider(),
+    )
+    goal = create_goal("Guard payload validation")
+
+    response = client.post(
+        "/api/agent/decide",
+        params={"goalId": goal["id"], "decisionMode": "hybrid"},
+    )
+
+    assert response.status_code == 200
+    decision = response.json()["data"]
+    assert decision["mode"] == "rule-based"
+    assert "unknown fields" in decision["fallbackReason"]
     assert decision["decisionGuard"]["status"] == "fallback"
     assert decision["decisionGuard"]["errors"]
     assert decision["nextAction"] == "create_followup_tasks"
@@ -523,7 +604,7 @@ def test_agent_decision_handles_empty_context_and_missing_goal():
     decision = response.json()["data"]
     assert decision["nextAction"] == "create_followup_tasks"
     assert decision["problems"][0]["type"] == "missing_goal"
-    assert decision["requiresConfirmation"] is True
+    assert decision["requiresConfirmation"] is False
 
     missing_response = client.post("/api/agent/decide", params={"goalId": "goal_missing"})
     assert missing_response.status_code == 404
@@ -599,6 +680,7 @@ def test_agent_run_records_context_decision_and_feedback_summary():
     assert agent_run["id"].startswith("agentrun_")
     assert agent_run["goalId"] == goal["id"]
     assert agent_run["trigger"] == "manual"
+    assert agent_run["decisionMode"] == "hybrid"
     assert agent_run["status"] == "decided"
     assert agent_run["contextSummary"]["goalCount"] == 1
     assert agent_run["contextSummary"]["materialTotal"] == 1
@@ -606,6 +688,8 @@ def test_agent_run_records_context_decision_and_feedback_summary():
     assert agent_run["feedbackSummary"]["total"] == 0
     assert agent_run["contextSnapshot"]["materials"][0]["id"] == material["id"]
     assert agent_run["decisionSnapshot"]["scope"]["goalId"] == goal["id"]
+    assert agent_run["decisionSnapshot"]["requestedMode"] == "hybrid"
+    assert agent_run["decisionSnapshot"]["providerMetadata"]["provider"] == "mock"
 
     list_response = client.get("/api/agent/runs", params={"goalId": goal["id"]})
     assert list_response.status_code == 200
@@ -639,6 +723,738 @@ def test_agent_run_records_context_decision_and_feedback_summary():
     assert updated_run["feedbackSummary"]["total"] == 1
     assert updated_run["feedbackSummary"]["byStatus"]["accepted"] == 1
     assert updated_run["feedbackSummary"]["latestStatus"] == "accepted"
+
+
+def test_agent_loop_applies_accepted_task_draft_from_the_same_run():
+    goal = create_goal("Agent loop goal")
+    create_material(
+        goal["id"],
+        "Loop material",
+        "The Agent should observe, decide, call a tool, and inspect the result.",
+        generate_chunks=False,
+    )
+    run = client.post(
+        "/api/agent/runs",
+        json={
+            "goalId": goal["id"],
+            "objective": "Prepare the next grounded learning action.",
+            "decisionMode": "rule-based",
+            "maxSteps": 4,
+        },
+    ).json()["data"]
+
+    first_execute = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert first_execute.status_code == 200
+    waiting_run = first_execute.json()["data"]
+    assert waiting_run["status"] == "waiting_confirmation"
+    assert waiting_run["stopReason"] == "confirmation_required"
+    assert waiting_run["currentStep"] == 3
+    assert [step["status"] for step in waiting_run["steps"]] == [
+        "completed",
+        "completed",
+        "waiting_confirmation",
+    ]
+    assert waiting_run["steps"][0]["toolName"] == "review_material"
+    assert "Inspected 1 material" in waiting_run["steps"][0]["toolOutput"]["observation"]
+    assert waiting_run["steps"][0]["toolOutput"]["data"]["generatedChunkSets"] == 1
+    assert waiting_run["steps"][0]["toolOutput"]["data"]["generatedSummaries"] == 1
+    processed_material = waiting_run["contextSnapshot"]["materials"][0]
+    assert processed_material["chunkCount"] >= 1
+    assert processed_material["hasSummary"] is True
+
+    draft_step = waiting_run["steps"][1]
+    assert draft_step["toolName"] == "create_task_draft"
+    assert draft_step["toolOutput"]["data"]["createdCount"] == 1
+    assert draft_step["toolOutput"]["data"]["reusedCount"] == 0
+    task_draft = draft_step["toolOutput"]["data"]["drafts"][0]
+    assert task_draft["id"].startswith("agentdraft_")
+    assert task_draft["goalId"] == goal["id"]
+    assert task_draft["stepId"] == draft_step["id"]
+    assert task_draft["status"] == "proposed"
+    assert task_draft["payload"].keys() >= {
+        "goalId",
+        "title",
+        "detail",
+        "date",
+        "priority",
+        "sourceReason",
+    }
+    assert store.list_goal_tasks(goal["id"]) == []
+    draft_readback = client.get(f"/api/agent/drafts/{task_draft['id']}")
+    assert draft_readback.status_code == 200
+    assert draft_readback.json()["data"]["id"] == task_draft["id"]
+    apply_step = waiting_run["steps"][2]
+    assert apply_step["toolName"] == "apply_confirmed_draft"
+    apply_action_log_id = apply_step["actionLogId"]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_action_log_id}",
+        json={"status": "accepted"},
+    ).json()["data"]["status"] == "accepted"
+    assert client.get(f"/api/agent/drafts/{task_draft['id']}").json()["data"]["status"] == "confirmed"
+
+    resumed_response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert resumed_response.status_code == 200
+    completed_run = resumed_response.json()["data"]
+    assert completed_run["status"] == "completed"
+    assert completed_run["steps"][2]["status"] == "completed"
+    apply_output = completed_run["steps"][2]["toolOutput"]
+    assert apply_output["data"]["appliedCount"] == 1
+    assert apply_output["data"]["reusedCount"] == 0
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+    applied_draft = client.get(f"/api/agent/drafts/{task_draft['id']}").json()["data"]
+    assert applied_draft["status"] == "applied"
+    assert len(applied_draft["appliedEntityIds"]) == 1
+    action_log = client.get(
+        "/api/agent/action-logs",
+        params={"goalId": goal["id"]},
+    ).json()["data"]
+    assert any(log["id"] == apply_action_log_id and log["status"] == "applied" for log in action_log)
+    assert completed_run["contextSnapshot"]["summary"]["taskTotal"] == 1
+
+    duplicate_resume = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+    assert duplicate_resume.status_code == 200
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+    retry_output = agent_tool_execution_service.execute_action(
+        completed_run["steps"][2]["actionSnapshot"],
+        goal["id"],
+        None,
+        run["objective"],
+        action_log_id=apply_action_log_id,
+    )
+    assert retry_output["data"]["appliedCount"] == 0
+    assert retry_output["data"]["reusedCount"] == 1
+    assert retry_output["data"]["appliedEntityIds"] == applied_draft["appliedEntityIds"]
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+
+
+def test_agent_review_draft_persists_retries_idempotently_and_cascades_with_run():
+    goal = create_goal("Review draft goal")
+    material = create_material(
+        goal["id"],
+        "Review draft notes",
+        "Review drafts should remain proposed until a later confirmed write.",
+    )
+    assert client.post(f"/api/materials/{material['id']}/summarize").status_code == 200
+    planned_tasks = client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 1, "regenerate": True},
+    ).json()["data"]
+    quiz = client.post(f"/api/materials/{material['id']}/quiz", params={"count": 1}).json()["data"][0]
+    assert client.post(
+        f"/api/materials/{material['id']}/quiz/{quiz['id']}/answer",
+        json={"answer": "incorrect"},
+    ).status_code == 200
+
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 1},
+    ).json()["data"]
+    execute_response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert execute_response.status_code == 200
+    executed_run = execute_response.json()["data"]
+    assert executed_run["status"] == "max_steps"
+    step = executed_run["steps"][0]
+    assert step["toolName"] == "create_review_draft"
+    output = step["toolOutput"]
+    assert output["data"]["createdCount"] == 1
+    assert output["data"]["reusedCount"] == 0
+    draft = output["data"]["drafts"][0]
+    assert draft["id"].startswith("agentdraft_")
+    assert draft["runId"] == run["id"]
+    assert draft["stepId"] == step["id"]
+    assert draft["draftType"] == "review"
+    assert draft["status"] == "proposed"
+    assert draft["payload"].keys() >= {"materialId", "front", "back", "sourceReason"}
+    assert len(store.list_goal_tasks(goal["id"])) == len(planned_tasks)
+    assert client.get(f"/api/materials/{material['id']}/flashcards").json()["data"] == []
+
+    retry_output = agent_tool_execution_service.execute_action(
+        step["actionSnapshot"],
+        goal["id"],
+        None,
+        run["objective"],
+        run_id=run["id"],
+        step_id=step["id"],
+    )
+    assert retry_output["data"]["createdCount"] == 0
+    assert retry_output["data"]["reusedCount"] == 1
+    assert retry_output["data"]["drafts"][0]["id"] == draft["id"]
+
+    filtered = client.get(
+        "/api/agent/drafts",
+        params={"goalId": goal["id"], "draftType": "review", "status": "proposed"},
+    )
+    assert filtered.status_code == 200
+    assert [item["id"] for item in filtered.json()["data"]] == [draft["id"]]
+    assert client.get(
+        "/api/agent/drafts",
+        params={"goalId": goal["id"], "draftType": "task", "status": "proposed"},
+    ).json()["data"] == []
+    assert agent_draft_service.is_valid_status_transition("proposed", "confirmed")
+    assert agent_draft_service.is_valid_status_transition("proposed", "rejected")
+    assert agent_draft_service.is_valid_status_transition("confirmed", "applied")
+    assert not agent_draft_service.is_valid_status_transition("applied", "confirmed")
+    assert not agent_draft_service.is_valid_status_transition("rejected", "applied")
+
+    with store.db_connection() as conn:
+        conn.execute("DELETE FROM agent_runs WHERE id = ?", (run["id"],))
+    assert client.get(f"/api/agent/drafts/{draft['id']}").status_code == 404
+
+
+def test_agent_drafts_are_isolated_by_user_header():
+    first_user = client.post(
+        "/api/auth/register",
+        json={"name": "Draft First", "email": "first-draft@example.com", "password": "secret123"},
+    ).json()["data"]
+    second_user = client.post(
+        "/api/auth/register",
+        json={"name": "Draft Second", "email": "second-draft@example.com", "password": "secret123"},
+    ).json()["data"]
+    first_headers = {"X-User-Id": first_user["id"]}
+    second_headers = {"X-User-Id": second_user["id"]}
+
+    first_goal = client.post(
+        "/api/goals",
+        headers=first_headers,
+        json={
+            "name": "First draft goal",
+            "subject": "AI Agent",
+            "level": "basic",
+            "deadline": "2026-07-15",
+            "daily_minutes": 30,
+            "notes": "",
+        },
+    ).json()["data"]
+    second_goal = client.post(
+        "/api/goals",
+        headers=second_headers,
+        json={
+            "name": "Second draft goal",
+            "subject": "AI Agent",
+            "level": "basic",
+            "deadline": "2026-07-15",
+            "daily_minutes": 30,
+            "notes": "",
+        },
+    ).json()["data"]
+
+    first_run = client.post(
+        "/api/agent/runs",
+        headers=first_headers,
+        json={"goalId": first_goal["id"], "maxSteps": 1},
+    ).json()["data"]
+    second_run = client.post(
+        "/api/agent/runs",
+        headers=second_headers,
+        json={"goalId": second_goal["id"], "maxSteps": 1},
+    ).json()["data"]
+    first_draft = client.post(
+        f"/api/agent/runs/{first_run['id']}/execute",
+        headers=first_headers,
+        json={},
+    ).json()["data"]["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    second_draft = client.post(
+        f"/api/agent/runs/{second_run['id']}/execute",
+        headers=second_headers,
+        json={},
+    ).json()["data"]["steps"][0]["toolOutput"]["data"]["drafts"][0]
+
+    first_list = client.get(
+        "/api/agent/drafts",
+        headers=first_headers,
+        params={"goalId": first_goal["id"], "draftType": "task", "status": "proposed"},
+    )
+    assert first_list.status_code == 200
+    assert [item["id"] for item in first_list.json()["data"]] == [first_draft["id"]]
+    assert client.get(
+        f"/api/agent/drafts/{second_draft['id']}",
+        headers=first_headers,
+    ).status_code == 404
+    assert client.get(
+        "/api/agent/drafts",
+        headers=first_headers,
+        params={"goalId": second_goal["id"]},
+    ).status_code == 404
+
+
+def test_agent_loop_rejects_confirmed_draft_without_formal_write():
+    goal = create_goal("Rejected draft goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 3},
+    ).json()["data"]
+
+    waiting_response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert waiting_response.status_code == 200
+    waiting_run = waiting_response.json()["data"]
+    assert waiting_run["status"] == "waiting_confirmation"
+    draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    apply_step = waiting_run["steps"][1]
+    assert apply_step["toolName"] == "apply_confirmed_draft"
+    reject_response = client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "rejected"},
+    )
+    assert reject_response.status_code == 200
+    assert client.get(f"/api/agent/drafts/{draft['id']}").json()["data"]["status"] == "rejected"
+
+    resumed_response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert resumed_response.status_code == 200
+    rejected_run = resumed_response.json()["data"]
+    assert rejected_run["status"] == "completed"
+    assert rejected_run["steps"][1]["status"] == "rejected"
+    assert store.list_goal_tasks(goal["id"]) == []
+
+
+def test_agent_loop_applies_review_draft_as_flashcard():
+    goal = create_goal("Review apply goal")
+    material = create_material(
+        goal["id"],
+        "Review apply material",
+        "A confirmed review draft should become exactly one flashcard.",
+    )
+    assert client.post(f"/api/materials/{material['id']}/summarize").status_code == 200
+    assert client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 1, "regenerate": True},
+    ).status_code == 200
+    quiz = client.post(f"/api/materials/{material['id']}/quiz", params={"count": 1}).json()["data"][0]
+    assert client.post(
+        f"/api/materials/{material['id']}/quiz/{quiz['id']}/answer",
+        json={"answer": "incorrect"},
+    ).status_code == 200
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 3},
+    ).json()["data"]
+
+    waiting_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    assert waiting_run["status"] == "waiting_confirmation"
+    review_draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    assert review_draft["draftType"] == "review"
+    apply_step = waiting_run["steps"][1]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    completed_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    assert completed_run["steps"][1]["toolOutput"]["data"]["appliedCount"] == 1
+    applied_draft = client.get(f"/api/agent/drafts/{review_draft['id']}").json()["data"]
+    assert applied_draft["status"] == "applied"
+    flashcards = client.get(f"/api/materials/{material['id']}/flashcards").json()["data"]
+    assert [card["id"] for card in flashcards] == applied_draft["appliedEntityIds"]
+
+
+def test_confirmed_draft_apply_rolls_back_formal_writes_on_payload_error():
+    goal = create_goal("Draft transaction rollback goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 1},
+    ).json()["data"]
+    draft_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    valid_draft = draft_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    source_step = draft_run["steps"][0]
+    invalid_draft = agent_draft_service.create_or_reuse_drafts(
+        draft_type="task",
+        payloads=[
+            {
+                "goalId": goal["id"],
+                "detail": "This payload intentionally omits a title.",
+                "date": store.today_iso(),
+                "priority": "medium",
+                "sourceReason": "Transaction rollback test.",
+            }
+        ],
+        user_id=None,
+        goal_id=goal["id"],
+        run_id=run["id"],
+        step_id=source_step["id"],
+        tool_name="create_task_draft",
+    )[0][0]
+    action = agent_tool_registry_service.enrich_action(
+        {
+            "type": "apply_confirmed_draft",
+            "label": "Apply rollback batch",
+            "description": "Apply a batch that should roll back on validation failure.",
+            "payload": {"draftIds": [valid_draft["id"], invalid_draft["id"]]},
+            "requiresConfirmation": True,
+            "status": "proposed",
+        }
+    )
+    action_log = client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": goal["id"],
+            "actionType": "apply_confirmed_draft",
+            "proposedPayload": {**action, "draftIds": action["payload"]["draftIds"]},
+            "status": "proposed",
+        },
+    ).json()["data"]
+    assert client.patch(
+        f"/api/agent/action-logs/{action_log['id']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    with pytest.raises(ValueError, match="title"):
+        agent_tool_execution_service.execute_action(
+            action,
+            goal["id"],
+            None,
+            action_log_id=action_log["id"],
+        )
+
+    assert store.list_goal_tasks(goal["id"]) == []
+    for draft_id in [valid_draft["id"], invalid_draft["id"]]:
+        assert client.get(f"/api/agent/drafts/{draft_id}").json()["data"]["status"] == "confirmed"
+    action_logs = client.get("/api/agent/action-logs", params={"goalId": goal["id"]}).json()["data"]
+    assert any(log["id"] == action_log["id"] and log["status"] == "accepted" for log in action_logs)
+
+
+def test_confirmed_draft_action_log_rejects_cross_user_draft_ids():
+    first_user = client.post(
+        "/api/auth/register",
+        json={"name": "Apply First", "email": "apply-first@example.com", "password": "secret123"},
+    ).json()["data"]
+    second_user = client.post(
+        "/api/auth/register",
+        json={"name": "Apply Second", "email": "apply-second@example.com", "password": "secret123"},
+    ).json()["data"]
+    first_headers = {"X-User-Id": first_user["id"]}
+    second_headers = {"X-User-Id": second_user["id"]}
+
+    def create_owned_goal(headers: dict, name: str) -> dict:
+        response = client.post(
+            "/api/goals",
+            headers=headers,
+            json={
+                "name": name,
+                "subject": "AI Agent",
+                "level": "basic",
+                "deadline": "2026-07-15",
+                "daily_minutes": 30,
+                "notes": "",
+            },
+        )
+        assert response.status_code == 200
+        return response.json()["data"]
+
+    first_goal = create_owned_goal(first_headers, "First apply goal")
+    second_goal = create_owned_goal(second_headers, "Second apply goal")
+    second_run = client.post(
+        "/api/agent/runs",
+        headers=second_headers,
+        json={"goalId": second_goal["id"], "maxSteps": 3},
+    ).json()["data"]
+    second_waiting_run = client.post(
+        f"/api/agent/runs/{second_run['id']}/execute",
+        headers=second_headers,
+        json={},
+    ).json()["data"]
+    second_draft = second_waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    malicious_action = agent_tool_registry_service.enrich_action(
+        {
+            "type": "apply_confirmed_draft",
+            "label": "Apply other user's draft",
+            "description": "This must be rejected by owner isolation.",
+            "payload": {"draftIds": [second_draft["id"]]},
+            "requiresConfirmation": True,
+            "status": "proposed",
+        }
+    )
+    malicious_log = client.post(
+        "/api/agent/action-logs",
+        headers=first_headers,
+        json={
+            "goalId": first_goal["id"],
+            "actionType": "apply_confirmed_draft",
+            "proposedPayload": {
+                **malicious_action,
+                "draftIds": malicious_action["payload"]["draftIds"],
+            },
+            "status": "proposed",
+        },
+    ).json()["data"]
+
+    response = client.patch(
+        f"/api/agent/action-logs/{malicious_log['id']}",
+        headers=first_headers,
+        json={"status": "accepted"},
+    )
+
+    assert response.status_code == 400
+    assert client.get(
+        f"/api/agent/drafts/{second_draft['id']}",
+        headers=second_headers,
+    ).json()["data"]["status"] == "proposed"
+
+
+def test_agent_loop_stops_at_step_budget():
+    goal = create_goal("Budgeted Agent loop")
+    create_material(goal["id"], "Budget material", "This material still needs processing.")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 1},
+    ).json()["data"]
+
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "max_steps"
+    assert data["stopReason"] == "max_steps"
+    assert data["currentStep"] == 1
+    assert len(data["steps"]) == 1
+    assert "step budget" in data["decisionSnapshot"]["reflection"]
+
+
+def test_agent_loop_records_tool_failure(monkeypatch):
+    goal = create_goal("Failing Agent loop")
+    create_material(goal["id"], "Failure material", "This material triggers a tool call.")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"]},
+    ).json()["data"]
+
+    def fail_tool(*args, **kwargs):
+        raise RuntimeError("tool execution failed")
+
+    monkeypatch.setattr(agent_tool_execution_service, "execute_action", fail_tool)
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "failed"
+    assert data["stopReason"] == "tool_error"
+    assert data["error"] == "tool execution failed"
+    assert data["steps"][0]["status"] == "failed"
+    assert "tool execution failed" in data["decisionSnapshot"]["reflection"]
+
+
+def test_batch_c_repeated_action_stops_with_no_progress_reflection(monkeypatch):
+    goal = create_goal("C repeated action goal")
+    create_material(
+        goal["id"],
+        "C repeated action material",
+        "Retrieval evidence must not cause the same action to execute twice.",
+    )
+
+    def repeated_decision(
+        goal_id=None,
+        user_id=None,
+        decision_mode="hybrid",
+        objective="",
+        step_history=None,
+    ):
+        action = agent_tool_registry_service.enrich_action(
+            {
+                "type": "search_materials",
+                "label": "Search evidence",
+                "description": "Search once.",
+                "payload": {"query": "retrieval evidence", "limit": 3},
+                "requiresConfirmation": False,
+                "status": "proposed",
+            }
+        )
+        return {
+            "generatedAt": store.now_iso(),
+            "mode": "hybrid",
+            "requestedMode": decision_mode,
+            "fallbackReason": "",
+            "scope": {"goalId": goal_id},
+            "stateSummary": "test state",
+            "problems": [],
+            "nextAction": "search_materials",
+            "reason": "test repeated action handling",
+            "requiresConfirmation": False,
+            "proposedActions": [action],
+            "feedbackMemory": {},
+            "reflection": "",
+        }
+
+    monkeypatch.setattr(agent_decision_service, "decide_next_action", repeated_decision)
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 2},
+    ).json()["data"]
+
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "completed"
+    assert data["stopReason"] == "no_progress"
+    assert len(data["steps"]) == 1
+    assert "no new executable action" in data["decisionSnapshot"]["reflection"]
+
+
+def test_agent_loop_feeds_tool_observation_back_into_next_decision(monkeypatch):
+    goal = create_goal("Observation feedback loop")
+    material = create_material(
+        goal["id"],
+        "Review evidence",
+        "Review tasks help learners remember important concepts.",
+    )
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "objective": "Find revision actions and finish.", "maxSteps": 3},
+    ).json()["data"]
+    decision_calls = []
+
+    def fake_decision(
+        goal_id=None,
+        user_id=None,
+        decision_mode="rule-based",
+        objective="",
+        step_history=None,
+    ):
+        history = step_history or []
+        decision_calls.append(history)
+        if not history:
+            action_type = "search_materials"
+            action_payload = {"query": "revision actions", "limit": 3}
+        elif len(history) == 1:
+            action_type = "answer_with_sources"
+            action_payload = {
+                "question": "How do revision actions help learners?",
+                "materialId": material["id"],
+                "limit": 3,
+            }
+        else:
+            action_type = "answer_only"
+            action_payload = {}
+        action = agent_tool_registry_service.enrich_action(
+            {
+                "type": action_type,
+                "label": action_type,
+                "description": "test decision",
+                "payload": action_payload,
+                "requiresConfirmation": False,
+                "status": "proposed",
+            }
+        )
+        return {
+            "generatedAt": store.now_iso(),
+            "mode": "rule-based",
+            "requestedMode": decision_mode,
+            "fallbackReason": "",
+            "scope": {"goalId": goal_id},
+            "stateSummary": "test state",
+            "problems": [],
+            "nextAction": action_type,
+            "reason": "test",
+            "requiresConfirmation": False,
+            "proposedActions": [action],
+            "feedbackMemory": {},
+            "reflection": "",
+        }
+
+    monkeypatch.setattr(agent_decision_service, "decide_next_action", fake_decision)
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "completed"
+    assert [step["toolName"] for step in data["steps"]] == [
+        "search_materials",
+        "answer_with_sources",
+        "answer_only",
+    ]
+    assert len(decision_calls) == 3
+    search_output = decision_calls[1][0]["toolOutput"]
+    assert "Retrieved 1 material reference" in search_output["observation"]
+    assert search_output["data"]["references"][0]["materialId"] == material["id"]
+    assert search_output["data"]["references"][0]["searchMode"] == "semantic"
+    answer_output = decision_calls[2][1]["toolOutput"]
+    assert answer_output["data"]["isFromMaterial"] is True
+    assert answer_output["data"]["references"][0]["materialId"] == material["id"]
+    qa_records = client.get(f"/api/materials/{material['id']}/qa").json()["data"]
+    assert qa_records[0]["id"] == answer_output["data"]["id"]
+
+
+def test_search_materials_tool_filters_results_to_goal_scope():
+    target_goal = create_goal("Target search goal")
+    other_goal = create_goal("Other search goal")
+    target_material = create_material(
+        target_goal["id"],
+        "Target evidence",
+        "Review tasks improve memory retention.",
+    )
+    create_material(
+        other_goal["id"],
+        "Other evidence",
+        "Review tasks improve memory retention.",
+    )
+    action = agent_tool_registry_service.enrich_action(
+        {
+            "type": "search_materials",
+            "label": "search",
+            "description": "search",
+            "payload": {"query": "revision actions", "limit": 10},
+            "requiresConfirmation": False,
+            "status": "proposed",
+        }
+    )
+
+    output = agent_tool_execution_service.execute_action(action, target_goal["id"], None)
+
+    assert [item["materialId"] for item in output["data"]["references"]] == [
+        target_material["id"]
+    ]
+
+
+@pytest.mark.parametrize(
+    "payload, error",
+    [
+        ({"materialIds": "not-a-list"}, "must be a list of strings"),
+        ({"materialIds": [], "unexpected": True}, "unknown fields"),
+    ],
+)
+def test_agent_tool_executor_validates_model_payload(payload, error):
+    action = agent_tool_registry_service.enrich_action(
+        {
+            "type": "review_material",
+            "label": "review",
+            "description": "review",
+            "payload": payload,
+            "requiresConfirmation": False,
+            "status": "proposed",
+        }
+    )
+
+    with pytest.raises(ValueError, match=error):
+        agent_tool_execution_service.execute_action(action, None, None)
+
+
+@pytest.mark.parametrize(
+    "payload, error",
+    [
+        ({}, "missing required fields"),
+        ({"query": "   "}, "non-empty string"),
+        ({"query": "review", "limit": 0}, "between 1 and 20"),
+    ],
+)
+def test_search_materials_tool_validates_query_and_limit(payload, error):
+    action = agent_tool_registry_service.enrich_action(
+        {
+            "type": "search_materials",
+            "label": "search",
+            "description": "search",
+            "payload": payload,
+            "requiresConfirmation": False,
+            "status": "proposed",
+        }
+    )
+
+    with pytest.raises(ValueError, match=error):
+        agent_tool_execution_service.execute_action(action, None, None)
 
 
 def test_agent_action_log_validation_and_missing_resources():
@@ -740,6 +1556,11 @@ def test_agent_runs_are_isolated_by_user_header():
         f"/api/agent/runs/{second_run['id']}",
         headers={"X-User-Id": first_user["id"]},
     ).status_code == 404
+    assert client.post(
+        f"/api/agent/runs/{second_run['id']}/execute",
+        headers={"X-User-Id": first_user["id"]},
+        json={},
+    ).status_code == 404
 
 
 def test_agent_context_reads_back_confirmed_flashcard_write():
@@ -775,6 +1596,329 @@ def test_agent_context_reads_back_confirmed_flashcard_write():
     decision = decision_response.json()["data"]
     problem_types = {problem["type"] for problem in decision["problems"]}
     assert "review_queue" in problem_types
+
+
+def test_batch_b6_task_apply_forces_latest_readback_at_step_budget(monkeypatch):
+    goal = create_goal("B6 task readback goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 2},
+    ).json()["data"]
+    waiting_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    task_draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    apply_step = waiting_run["steps"][1]
+    assert apply_step["toolName"] == "apply_confirmed_draft"
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    readbacks = []
+    original_decide = agent_decision_service.decide_next_action_from_context
+
+    def capture_readback(context, **kwargs):
+        readbacks.append((context, kwargs["step_history"]))
+        return original_decide(context, **kwargs)
+
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action_from_context",
+        capture_readback,
+    )
+    execute_response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert execute_response.status_code == 200
+    executed_run = execute_response.json()["data"]
+    assert executed_run["status"] == "max_steps"
+    assert executed_run["stopReason"] == "max_steps"
+    assert executed_run["currentStep"] == 2
+    assert len(executed_run["steps"]) == 2
+    assert executed_run["steps"][1]["status"] == "completed"
+    applied_draft = client.get(f"/api/agent/drafts/{task_draft['id']}").json()["data"]
+    assert applied_draft["status"] == "applied"
+    assert len(applied_draft["appliedEntityIds"]) == 1
+    applied_task_id = applied_draft["appliedEntityIds"][0]
+    assert applied_task_id in [
+        task["id"]
+        for task_group in executed_run["contextSnapshot"]["tasks"]
+        for task in task_group["nextOpen"]
+    ]
+    assert executed_run["contextSnapshot"]["summary"]["taskTotal"] == 1
+    assert executed_run["contextSnapshot"]["drafts"]["proposedCount"] == 0
+    assert executed_run["contextSnapshot"]["drafts"]["appliedCount"] == 1
+    assert len(readbacks) == 1
+    readback_context, readback_steps = readbacks[0]
+    assert readback_context == executed_run["contextSnapshot"]
+    assert len(readback_steps) == 2
+    assert readback_steps[-1]["toolName"] == "apply_confirmed_draft"
+    assert readback_steps[-1]["toolOutput"]["data"]["appliedEntityIds"] == [applied_task_id]
+    assert all(
+        action["type"] != "apply_confirmed_draft"
+        for action in executed_run["decisionSnapshot"]["proposedActions"]
+    )
+
+    get_run = client.get(f"/api/agent/runs/{run['id']}").json()["data"]
+    assert get_run["contextSnapshot"] == executed_run["contextSnapshot"]
+    assert get_run["decisionSnapshot"] == executed_run["decisionSnapshot"]
+    duplicate_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    assert duplicate_run["status"] == "max_steps"
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+
+
+def test_batch_b6_reuses_readback_decision_when_step_budget_remains(monkeypatch):
+    goal = create_goal("B6 readback decision reuse goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 3},
+    ).json()["data"]
+    waiting_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    task_draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    apply_step = waiting_run["steps"][1]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    readback_calls = []
+    original_readback_decide = agent_decision_service.decide_next_action_from_context
+
+    def capture_readback(context, **kwargs):
+        readback_calls.append((context, kwargs))
+        return original_readback_decide(context, **kwargs)
+
+    def reject_duplicate_decision(*args, **kwargs):
+        raise AssertionError("The loop regenerated the post-apply Decision.")
+
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action_from_context",
+        capture_readback,
+    )
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action",
+        reject_duplicate_decision,
+    )
+    executed_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    assert executed_run["status"] == "completed"
+    assert len(readback_calls) == 1
+    readback_context, readback_kwargs = readback_calls[0]
+    assert readback_context["summary"]["taskTotal"] == 1
+    assert readback_context["drafts"]["proposedCount"] == 0
+    assert readback_kwargs["step_history"][-1]["status"] == "completed"
+    assert executed_run["steps"][2]["contextSnapshot"] == readback_context
+    assert {
+        **executed_run["steps"][2]["decisionSnapshot"],
+        "reflection": executed_run["decisionSnapshot"]["reflection"],
+    } == executed_run["decisionSnapshot"]
+    assert all(
+        task_draft["id"] not in (action.get("payload") or {}).get("draftIds", [])
+        for action in executed_run["decisionSnapshot"]["proposedActions"]
+    )
+
+
+def test_batch_b6_review_apply_forces_latest_readback_at_step_budget():
+    goal = create_goal("B6 review readback goal")
+    material = create_material(
+        goal["id"],
+        "B6 review material",
+        "A confirmed review draft must appear in the next Agent Context.",
+    )
+    assert client.post(f"/api/materials/{material['id']}/summarize").status_code == 200
+    assert client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 1, "regenerate": True},
+    ).status_code == 200
+    quiz = client.post(
+        f"/api/materials/{material['id']}/quiz",
+        params={"count": 1},
+    ).json()["data"][0]
+    assert client.post(
+        f"/api/materials/{material['id']}/quiz/{quiz['id']}/answer",
+        json={"answer": "incorrect"},
+    ).status_code == 200
+
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 2},
+    ).json()["data"]
+    waiting_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    review_draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    apply_step = waiting_run["steps"][1]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    executed_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    applied_draft = client.get(f"/api/agent/drafts/{review_draft['id']}").json()["data"]
+    flashcards = client.get(f"/api/materials/{material['id']}/flashcards").json()["data"]
+    assert executed_run["status"] == "max_steps"
+    assert executed_run["contextSnapshot"]["summary"]["flashcardTotal"] == 1
+    assert executed_run["contextSnapshot"]["review"]["new"] == 1
+    assert executed_run["contextSnapshot"]["review"]["materialsNeedingReview"] == [
+        {
+            "materialId": material["id"],
+            "title": material["title"],
+            "reviewCount": 0,
+            "newCount": 1,
+        }
+    ]
+    assert [card["id"] for card in flashcards] == applied_draft["appliedEntityIds"]
+    assert executed_run["contextSnapshot"]["drafts"]["appliedCount"] == 1
+    assert all(
+        action["type"] != "apply_confirmed_draft"
+        for action in executed_run["decisionSnapshot"]["proposedActions"]
+    )
+    duplicate_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    duplicate_flashcards = client.get(
+        f"/api/materials/{material['id']}/flashcards"
+    ).json()["data"]
+    assert duplicate_run["status"] == "max_steps"
+    assert [card["id"] for card in duplicate_flashcards] == applied_draft["appliedEntityIds"]
+
+
+def test_batch_b6_context_readback_failure_keeps_applied_records(monkeypatch):
+    goal = create_goal("B6 context failure goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 2},
+    ).json()["data"]
+    waiting_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    task_draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    apply_step = waiting_run["steps"][1]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    def fail_context(*args, **kwargs):
+        raise RuntimeError("simulated context readback failure")
+
+    monkeypatch.setattr(agent_context_service, "build_agent_context", fail_context)
+    failed_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    assert failed_run["status"] == "failed"
+    assert failed_run["stopReason"] == "context_readback_error"
+    assert failed_run["error"] == "Context readback failed (RuntimeError)."
+    assert failed_run["steps"][1]["status"] == "completed"
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+    assert client.get(f"/api/agent/drafts/{task_draft['id']}").json()["data"]["status"] == "applied"
+    action_logs = client.get("/api/agent/action-logs", params={"goalId": goal["id"]}).json()["data"]
+    assert any(log["id"] == apply_step["actionLogId"] and log["status"] == "applied" for log in action_logs)
+    duplicate_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    assert duplicate_run["status"] == "failed"
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+
+
+def test_batch_b6_decision_readback_failure_keeps_latest_context(monkeypatch):
+    goal = create_goal("B6 decision failure goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "maxSteps": 2},
+    ).json()["data"]
+    waiting_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    task_draft = waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+    apply_step = waiting_run["steps"][1]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    def fail_decision(*args, **kwargs):
+        raise RuntimeError("simulated decision readback failure")
+
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action_from_context",
+        fail_decision,
+    )
+    failed_run = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+
+    assert failed_run["status"] == "failed"
+    assert failed_run["stopReason"] == "decision_readback_error"
+    assert failed_run["error"] == "Decision readback failed (RuntimeError)."
+    assert failed_run["contextSnapshot"]["summary"]["taskTotal"] == 1
+    assert len(store.list_goal_tasks(goal["id"])) == 1
+    assert client.get(f"/api/agent/drafts/{task_draft['id']}").json()["data"]["status"] == "applied"
+
+
+def test_batch_b6_readback_uses_original_run_user_and_goal_scope(monkeypatch):
+    first_user = client.post(
+        "/api/auth/register",
+        json={"name": "B6 First", "email": "b6-first@example.com", "password": "secret123"},
+    ).json()["data"]
+    second_user = client.post(
+        "/api/auth/register",
+        json={"name": "B6 Second", "email": "b6-second@example.com", "password": "secret123"},
+    ).json()["data"]
+    first_headers = {"X-User-Id": first_user["id"]}
+    second_headers = {"X-User-Id": second_user["id"]}
+
+    first_goal = client.post(
+        "/api/goals",
+        headers=first_headers,
+        json={
+            "name": "B6 first goal",
+            "subject": "AI Agent",
+            "level": "basic",
+            "deadline": "2026-07-15",
+            "daily_minutes": 30,
+            "notes": "",
+        },
+    ).json()["data"]
+    second_goal = client.post(
+        "/api/goals",
+        headers=second_headers,
+        json={
+            "name": "B6 second goal",
+            "subject": "AI Agent",
+            "level": "basic",
+            "deadline": "2026-07-15",
+            "daily_minutes": 30,
+            "notes": "",
+        },
+    ).json()["data"]
+    run = client.post(
+        "/api/agent/runs",
+        headers=first_headers,
+        json={"goalId": first_goal["id"], "maxSteps": 2},
+    ).json()["data"]
+    waiting_run = client.post(
+        f"/api/agent/runs/{run['id']}/execute",
+        headers=first_headers,
+        json={},
+    ).json()["data"]
+    apply_step = waiting_run["steps"][1]
+    assert client.patch(
+        f"/api/agent/action-logs/{apply_step['actionLogId']}",
+        headers=first_headers,
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    context_calls = []
+    original_build_context = agent_context_service.build_agent_context
+
+    def capture_scope(goal_id=None, user_id=None):
+        context_calls.append((goal_id, user_id))
+        return original_build_context(goal_id, user_id)
+
+    monkeypatch.setattr(agent_context_service, "build_agent_context", capture_scope)
+    executed_run = client.post(
+        f"/api/agent/runs/{run['id']}/execute",
+        headers=first_headers,
+        json={},
+    ).json()["data"]
+
+    context = executed_run["contextSnapshot"]
+    assert context_calls == [(first_goal["id"], first_user["id"])]
+    assert context["scope"]["goalId"] == first_goal["id"]
+    assert [goal["id"] for goal in context["goals"]] == [first_goal["id"]]
+    assert [task_group["goalId"] for task_group in context["tasks"]] == [first_goal["id"]]
+    assert second_goal["id"] not in [goal["id"] for goal in context["goals"]]
 
 
 def test_agent_ask_filters_references_by_goal():
@@ -972,3 +2116,247 @@ def test_agent_ask_qa_records_persist_and_cascade_with_material():
     delete_response = client.delete(f"/api/materials/{material['id']}")
     assert delete_response.status_code == 200
     assert client.get(f"/api/materials/{material['id']}/qa").status_code == 404
+
+
+def _batch_f_decision(goal_id: str, action_type: str, payload: dict) -> dict:
+    action = agent_tool_registry_service.enrich_action(
+        {
+            "type": action_type,
+            "label": action_type,
+            "description": "Batch F reliability test action.",
+            "payload": payload,
+            "requiresConfirmation": False,
+            "status": "proposed",
+        }
+    )
+    return {
+        "generatedAt": store.now_iso(),
+        "mode": "rule-based",
+        "requestedMode": "rule-based",
+        "fallbackReason": "",
+        "scope": {"goalId": goal_id},
+        "stateSummary": "Batch F test state.",
+        "problems": [],
+        "nextAction": action_type,
+        "reason": "Batch F test decision.",
+        "requiresConfirmation": False,
+        "proposedActions": [action],
+        "feedbackMemory": {},
+        "reflection": "",
+    }
+
+
+def test_batch_f_cancel_api_is_idempotent_and_blocks_execution():
+    goal = create_goal("Batch F cancelled run")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "objective": "Cancel before execution.", "maxSteps": 2},
+    ).json()["data"]
+
+    first_cancel = client.post(f"/api/agent/runs/{run['id']}/cancel")
+    assert first_cancel.status_code == 200
+    assert first_cancel.json()["data"]["status"] == "cancelled"
+    assert first_cancel.json()["data"]["stopReason"] == "cancelled"
+
+    repeat_cancel = client.post(f"/api/agent/runs/{run['id']}/cancel")
+    assert repeat_cancel.status_code == 200
+    assert repeat_cancel.json()["data"]["status"] == "cancelled"
+
+    execute_response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+    assert execute_response.status_code == 200
+    assert execute_response.json()["data"]["status"] == "cancelled"
+    assert execute_response.json()["data"]["steps"] == []
+
+
+def test_batch_f_concurrent_execute_claims_only_one_executor(monkeypatch):
+    goal = create_goal("Batch F concurrent run")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "objective": "Run once.", "maxSteps": 1},
+    ).json()["data"]
+    started = threading.Event()
+    release = threading.Event()
+    calls = {"count": 0}
+
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action",
+        lambda goal_id=None, user_id=None, decision_mode="rule-based", objective="", step_history=None: _batch_f_decision(
+            goal_id, "answer_only", {}
+        ),
+    )
+
+    def slow_execute(*args, **kwargs):
+        calls["count"] += 1
+        started.set()
+        assert release.wait(timeout=3)
+        return {"observation": "finished once", "data": {}, "terminal": True}
+
+    monkeypatch.setattr(agent_tool_execution_service, "execute_action", slow_execute)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(agent_loop_service.execute_agent_run, run["id"])
+        assert started.wait(timeout=3)
+        contender = agent_loop_service.execute_agent_run(run["id"])
+        assert contender["status"] == "running"
+        release.set()
+        completed = first.result(timeout=5)
+
+    assert completed["status"] == "completed"
+    assert calls["count"] == 1
+    assert len(completed["steps"]) == 1
+
+
+def test_batch_f_cancelled_run_is_not_overwritten_by_inflight_executor(monkeypatch):
+    goal = create_goal("Batch F inflight cancellation")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "objective": "Cancel in flight.", "maxSteps": 1},
+    ).json()["data"]
+    started = threading.Event()
+    release = threading.Event()
+
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action",
+        lambda goal_id=None, user_id=None, decision_mode="rule-based", objective="", step_history=None: _batch_f_decision(
+            goal_id, "answer_only", {}
+        ),
+    )
+
+    def slow_execute(*args, **kwargs):
+        started.set()
+        assert release.wait(timeout=3)
+        return {"observation": "late tool result", "data": {}, "terminal": True}
+
+    monkeypatch.setattr(agent_tool_execution_service, "execute_action", slow_execute)
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(agent_loop_service.execute_agent_run, run["id"])
+        assert started.wait(timeout=3)
+        cancelled = client.post(f"/api/agent/runs/{run['id']}/cancel")
+        assert cancelled.status_code == 200
+        assert cancelled.json()["data"]["status"] == "cancelled"
+        release.set()
+        result = future.result(timeout=5)
+
+    assert result["status"] == "cancelled"
+    persisted = client.get(f"/api/agent/runs/{run['id']}").json()["data"]
+    assert persisted["status"] == "cancelled"
+    assert persisted["stopReason"] == "cancelled"
+
+
+def test_batch_f_retries_timed_out_read_tool_once(monkeypatch):
+    goal = create_goal("Batch F read retry")
+    monkeypatch.setenv("AGENT_TOOL_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action",
+        lambda goal_id=None, user_id=None, decision_mode="rule-based", objective="", step_history=None: _batch_f_decision(
+            goal_id, "search_materials", {"query": "reliability", "limit": 3}
+        ),
+    )
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "objective": "Retry read tool.", "maxSteps": 1},
+    ).json()["data"]
+    calls = {"count": 0}
+
+    def delayed_search(*args, **kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            time.sleep(0.04)
+        return {"observation": "retrieved after retry", "data": {"references": []}, "terminal": True}
+
+    monkeypatch.setattr(agent_tool_execution_service, "_search_materials", delayed_search)
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "completed"
+    assert calls["count"] == 2
+    assert data["steps"][0]["toolOutput"]["execution"] == {
+        "attemptCount": 2,
+        "retryReason": "read_tool_timeout",
+    }
+
+
+def test_batch_f_does_not_retry_timed_out_write_tool(monkeypatch):
+    goal = create_goal("Batch F write timeout")
+    monkeypatch.setenv("AGENT_TOOL_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setattr(
+        agent_decision_service,
+        "decide_next_action",
+        lambda goal_id=None, user_id=None, decision_mode="rule-based", objective="", step_history=None: _batch_f_decision(
+            goal_id, "create_followup_tasks", {"goalIds": [goal_id]}
+        ),
+    )
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "objective": "Do not retry writes.", "maxSteps": 1},
+    ).json()["data"]
+    calls = {"count": 0}
+
+    def delayed_draft(*args, **kwargs):
+        calls["count"] += 1
+        time.sleep(0.04)
+        return {"observation": "late write", "data": {}, "terminal": False}
+
+    monkeypatch.setattr(agent_tool_execution_service, "_create_task_draft", delayed_draft)
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "failed"
+    assert data["stopReason"] == "tool_timeout_write_no_retry"
+    assert calls["count"] == 1
+
+
+def test_batch_f_redacts_step_and_action_log_diagnostics():
+    goal = create_goal("Batch F redaction")
+    run = agent_run_service.create_agent_run(goal["id"], objective="token=run-secret")
+    action = _batch_f_decision(goal["id"], "answer_only", {})["proposedActions"][0]
+    step_id = agent_loop_service._insert_step(
+        run,
+        1,
+        {"apiKey": "context-secret", "safe": "visible"},
+        {"authorization": "Bearer decision-secret"},
+        {**action, "payload": {"secret": "action-secret"}},
+        {"token": "output-secret", "note": "Authorization: Bearer output-secret"},
+        "failed",
+        error="api_key=error-secret",
+    )
+    agent_loop_service._update_step(
+        step_id,
+        "failed",
+        {"password": "updated-secret"},
+        "Bearer updated-error-secret",
+    )
+    action_log = agent_action_log_service.create_action_log(
+        {
+            "goalId": goal["id"],
+            "actionType": "answer_only",
+            "observation": "token=log-secret",
+            "decision": {"api_key": "decision-secret"},
+            "proposedPayload": {"authorization": "Bearer payload-secret"},
+            "status": "proposed",
+        }
+    )
+
+    step = agent_run_service.get_agent_run(run["id"])["steps"][0]
+    serialized_step = json.dumps(step)
+    serialized_log = json.dumps(action_log)
+    for secret in (
+        "run-secret",
+        "context-secret",
+        "decision-secret",
+        "action-secret",
+        "output-secret",
+        "error-secret",
+        "updated-secret",
+        "updated-error-secret",
+        "log-secret",
+        "payload-secret",
+    ):
+        assert secret not in serialized_step
+        assert secret not in serialized_log
+    assert "[redacted]" in serialized_step
+    assert "[redacted]" in serialized_log

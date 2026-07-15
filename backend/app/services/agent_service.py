@@ -1,6 +1,6 @@
 import re
 
-from backend.app.services import llm_provider, material_store
+from backend.app.services import llm_provider, material_store, store
 
 
 def answer_question(
@@ -25,6 +25,7 @@ def answer_question(
             "chunkIndex": chunk["chunkIndex"],
             "content": chunk["content"],
             "score": chunk["score"],
+            "searchMode": chunk.get("searchMode", "keyword"),
         }
         for chunk in matches[:limit]
     ]
@@ -60,6 +61,40 @@ def answer_question(
     }
 
 
+def answer_and_record(
+    question: str,
+    goal: dict | None = None,
+    material_id: str | None = None,
+    limit: int = 3,
+    user_id: str | None = None,
+) -> dict:
+    answer = answer_question(question, goal, material_id, limit, user_id)
+    if not answer["materialId"]:
+        return answer
+
+    now = store.now_iso()
+    record = {
+        "id": store.make_id("qa"),
+        "materialId": answer["materialId"],
+        "goalId": answer["goalId"],
+        "question": answer["question"],
+        "answer": answer["answer"],
+        "basis": answer["basis"],
+        "suggestion": answer["suggestion"],
+        "sourceTitle": answer["sourceTitle"],
+        "isFromMaterial": answer["isFromMaterial"],
+        "confidence": answer["confidence"],
+        "mode": answer["mode"],
+        "nextAction": answer["nextAction"],
+        "requiresConfirmation": answer["requiresConfirmation"],
+        "insufficiencyReason": answer["insufficiencyReason"],
+        "reviewDrafts": answer["reviewDrafts"],
+        "createdAt": now,
+    }
+    material_store.save_qa_record(record)
+    return {**answer, "id": record["id"], "createdAt": now}
+
+
 def _fallback_chunks_for_material(
     question: str,
     material_id: str,
@@ -78,6 +113,7 @@ def _fallback_chunks_for_material(
                 "materialTitle": material["title"],
                 "goalId": material["goalId"],
                 "score": 1,
+                "searchMode": "keyword",
             }
         )
     return fallback_matches

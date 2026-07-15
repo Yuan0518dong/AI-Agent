@@ -1,8 +1,11 @@
 import json
+import math
 import re
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
+
+from backend.app.services import embedding_provider
 
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -56,6 +59,7 @@ def init_db() -> None:
                     chunk_index INTEGER NOT NULL,
                     content TEXT NOT NULL,
                     keywords TEXT NOT NULL,
+                    embedding TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
@@ -264,9 +268,9 @@ def replace_chunks_for_material(
         conn.executemany(
             """
             INSERT INTO material_chunks (
-                id, material_id, chunk_index, content, keywords, created_at, updated_at
+                id, material_id, chunk_index, content, keywords, embedding, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -275,6 +279,7 @@ def replace_chunks_for_material(
                     chunk["chunkIndex"],
                     chunk["content"],
                     json.dumps(chunk["keywords"], ensure_ascii=False),
+                    json.dumps(chunk.get("embedding", [])),
                     chunk["createdAt"],
                     chunk["updatedAt"],
                 )
@@ -320,9 +325,16 @@ def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> lis
             values,
         ).fetchall()
 
-    scored: list[tuple[int, dict]] = []
+    try:
+        query_embedding = embedding_provider.get_embedding_provider().embed(normalized_query)
+    except Exception:
+        query_embedding = []
+
+    semantic_scored: list[tuple[float, dict]] = []
+    keyword_scored: list[tuple[int, dict]] = []
     for row in rows:
         chunk = _chunk_from_row(row)
+        stored_embedding = json.loads(row["embedding"] or "[]")
         haystack = " ".join(
             [
                 row["material_title"],
@@ -331,15 +343,31 @@ def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> lis
             ]
         ).lower()
         score = _score_chunk(normalized_query, query_terms, haystack)
-        if score <= 0:
-            continue
         chunk["materialTitle"] = row["material_title"]
         chunk["goalId"] = row["goal_id"]
-        chunk["score"] = score
-        scored.append((score, chunk))
+        if query_embedding and stored_embedding:
+            similarity = _cosine_similarity(query_embedding, stored_embedding)
+            if similarity >= 0.35:
+                semantic_chunk = {**chunk, "score": round(similarity, 6), "searchMode": "semantic"}
+                semantic_scored.append((similarity, semantic_chunk))
+        if score > 0:
+            keyword_chunk = {**chunk, "score": score, "searchMode": "keyword"}
+            keyword_scored.append((score, keyword_chunk))
 
-    scored.sort(key=lambda item: item[0], reverse=True)
-    return [chunk for _, chunk in scored[:limit]]
+    if semantic_scored:
+        semantic_scored.sort(key=lambda item: item[0], reverse=True)
+        results = [chunk for _, chunk in semantic_scored[:limit]]
+        result_ids = {chunk["id"] for chunk in results}
+        keyword_scored.sort(key=lambda item: item[0], reverse=True)
+        for _, chunk in keyword_scored:
+            if len(results) >= limit:
+                break
+            if chunk["id"] not in result_ids:
+                results.append(chunk)
+                result_ids.add(chunk["id"])
+        return results
+    keyword_scored.sort(key=lambda item: item[0], reverse=True)
+    return [chunk for _, chunk in keyword_scored[:limit]]
 
 
 def save_qa_record(record: dict) -> dict:
@@ -647,6 +675,10 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     if "user_id" not in material_columns:
         conn.execute("ALTER TABLE materials ADD COLUMN user_id TEXT")
 
+    chunk_columns = _column_names(conn, "material_chunks")
+    if "embedding" not in chunk_columns:
+        conn.execute("ALTER TABLE material_chunks ADD COLUMN embedding TEXT NOT NULL DEFAULT '[]'")
+
     summary_columns = _column_names(conn, "material_summaries")
     summary_defaults = {
         "overview": "''",
@@ -849,6 +881,16 @@ def _score_chunk(query: str, query_terms: list[str], haystack: str) -> int:
         if term in haystack:
             score += 1
     return score
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    if not left or len(left) != len(right):
+        return 0.0
+    left_norm = math.sqrt(sum(value * value for value in left))
+    right_norm = math.sqrt(sum(value * value for value in right))
+    if not left_norm or not right_norm:
+        return 0.0
+    return sum(a * b for a, b in zip(left, right)) / (left_norm * right_norm)
 
 
 init_db()

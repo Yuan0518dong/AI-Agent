@@ -434,6 +434,29 @@
               </article>
             </div>
 
+            <section class="panel agent-run-panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Agent Run</h2>
+                  <p>围绕当前目标执行有限步骤，并保留完整决策与工具轨迹。</p>
+                </div>
+                <span class="panel-count" id="agent-run-count">0 条</span>
+              </div>
+              <div class="agent-run-create">
+                <label>
+                  <span>本次目标</span>
+                  <input id="agent-run-objective" maxlength="500" placeholder="例如：整理本周复习计划并生成一项待确认任务" />
+                </label>
+                <label>
+                  <span>最大步骤</span>
+                  <input id="agent-run-max-steps" type="number" min="1" max="8" value="3" />
+                </label>
+                <button class="primary-button" id="agent-run-start" type="button">启动 Run</button>
+              </div>
+              <div class="agent-run-list" id="agent-run-list"></div>
+              <div class="agent-run-detail" id="agent-run-detail"></div>
+            </section>
+
             <div class="workspace agent-layout">
               <section class="panel agent-decision-panel">
                 <div class="panel-head">
@@ -569,10 +592,10 @@
       </div>
     </template>
 
-    <script src="./api.js?v=ai-learning-20260706"></script>
+    <script src="./api.js?v=batch-f-reliability-20260715"></script>
     <script src="./modules/utils.js?v=ai-learning-20260706"></script>
     <script src="./modules/chat.js?v=ai-learning-20260706"></script>
-    <script src="./modules/agent-workbench.js?v=v4-agent-context-20260707"></script>
+    <script src="./modules/agent-workbench.js?v=batch-f-reliability-20260715"></script>
     <script src="./modules/materials.js?v=ai-learning-20260706"></script>
     <script src="./modules/goals.js?v=v3-page-boundary-20260706"></script>
     <script src="./modules/progress.js?v=v3-page-boundary-20260706"></script>

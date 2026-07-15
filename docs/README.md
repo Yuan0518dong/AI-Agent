@@ -8,6 +8,7 @@
 docs/status/当前状态.md
 docs/planning/个人项目简历化与第四版智能体方案.md
 docs/planning/AI-Agent简历与面试讲解稿.md
+docs/planning/第六版完整垂直学习智能体路线图.md
 README.md
 ```
 
@@ -17,6 +18,7 @@ README.md
 当前状态：记录最新阶段、分支、验证结果和下一步。
 第四版方案：记录个人项目定位、简历表达边界和完整学习 Agent 路线。
 简历与面试讲解稿：记录架构图文字版、简历 bullet、1 分钟介绍和追问回答。
+第六版路线图：第六版唯一需求基线，包含完成定义、数据模型、状态机、工具/API 契约、评测格式、前端交互和逐 Batch 验收标准。
 README：面向 GitHub 访客和面试官，说明项目价值、启动方式和当前能力。
 ```
 
@@ -26,6 +28,7 @@ README：面向 GitHub 访客和面试官，说明项目价值、启动方式和
 docs/planning/个人项目简历化与第四版智能体方案.md
 docs/planning/AI-Agent简历与面试讲解稿.md
 docs/planning/第三版项目计划书.md
+docs/planning/第六版完整垂直学习智能体路线图.md
 ```
 
 说明：
@@ -39,12 +42,18 @@ docs/planning/第三版项目计划书.md
 
 ```text
 docs/status/第三版资料学习智能体验收样例.md
+docs/status/第六版BatchE验收报告.md
+docs/status/第六版BatchE演示脚本.md
+docs/status/第六版BatchF验收报告.md
 ```
 
 说明：
 
 ```text
 记录资料内回答、复习建议、资料不足三类真实模型验收样例。
+第六版 Batch E 验收报告：记录 AgentStep 前端可观察化、确认恢复、真实模型成功、Guard 拦截和失败回退证据。
+第六版 Batch E 演示脚本：提供 3–5 分钟讲解顺序与一键初始化演示数据入口。
+第六版 Batch F 验收报告：记录取消/互斥、timeout/retry、日志脱敏、锁定依赖、CI、单命令启动与录屏证据。
 ```
 
 ## 工程说明
@@ -52,6 +61,7 @@ docs/status/第三版资料学习智能体验收样例.md
 ```text
 docs/api/LLM-provider设计说明.md
 docs/api/RAG-chunks接口说明.md
+docs/api/第六版Agent运行时契约与架构.md
 docs/modules/目标模块前后端接口对照.md
 docs/modules/资料模块前后端接口对照.md
 ```
@@ -61,6 +71,7 @@ docs/modules/资料模块前后端接口对照.md
 ```text
 LLM Provider：mock / OpenAI-compatible Provider 配置和行为。
 RAG chunks：资料片段生成、检索和接口说明。
+第六版 Agent Runtime：最终 Run API、Tool timeout/retry、取消/互斥、事务恢复、隐私边界和架构图。
 目标模块接口对照：目标、任务、打卡、进度链路。
 资料模块接口对照：资料、摘要、chunks、问答、复盘、闪卡链路。
 ```

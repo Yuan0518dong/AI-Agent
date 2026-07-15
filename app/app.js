@@ -11,6 +11,9 @@ const defaultState = {
   agentContext: null,
   agentDecision: null,
   agentActionLogs: [],
+  agentRuns: [],
+  selectedAgentRunId: "",
+  selectedAgentRun: null,
   qaReviewDrafts: [],
   agentTaskDrafts: [],
   chunkSearch: {
@@ -145,6 +148,10 @@ document.getElementById("agent-refresh-button").addEventListener("click", async 
 
 document.getElementById("agent-decide-button").addEventListener("click", async (event) => {
   await generateAgentDecision(event.currentTarget);
+});
+
+document.getElementById("agent-run-start").addEventListener("click", async (event) => {
+  await startAgentRun(event.currentTarget);
 });
 
 document.getElementById("agent-open-progress").addEventListener("click", () => switchView("progress"));
@@ -430,6 +437,7 @@ async function loadAppDataFromApi() {
   await loadMaterialDataFromApi();
   await loadAgentContextFromApi();
   await loadAgentActionLogsFromApi();
+  await loadAgentRunsFromApi();
 }
 
 function loadCurrentUser() {
@@ -542,6 +550,9 @@ function normalizeState(nextState) {
   nextState.agentContext = nextState.agentContext || null;
   nextState.agentDecision = nextState.agentDecision || null;
   nextState.agentActionLogs = nextState.agentActionLogs || [];
+  nextState.agentRuns = nextState.agentRuns || [];
+  nextState.selectedAgentRunId = nextState.selectedAgentRunId || "";
+  nextState.selectedAgentRun = nextState.selectedAgentRun || null;
   nextState.quizAttempts = nextState.quizAttempts || {};
   nextState.qaReviewDrafts = nextState.qaReviewDrafts || [];
   nextState.agentTaskDrafts = nextState.agentTaskDrafts || [];

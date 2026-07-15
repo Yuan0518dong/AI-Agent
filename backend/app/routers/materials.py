@@ -7,7 +7,13 @@ from backend.app.schemas.materials import (
     MaterialUpdate,
     QuizAnswerSubmit,
 )
-from backend.app.services import ai_learning_service, material_ai_service, material_store, store
+from backend.app.services import (
+    ai_learning_service,
+    material_ai_service,
+    material_processing_service,
+    material_store,
+    store,
+)
 from backend.app.utils.auth import current_user_id
 from backend.app.utils.responses import ok
 
@@ -108,22 +114,7 @@ def generate_material_chunks(material_id: str, user_id: str | None = Depends(cur
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    source_text = material["content"] or material["url"]
-    chunk_texts = material_store.split_material_content(source_text)
-    now = store.now_iso()
-    chunks = [
-        {
-            "id": store.make_id("chunk"),
-            "materialId": material_id,
-            "chunkIndex": index,
-            "content": chunk,
-            "keywords": material_store.extract_keywords(f"{material['title']} {chunk}"),
-            "createdAt": now,
-            "updatedAt": now,
-        }
-        for index, chunk in enumerate(chunk_texts)
-    ]
-    return ok(material_store.replace_chunks_for_material(material_id, chunks))
+    return ok(material_processing_service.generate_material_chunks(material))
 
 
 @router.get("/{material_id}/chunks")
@@ -148,15 +139,7 @@ def summarize_material(material_id: str, user_id: str | None = Depends(current_u
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    now = store.now_iso()
-    existing_summary = material_store.get_material_summary(material_id)
-    summary = {
-        "materialId": material_id,
-        **material_ai_service.summarize_material(material),
-        "createdAt": existing_summary["createdAt"] if existing_summary else now,
-        "updatedAt": now,
-    }
-    return ok(material_store.save_material_summary(material_id, summary))
+    return ok(material_processing_service.summarize_material(material))
 
 
 @router.get("/{material_id}/summary")

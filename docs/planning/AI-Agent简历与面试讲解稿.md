@@ -1,6 +1,6 @@
 # AI-Agent 简历与面试讲解稿
 
-更新时间：2026-07-08
+更新时间：2026-07-15
 
 ## 1. 项目一句话
 
@@ -12,6 +12,12 @@ AI-Agent 是一个面向个人学习规划的可控学习智能体，能够聚�
 
 ```text
 AI-Agent 是一个面向学习规划场景的可控 AI Agent，支持状态感知、结构化决策、模型输出评审、工具风险分层、用户反馈记忆、运行轨迹记录和 LLM JSON 决策兜底回退。
+```
+
+第六版 Runtime 版：
+
+```text
+AI-Agent 是一个面向学习规划的可恢复多步智能体，运行时能够围绕 objective 持续执行“观察、决策、工具调用、结果回灌、再决策”，并在完成、异常、步数超限或需要人工确认时可靠停止。
 ```
 
 ## 2. 架构图文字版
@@ -30,6 +36,8 @@ AI-Agent 是一个面向学习规划场景的可控 AI Agent，支持状态感�
 -> 下一轮 AgentContext 重新读回状态变化
 -> 下一轮 AgentDecision 继续判断
 -> LLM JSON Decision 可增强结构化决策，失败时回退 rule-based
+-> Agent Runtime 持久化每个 Step，并把 tool observation 回灌给下一次 Decision
+-> 循环直到 completed / waiting_confirmation / failed / max_steps
 ```
 
 核心拆层：
@@ -41,6 +49,7 @@ Decision Guard：模型输出能不能进入系统，是否需要回退或修正
 Tool Registry：Agent 建议要调用什么工具、风险多高、是否只能生成草稿。
 AgentActionLog：用户如何反馈，系统如何留下可追踪记录。
 AgentRun：一次 Agent 运行当时看到了什么、为什么建议、后来反馈如何。
+AgentStep：一次循环中的 context、decision、action、tool input/output 和执行状态。
 Draft Execute：建议如何进入真实学习流程，但不越过用户确认。
 ```
 
@@ -54,9 +63,11 @@ AI-Agent：个人主导的可控学习智能体项目
 - 设计 AgentContext / AgentDecision / AgentActionLog / Draft Execute 四层闭环，使 Agent 能聚合学习状态、输出结构化建议、记录用户反馈，并在用户确认后转入任务草稿或复习草稿。
 - 构建 AgentRun 与 Tool Registry 机制，为每次 Agent 运行保留上下文/决策快照，并为 proposedActions 标注工具名、风险等级、草稿态和执行目标。
 - 增加 LLM JSON Decision hybrid 与 Decision Guard，支持真实模型输出结构化建议；当 JSON 解析失败、字段缺失或 action 非法时回退 rule-based，高风险动作漏标确认时自动修正为用户确认。
+- 实现持久化多步 Agent Runtime，围绕 objective 循环执行 Context -> Decision -> Guard -> Tool -> Observation，支持动作去重、步数预算、工具异常停止和确认后恢复执行。
+- 实现 AgentStep 前端可观察控制台：按时间线呈现 Decision、Guard 干预/回退原因、工具 Input/Output、风险、ActionLog、错误、耗时和 stopReason；大 JSON 默认折叠，并对敏感字段脱敏。
 - 实现用户确认式执行机制：高风险动作先生成草稿，不直接覆盖任务表或写入正式学习内容，降低自动化破坏用户计划的风险。
 - 设计 mock 与 OpenAI-compatible LLM Provider 切换机制，保证本地测试稳定，同时支持真实模型联调和资料不足判断验收。
-- 使用 pytest、smoke API 和 node --check 验证核心链路，其中上下文回读验收覆盖“确认写入 -> AgentContext 读回 -> AgentDecision 重新判断”。
+- 保留真实模型成功、Guard 拦截、确认恢复、拒绝确认和 Provider 失败降级的浏览器截图；通过 98 个 Mock pytest、smoke、compileall 和前端语法检查验证闭环。
 ```
 
 如果简历空间很紧，可以压缩成 3 条：
@@ -65,6 +76,7 @@ AI-Agent：个人主导的可控学习智能体项目
 - 设计并实现可控学习 Agent，基于 AgentContext / AgentDecision / AgentActionLog / Draft Execute 串联目标、资料、任务、复习和测试状态。
 - 引入 AgentRun、Tool Registry 和 Feedback Memory，为 Agent 建议提供运行轨迹、工具风险分层和用户反馈记忆。
 - 建立 mock / OpenAI-compatible LLM Provider、LLM JSON Decision hybrid 与 Decision Guard，模型结构化决策失败时回退 rule-based，高风险动作强制用户确认，并通过 pytest + smoke 验证。
+- 前端以 AgentStep 时间线把决策、工具、Guard、确认与终态完整呈现，便于面试中解释每一步为什么发生。
 ```
 
 ## 4. 1 分钟项目介绍
@@ -177,6 +189,22 @@ Decision Guard 解决的是模型输出治理问题：模型输出能不能进�
 
 关键词：兼容式演进、稳定基线、持续验证。
 
+### 5.11 如何让多步 Agent 可观察、可调试？
+
+```text
+我没有只展示最后一段回答，而是把持久化的 AgentStep 做成前端时间线。每一步都能看到什么时候创建、持续多久、当时的 Decision mode、nextAction 和 reason；如果走过 Guard，也会显示状态、干预和 fallbackReason。工具层则同时展示名称、风险、输入、输出摘要和关联 ActionLog；大 JSON 默认折叠，且展示前会脱敏。这样出现错误或步数上限时，可以定位到具体 Step，而不是只知道“Agent 失败了”。
+```
+
+关键词：AgentStep、可审计、故障定位、敏感信息脱敏。
+
+### 5.12 如何演示确认恢复与模型失败回退？
+
+```text
+演示先启动一个带 objective 的 Run。高风险正式写入会停在 waiting_confirmation，用户点击接受后，后端继续使用同一个 Run 和原 Step 执行 apply，并读回正式数据后再决策；拒绝时则把该 Step 标为 rejected，正式数据不写入。真实模型成功和 Provider 不可达回退分开记录：成功截图明确显示 provider/model，失败截图明确显示 fallbackReason 和 rule-based，不把降级结果当成模型成功。
+```
+
+关键词：同一 Run 恢复、正式写入保护、真实证据、诚实回退。
+
 ## 6. 你需要会复述的核心句
 
 ```text
@@ -187,4 +215,10 @@ Decision Guard 解决的是模型输出治理问题：模型输出能不能进�
 
 ```text
 第五版的核心是把 Agent 从“能给建议”升级成“可追踪、可校验、可回退”：AgentRun 记录运行轨迹，Decision Guard 评审模型输出，Tool Registry 控制工具风险，Feedback Memory 读取用户反馈，LLM JSON Decision 只作为增强层，失败时回退 rule-based。
+```
+
+第六版可观察化复述句：
+
+```text
+第六版我把持久化的 AgentStep 直接变成前端时间线：能复盘每一步的决策、Guard、工具输入输出、确认状态和终态；真实模型成功、Guard 拦截、确认恢复和失败降级都有独立浏览器证据，所以展示的是可解释的运行过程，而不是一张最终结果页。
 ```

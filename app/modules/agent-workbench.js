@@ -1,6 +1,6 @@
 // Agent workbench module.
 
-let currentDecisionMode = "rule-based";
+let currentDecisionMode = "hybrid";
 
 function toggleAgentDecisionMode() {
   currentDecisionMode = currentDecisionMode === "rule-based" ? "hybrid" : "rule-based";
@@ -20,12 +20,33 @@ async function loadAgentActionLogsFromApi(goalId = selectedGoalId || "") {
   return state.agentActionLogs;
 }
 
+async function loadAgentRunsFromApi(goalId = selectedGoalId || "") {
+  state.agentRuns = await agentApi.listRuns(goalId, 20);
+  const selectedSummary = state.agentRuns.find((run) => run.id === state.selectedAgentRunId);
+  if (!selectedSummary) {
+    state.selectedAgentRunId = state.agentRuns[0]?.id || "";
+    state.selectedAgentRun = null;
+  }
+  const activeSummary = state.agentRuns.find((run) => run.id === state.selectedAgentRunId);
+  if (
+    activeSummary
+    && (!state.selectedAgentRun
+      || state.selectedAgentRun.id !== activeSummary.id
+      || state.selectedAgentRun.updatedAt !== activeSummary.updatedAt)
+  ) {
+    state.selectedAgentRun = await agentApi.getRun(activeSummary.id);
+  }
+  saveState();
+  return state.agentRuns;
+}
+
 async function generateAgentDecision(triggerButton = null, goalId = selectedGoalId || "") {
   setButtonLoading(triggerButton, true, "生成中");
 
   try {
     state.agentDecision = await agentApi.decide(goalId, currentDecisionMode);
     await loadAgentActionLogsFromApi(goalId);
+    await loadAgentRunsFromApi(goalId);
     saveState();
     renderAgentWorkbench();
     showSuccess("智能体建议已生成");
@@ -42,6 +63,7 @@ async function refreshAgentContext(triggerButton = null, goalId = selectedGoalId
   try {
     await loadAgentContextFromApi(goalId);
     await loadAgentActionLogsFromApi(goalId);
+    await loadAgentRunsFromApi(goalId);
     state.agentDecision = null;
     saveState();
     renderAgentWorkbench();
@@ -65,6 +87,7 @@ function renderAgentWorkbench() {
   }
 
   renderAgentWorkbenchHeader(context);
+  renderAgentRunPanel();
   renderAgentDecisionPanel();
   renderAgentActionLogPanel();
   renderAgentObservationList(context);
@@ -73,6 +96,108 @@ function renderAgentWorkbench() {
   renderAgentReviewPanel(context);
   renderAgentQuizPanel(context);
   renderAgentQaPanel(context);
+}
+
+async function startAgentRun(triggerButton = null) {
+  if (!selectedGoalId) {
+    showError(new Error("请先选择一个成长目标，再启动 Agent Run"));
+    return;
+  }
+  const objectiveInput = document.getElementById("agent-run-objective");
+  const stepInput = document.getElementById("agent-run-max-steps");
+  const maxSteps = Math.min(8, Math.max(1, Number(stepInput?.value || 3)));
+  if (stepInput) stepInput.value = String(maxSteps);
+  setButtonLoading(triggerButton, true, "启动中");
+  try {
+    const run = await agentApi.createRun({
+      goalId: selectedGoalId,
+      objective: objectiveInput?.value.trim() || "推进当前学习目标的下一步行动。",
+      decisionMode: currentDecisionMode,
+      maxSteps
+    });
+    state.selectedAgentRunId = run.id;
+    const executed = await agentApi.executeRun(run.id);
+    await syncAgentRunState(executed);
+    await refreshAgentContext(null, selectedGoalId);
+    showSuccess("Agent Run 已启动");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+async function selectAgentRun(runId, triggerButton = null) {
+  setButtonLoading(triggerButton, true, "读取中");
+  try {
+    state.selectedAgentRunId = runId;
+    await syncAgentRunState(await agentApi.getRun(runId));
+    renderAgentWorkbench();
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+async function resumeAgentRun(runId, triggerButton = null) {
+  setButtonLoading(triggerButton, true, "恢复中");
+  try {
+    await syncAgentRunState(await agentApi.executeRun(runId));
+    await refreshAgentContext(null, selectedGoalId);
+    showSuccess("Agent Run 已恢复");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+async function respondToAgentConfirmation(run, status, triggerButton = null) {
+  const waitingStep = [...(run.steps || [])].reverse().find((step) => step.status === "waiting_confirmation");
+  if (!waitingStep?.actionLogId) {
+    showError(new Error("当前 Run 没有待确认的正式写入步骤"));
+    return;
+  }
+  setButtonLoading(triggerButton, true, status === "accepted" ? "确认中" : "拒绝中");
+  try {
+    await agentApi.updateActionLog(waitingStep.actionLogId, { status });
+    await syncAgentRunState(await agentApi.executeRun(run.id));
+    await refreshAgentContext(null, selectedGoalId);
+    showSuccess(status === "accepted" ? "已确认并恢复 Run" : "已拒绝该正式写入");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+async function closeAgentRun(runId, triggerButton = null) {
+  setButtonLoading(triggerButton, true, "取消中");
+  try {
+    await syncAgentRunState(await agentApi.cancelRun(runId));
+    await loadAgentRunsFromApi(selectedGoalId);
+    renderAgentWorkbench();
+    showSuccess("Run 已取消");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+async function syncAgentRunState(run) {
+  state.selectedAgentRunId = run.id;
+  const index = (state.agentRuns || []).findIndex((item) => item.id === run.id);
+  const summary = { ...run };
+  delete summary.steps;
+  delete summary.contextSnapshot;
+  delete summary.decisionSnapshot;
+  if (index >= 0) state.agentRuns[index] = summary;
+  else state.agentRuns = [summary, ...(state.agentRuns || [])];
+  state.selectedAgentRun = run;
+  saveState();
+  renderAgentWorkbench();
 }
 
 async function recordAgentActionFeedback(actionIndex, status, triggerButton = null) {
@@ -401,6 +526,212 @@ function renderAgentDecisionPanel() {
 
   body.appendChild(agentDecisionProblemsNode(decision.problems || []));
   body.appendChild(agentDecisionActionsNode(decision.proposedActions || []));
+}
+
+function renderAgentRunPanel() {
+  const count = document.getElementById("agent-run-count");
+  const list = document.getElementById("agent-run-list");
+  const detail = document.getElementById("agent-run-detail");
+  if (!count || !list || !detail) return;
+
+  const runs = state.agentRuns || [];
+  count.textContent = `${runs.length} 条`;
+  list.innerHTML = "";
+  if (!runs.length) {
+    list.appendChild(emptyNode("暂无 Agent Run", "启动一次带目标的 Run 后，这里会保留可恢复的执行记录。"));
+  } else {
+    runs.slice(0, 8).forEach((run) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = `agent-run-row ${run.id === state.selectedAgentRunId ? "active" : ""}`;
+      item.innerHTML = `
+        <span class="agent-run-status ${escapeHtml(run.status || "decided")}">${escapeHtml(agentRunStatusLabel(run.status))}</span>
+        <strong>${escapeHtml(run.objective || "未命名学习行动")}</strong>
+        <small>${run.currentStep || 0}/${run.maxSteps || 0} 步 · ${escapeHtml(formatDateTime(run.updatedAt))}</small>
+      `;
+      item.addEventListener("click", () => selectAgentRun(run.id, item));
+      list.appendChild(item);
+    });
+  }
+
+  detail.innerHTML = "";
+  const run = state.selectedAgentRun;
+  if (!run || run.id !== state.selectedAgentRunId) {
+    detail.appendChild(emptyNode("选择一条 Run", "查看步骤、Guard、工具输入输出和停止原因。"));
+    return;
+  }
+  detail.appendChild(agentRunSummaryNode(run));
+  detail.appendChild(agentRunTimelineNode(run));
+}
+
+function agentRunSummaryNode(run) {
+  const wrapper = document.createElement("section");
+  wrapper.className = "agent-run-summary";
+  const guard = run.decisionSnapshot?.decisionGuard || {};
+  const provider = run.decisionSnapshot?.providerMetadata || {};
+  const providerLabel = provider.provider
+    ? `${provider.provider}${provider.model ? ` · ${provider.model}` : ""}`
+    : "未记录";
+  wrapper.innerHTML = `
+    <div class="agent-card-head">
+      <div>
+        <span>当前 Run</span>
+        <strong>${escapeHtml(run.objective || "未命名学习行动")}</strong>
+      </div>
+      <span class="agent-run-status ${escapeHtml(run.status || "decided")}">${escapeHtml(agentRunStatusLabel(run.status))}</span>
+    </div>
+    <div class="agent-chip-row">
+      <span>${escapeHtml(run.decisionMode || "hybrid")}</span>
+      <span>${run.currentStep || 0}/${run.maxSteps || 0} 步</span>
+      <span>停止原因：${escapeHtml(run.stopReason || "进行中")}</span>
+      <span>Guard: ${escapeHtml(guard.status || "未触发")}</span>
+      <span>模型：${escapeHtml(providerLabel)}</span>
+    </div>
+    ${run.error ? `<p class="agent-run-error">${escapeHtml(run.error)}</p>` : ""}
+    ${run.decisionSnapshot?.reflection ? `<p class="agent-run-reflection">${escapeHtml(run.decisionSnapshot.reflection)}</p>` : ""}
+  `;
+  const actions = document.createElement("div");
+  actions.className = "agent-run-actions";
+  if (run.status === "waiting_confirmation") {
+    actions.appendChild(agentRunButton("接受并恢复原 Run", "primary-button", (button) => respondToAgentConfirmation(run, "accepted", button)));
+    actions.appendChild(agentRunButton("拒绝并继续 Run", "ghost-button", (button) => respondToAgentConfirmation(run, "rejected", button)));
+  } else if (!["completed", "failed", "max_steps", "cancelled", "closed"].includes(run.status)) {
+    actions.appendChild(agentRunButton("继续执行", "primary-button", (button) => resumeAgentRun(run.id, button)));
+    actions.appendChild(agentRunButton("取消 Run", "ghost-button", (button) => closeAgentRun(run.id, button)));
+  }
+  if (actions.children.length) wrapper.appendChild(actions);
+  return wrapper;
+}
+
+function agentRunTimelineNode(run) {
+  const wrapper = document.createElement("section");
+  wrapper.className = "agent-run-timeline";
+  wrapper.innerHTML = "<h3>AgentStep 时间线</h3>";
+  const steps = run.steps || [];
+  if (!steps.length) {
+    wrapper.appendChild(emptyNode("尚未执行工具", "Run 创建后会在这里显示决策、工具调用和观察结果。"));
+    return wrapper;
+  }
+  steps.forEach((step) => {
+    const item = document.createElement("article");
+    item.className = `agent-step ${step.status || "running"}`;
+    const decision = step.decisionSnapshot || {};
+    const guard = decision.decisionGuard || {};
+    const guardInterventions = (guard.interventions || []).map(agentGuardInterventionLabel).join("、");
+    const actionLogStatus = agentActionLogStatusForStep(step);
+    item.innerHTML = `
+      <div class="agent-step-rail"><span>${step.stepIndex || "?"}</span></div>
+      <div class="agent-step-main">
+        <div class="agent-card-head">
+          <div>
+            <strong>${escapeHtml(step.toolName || "等待决策")}</strong>
+            <p>${escapeHtml(agentRunStatusLabel(step.status))} · ${escapeHtml(formatDateTime(step.createdAt))} · ${escapeHtml(formatAgentDuration(step.createdAt, step.updatedAt))}</p>
+          </div>
+          <span>${escapeHtml(step.actionSnapshot?.riskLevel || "低风险")}</span>
+        </div>
+        <div class="agent-chip-row">
+          <span>${escapeHtml(decision.mode || "rule-based")}</span>
+          <span>${escapeHtml(decision.nextAction || "")}</span>
+          <span>Guard: ${escapeHtml(guard.status || "未触发")}</span>
+          <span>ActionLog: ${escapeHtml(actionLogStatus)}</span>
+        </div>
+        ${decision.reason ? `<p class="agent-step-reason">决策原因：${escapeHtml(decision.reason)}</p>` : ""}
+        ${guardInterventions ? `<p class="agent-step-guard">Guard 处理：${escapeHtml(guardInterventions)}</p>` : ""}
+        ${decision.fallbackReason ? `<p class="agent-step-guard">回退原因：${escapeHtml(decision.fallbackReason)}</p>` : ""}
+        ${step.error ? `<p class="agent-run-error">${escapeHtml(step.error)}</p>` : ""}
+        ${agentStepObservation(step)}
+        ${agentStepDetails(step)}
+      </div>
+    `;
+    wrapper.appendChild(item);
+  });
+  return wrapper;
+}
+
+function agentStepObservation(step) {
+  const observation = step.toolOutput?.observation || "";
+  if (!observation) return "";
+  return `<p class="agent-step-observation">${escapeHtml(observation)}</p>`;
+}
+
+function agentStepDetails(step) {
+  const blocks = [
+    ["工具输入", step.toolInput],
+    ["工具输出", step.toolOutput],
+    ["动作", step.actionSnapshot],
+    ["Decision", step.decisionSnapshot],
+    ["Context 摘要", step.contextSnapshot?.summary || step.contextSnapshot?.scope || {}]
+  ].map(([label, value]) => `
+    <section>
+      <h4>${escapeHtml(label)}</h4>
+      <pre>${escapeHtml(formatAgentJson(value))}</pre>
+    </section>
+  `).join("");
+  return `<details class="agent-step-details"><summary>查看输入、输出与决策详情</summary>${blocks}</details>`;
+}
+
+function agentRunButton(label, className, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = className;
+  button.textContent = label;
+  button.addEventListener("click", () => onClick(button));
+  return button;
+}
+
+function agentRunStatusLabel(status) {
+  const labels = { decided: "已决策", running: "执行中", waiting_confirmation: "等待确认", completed: "已完成", failed: "失败", max_steps: "达到步数上限", cancelled: "已取消", closed: "已停止" };
+  return labels[status] || status || "未知状态";
+}
+
+function agentActionLogStatusForStep(step) {
+  if (!step.actionLogId) return "自动执行";
+  const actionLog = (state.agentActionLogs || []).find((item) => item.id === step.actionLogId);
+  return actionLog ? getAgentFeedbackLabel(actionLog.status) : "待同步";
+}
+
+function agentGuardInterventionLabel(intervention) {
+  const labels = {
+    force_confirmation: "强制确认",
+    reject_unknown_action: "拒绝未知动作",
+    reject_invalid_payload: "拒绝非法参数",
+    reject_out_of_scope: "拒绝越权范围",
+    fallback_to_rule_based: "回退规则决策"
+  };
+  return labels[intervention] || intervention;
+}
+
+function formatAgentDuration(createdAt, updatedAt) {
+  const startedAt = Date.parse(createdAt || "");
+  const finishedAt = Date.parse(updatedAt || createdAt || "");
+  if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt)) return "耗时未知";
+  const durationMs = Math.max(0, finishedAt - startedAt);
+  if (durationMs < 1000) return "耗时 <1 秒";
+  if (durationMs < 60_000) return `耗时 ${(durationMs / 1000).toFixed(1)} 秒`;
+  return `耗时 ${Math.floor(durationMs / 60_000)} 分 ${Math.round((durationMs % 60_000) / 1000)} 秒`;
+}
+
+function formatAgentJson(value) {
+  try {
+    return JSON.stringify(redactAgentValue(value), null, 2) ?? "无";
+  } catch {
+    return "无法展示该详情";
+  }
+}
+
+function redactAgentValue(value, key = "") {
+  if (/api[_-]?key|authorization|token|password|secret/i.test(key)) return "[redacted]";
+  if (Array.isArray(value)) return value.map((item) => redactAgentValue(item));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, redactAgentValue(item, name)]));
+  }
+  if (typeof value === "string") {
+    const redacted = value
+      .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
+      .replace(/\b(api[_ -]?key|authorization|token|password|secret)\b\s*[:=]\s*([^\s,;]+)/gi, "$1=[redacted]");
+    return redacted.length > 800 ? `${redacted.slice(0, 800)}...` : redacted;
+  }
+  return value;
 }
 
 function agentDecisionGuardNode(decision) {

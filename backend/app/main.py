@@ -1,12 +1,18 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute, APIRouter
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from backend.app.routers import agent, auth, goals, materials, progress, tasks
 from backend.app.services import store
+
+
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "app"
 
 # 本地开发默认允许 localhost:5500；部署时通过 CORS_ORIGINS 环境变量覆盖
 # 示例：CORS_ORIGINS=* 或 CORS_ORIGINS=https://your-frontend.pages.dev
@@ -62,9 +68,14 @@ include_api_router(auth.router, prefix="/api/auth", tags=["auth"])
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to the AI-Agent API!"}
+    return FileResponse(FRONTEND_DIR / "index.html")
 
 
 @app.get("/api/health")
 def health_check():
     return {"code": 0, "message": "success", "data": {"status": "ok"}}
+
+
+# Keep API and docs routes above this catch-all mount. One uvicorn command now serves
+# both the SPA assets and the FastAPI backend on the same origin.
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

@@ -1,6 +1,6 @@
 from collections import Counter
 
-from backend.app.services import material_store, progress_service, store
+from backend.app.services import agent_draft_service, material_store, progress_service, store
 
 
 def build_agent_context(
@@ -25,6 +25,7 @@ def build_agent_context(
     review_context = _review_context(material_contexts)
     quiz_context = _quiz_context(material_contexts)
     qa_context = _qa_context(material_contexts)
+    draft_context = _draft_context(goal_id, user_id)
 
     return {
         "generatedAt": store.now_iso(),
@@ -40,6 +41,7 @@ def build_agent_context(
             review_context,
             quiz_context,
             qa_context,
+            draft_context,
         ),
         "goals": goal_contexts,
         "tasks": task_contexts,
@@ -47,6 +49,7 @@ def build_agent_context(
         "qa": qa_context,
         "review": review_context,
         "quiz": quiz_context,
+        "drafts": draft_context,
         "progress": progress_contexts,
     }
 
@@ -191,6 +194,32 @@ def _qa_context(material_contexts: list[dict]) -> dict:
     }
 
 
+def _draft_context(goal_id: str | None, user_id: str | None) -> dict:
+    drafts = agent_draft_service.list_agent_drafts(
+        user_id=user_id,
+        goal_id=goal_id,
+        limit=50,
+    )
+    by_status = Counter(draft["status"] for draft in drafts)
+    proposed = [draft for draft in drafts if draft["status"] == "proposed"]
+    return {
+        "proposedCount": by_status.get("proposed", 0),
+        "confirmedCount": by_status.get("confirmed", 0),
+        "appliedCount": by_status.get("applied", 0),
+        "rejectedCount": by_status.get("rejected", 0),
+        "proposed": [
+            {
+                "id": draft["id"],
+                "draftType": draft["draftType"],
+                "goalId": draft["goalId"],
+                "sourceReason": draft["payload"].get("sourceReason", ""),
+                "createdAt": draft["createdAt"],
+            }
+            for draft in proposed[:20]
+        ],
+    }
+
+
 def _summary(
     goal_contexts: list[dict],
     task_contexts: list[dict],
@@ -198,6 +227,7 @@ def _summary(
     review_context: dict,
     quiz_context: dict,
     qa_context: dict,
+    draft_context: dict,
 ) -> dict:
     total_tasks = sum(item["total"] for item in task_contexts)
     completed_tasks = sum(item["completed"] for item in task_contexts)
@@ -222,6 +252,8 @@ def _summary(
         observations.append("Recent quiz attempts show weak points.")
     if qa_context["insufficiencyCount"]:
         observations.append("Some questions were marked as material-insufficient.")
+    if draft_context["proposedCount"]:
+        observations.append(f"{draft_context['proposedCount']} draft(s) await confirmation.")
     if not observations:
         observations.append("Learning context is ready for the next Agent decision.")
 
@@ -238,6 +270,7 @@ def _summary(
         "quizQuestionTotal": quiz_context["questionTotal"],
         "quizWeakAttemptCount": quiz_context["weakAttemptCount"],
         "qaInsufficiencyCount": qa_context["insufficiencyCount"],
+        "draftProposedCount": draft_context["proposedCount"],
         "observations": observations,
     }
 

@@ -1,0 +1,5 @@
+[
+  {"id":"retrieval_case_001","query":"Why does distributed practice help retain knowledge?","relevantMaterial":"Spaced repetition","relevantChunkIds":["chunk_eval_spaced_repetition"]},
+  {"id":"retrieval_case_002","query":"How should students recall source passages before responding?","relevantMaterial":"Retrieval practice","relevantChunkIds":["chunk_eval_retrieval_practice"]},
+  {"id":"retrieval_case_003","query":"What follow-up supports concepts missed on an assessment?","relevantMaterial":"Weak quiz review","relevantChunkIds":["chunk_eval_weak_quiz_review"]}
+]
