@@ -1,6 +1,6 @@
 import json
 
-from backend.app.services import store
+from backend.app.services import agent_draft_service, sensitive_data_service, store
 
 
 VALID_STATUSES = {"proposed", "accepted", "rejected", "later", "applied"}
@@ -13,9 +13,9 @@ def create_action_log(payload: dict, user_id: str | None = None) -> dict:
         "userId": user_id,
         "goalId": payload.get("goalId"),
         "actionType": payload["actionType"],
-        "observation": payload.get("observation", ""),
-        "decision": payload.get("decision", {}),
-        "proposedPayload": payload.get("proposedPayload", {}),
+        "observation": sensitive_data_service.redact_text(payload.get("observation", "")),
+        "decision": sensitive_data_service.redact(payload.get("decision", {})),
+        "proposedPayload": sensitive_data_service.redact(payload.get("proposedPayload", {})),
         "status": _normalize_status(payload.get("status", "proposed")),
         "createdAt": now,
         "updatedAt": now,
@@ -82,22 +82,35 @@ def update_action_log_status(
 ) -> dict | None:
     next_status = _normalize_status(status)
     now = store.now_iso()
-    values = [next_status, now, log_id]
-    if user_id:
-        values.append(user_id)
 
     with store.db_connection() as conn:
-        cursor = conn.execute(
+        existing = _get_action_log_row(conn, log_id, user_id)
+        if not existing:
+            return None
+
+        if existing["action_type"] == "apply_confirmed_draft":
+            if next_status not in {"accepted", "rejected"}:
+                raise ValueError("Confirmed-draft ActionLog must be accepted or rejected.")
+            proposed_payload = json.loads(existing["proposed_payload"])
+            draft_ids = proposed_payload.get("draftIds")
+            if not isinstance(draft_ids, list):
+                raise ValueError("Confirmed-draft ActionLog is missing draft IDs.")
+            agent_draft_service.transition_drafts_for_action_log(
+                conn,
+                draft_ids,
+                user_id,
+                existing["goal_id"],
+                "confirmed" if next_status == "accepted" else "rejected",
+            )
+
+        conn.execute(
             """
             UPDATE agent_action_logs
             SET status = ?, updated_at = ?
             WHERE id = ?
-            """
-            + (" AND user_id = ?" if user_id else ""),
-            values,
+            """,
+            (next_status, now, log_id),
         )
-        if cursor.rowcount == 0:
-            return None
 
     return get_action_log(log_id, user_id)
 
@@ -121,6 +134,18 @@ def _normalize_status(status: str) -> str:
     if status not in VALID_STATUSES:
         raise ValueError("Invalid action log status")
     return status
+
+
+def _get_action_log_row(conn, log_id: str, user_id: str | None):
+    if user_id is None:
+        return conn.execute(
+            "SELECT * FROM agent_action_logs WHERE id = ? AND user_id IS NULL",
+            (log_id,),
+        ).fetchone()
+    return conn.execute(
+        "SELECT * FROM agent_action_logs WHERE id = ? AND user_id = ?",
+        (log_id, user_id),
+    ).fetchone()
 
 
 def _action_log_from_row(row) -> dict:

@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -14,6 +15,10 @@ from backend.app.services import store
 
 def main() -> None:
     with TemporaryDirectory() as temp_dir:
+        os.environ["LLM_PROVIDER"] = "mock"
+        os.environ["EMBEDDING_PROVIDER"] = "mock"
+        os.environ["LLM_ENV_FILE"] = str(Path(temp_dir) / "missing.env")
+        os.environ["EMBEDDING_ENV_FILE"] = str(Path(temp_dir) / "missing.env")
         store.set_db_path(Path(temp_dir) / "smoke.db")
         store.reset()
 
@@ -223,6 +228,11 @@ def main() -> None:
             )
             agent_hybrid_decision_response.raise_for_status()
             agent_hybrid_decision = agent_hybrid_decision_response.json()["data"]
+            hybrid_metadata = agent_hybrid_decision.get("providerMetadata") or {}
+            if hybrid_metadata.get("provider") != "mock":
+                raise RuntimeError("Agent hybrid smoke did not keep Mock as the CI fallback provider")
+            if hybrid_metadata.get("promptVersion") != "batch-c-v1":
+                raise RuntimeError("Agent hybrid smoke did not record the Batch C prompt version")
 
             agent_tools_response = client.get("/api/agent/tools")
             agent_tools_response.raise_for_status()
@@ -285,6 +295,124 @@ def main() -> None:
             agent_run_update_response.raise_for_status()
             updated_agent_run = agent_run_update_response.json()["data"]
 
+            loop_run_create_response = client.post(
+                "/api/agent/runs",
+                json={
+                    "goalId": goal_id,
+                    "trigger": "manual",
+                    "objective": "Inspect the learning state and choose the next safe action.",
+                    "decisionMode": "rule-based",
+                    "maxSteps": 3,
+                },
+            )
+            loop_run_create_response.raise_for_status()
+            loop_run = loop_run_create_response.json()["data"]
+            loop_execute_response = client.post(
+                f"/api/agent/runs/{loop_run['id']}/execute",
+                json={},
+            )
+            loop_execute_response.raise_for_status()
+            executed_loop_run = loop_execute_response.json()["data"]
+            if executed_loop_run["status"] == "failed":
+                raise RuntimeError(f"Agent loop smoke failed: {executed_loop_run['error']}")
+            if not executed_loop_run["decisionSnapshot"].get("reflection"):
+                raise RuntimeError("Agent loop smoke did not persist terminal reflection")
+
+            draft_goal_response = client.post(
+                "/api/goals",
+                json={
+                    "name": "Draft persistence smoke goal",
+                    "subject": "AI Agent",
+                    "level": "beginner",
+                    "deadline": "2026-07-15",
+                    "daily_minutes": 30,
+                    "notes": "persist, confirm, and apply exactly one task draft",
+                },
+            )
+            draft_goal_response.raise_for_status()
+            draft_goal_id = draft_goal_response.json()["data"]["id"]
+            draft_run_response = client.post(
+                "/api/agent/runs",
+                json={"goalId": draft_goal_id, "maxSteps": 2},
+            )
+            draft_run_response.raise_for_status()
+            draft_run = draft_run_response.json()["data"]
+            draft_execute_response = client.post(
+                f"/api/agent/runs/{draft_run['id']}/execute",
+                json={},
+            )
+            draft_execute_response.raise_for_status()
+            executed_draft_run = draft_execute_response.json()["data"]
+            if executed_draft_run["status"] == "failed":
+                raise RuntimeError(f"Agent draft smoke failed: {executed_draft_run['error']}")
+            draft_step = executed_draft_run["steps"][0]
+            persisted_draft = draft_step["toolOutput"]["data"]["drafts"][0]
+            draft_list_response = client.get(
+                "/api/agent/drafts",
+                params={"goalId": draft_goal_id, "draftType": "task", "status": "proposed"},
+            )
+            draft_list_response.raise_for_status()
+            persisted_drafts = draft_list_response.json()["data"]
+            draft_readback_response = client.get(f"/api/agent/drafts/{persisted_draft['id']}")
+            draft_readback_response.raise_for_status()
+            if persisted_draft["id"] != draft_readback_response.json()["data"]["id"]:
+                raise RuntimeError("Agent draft smoke did not return the persisted draft record")
+            if store.list_goal_tasks(draft_goal_id):
+                raise RuntimeError("Agent draft smoke unexpectedly wrote formal tasks")
+            apply_step = executed_draft_run["steps"][1]
+            if apply_step["toolName"] != "apply_confirmed_draft":
+                raise RuntimeError("Agent draft smoke did not request confirmed application")
+            accepted_response = client.patch(
+                f"/api/agent/action-logs/{apply_step['actionLogId']}",
+                json={"status": "accepted"},
+            )
+            accepted_response.raise_for_status()
+            confirmed_draft = client.get(f"/api/agent/drafts/{persisted_draft['id']}")
+            confirmed_draft.raise_for_status()
+            if confirmed_draft.json()["data"]["status"] != "confirmed":
+                raise RuntimeError("Agent draft smoke did not confirm the selected draft")
+            resume_draft_response = client.post(
+                f"/api/agent/runs/{draft_run['id']}/execute",
+                json={},
+            )
+            resume_draft_response.raise_for_status()
+            applied_draft_run = resume_draft_response.json()["data"]
+            if applied_draft_run["status"] == "failed":
+                raise RuntimeError(f"Agent apply smoke failed: {applied_draft_run['error']}")
+            applied_draft_step = applied_draft_run["steps"][1]
+            applied_draft = client.get(f"/api/agent/drafts/{persisted_draft['id']}")
+            applied_draft.raise_for_status()
+            if applied_draft.json()["data"]["status"] != "applied":
+                raise RuntimeError("Agent draft smoke did not mark the draft applied")
+            if len(store.list_goal_tasks(draft_goal_id)) != 1:
+                raise RuntimeError("Agent draft smoke did not write exactly one formal task")
+            if applied_draft_run["status"] != "max_steps":
+                raise RuntimeError("Agent draft smoke did not stop at the exhausted step budget")
+            if applied_draft_run["contextSnapshot"]["summary"]["taskTotal"] != 1:
+                raise RuntimeError("Agent draft smoke did not persist the formal task readback")
+            if applied_draft_run["contextSnapshot"]["drafts"]["proposedCount"] != 0:
+                raise RuntimeError("Agent draft smoke kept the applied draft as proposed")
+            if any(
+                action["type"] == "apply_confirmed_draft"
+                for action in applied_draft_run["decisionSnapshot"]["proposedActions"]
+            ):
+                raise RuntimeError("Agent draft smoke repeated the applied draft decision")
+            draft_run_readback = client.get(f"/api/agent/runs/{draft_run['id']}")
+            draft_run_readback.raise_for_status()
+            persisted_draft_run = draft_run_readback.json()["data"]
+            if (
+                persisted_draft_run["contextSnapshot"] != applied_draft_run["contextSnapshot"]
+                or persisted_draft_run["decisionSnapshot"] != applied_draft_run["decisionSnapshot"]
+            ):
+                raise RuntimeError("Agent draft smoke Run readback did not match execute snapshots")
+            duplicate_draft_run = client.post(
+                f"/api/agent/runs/{draft_run['id']}/execute",
+                json={},
+            )
+            duplicate_draft_run.raise_for_status()
+            if len(store.list_goal_tasks(draft_goal_id)) != 1:
+                raise RuntimeError("Agent draft smoke duplicated the formal task on resume")
+
             material_delete_response = client.delete(f"/api/materials/{material_id}")
             material_delete_response.raise_for_status()
             pending_material_delete_response = client.delete(f"/api/materials/{pending_material_id}")
@@ -326,6 +454,8 @@ def main() -> None:
                 "agent_hybrid_requested_mode": agent_hybrid_decision["requestedMode"],
                 "agent_hybrid_fallback": bool(agent_hybrid_decision["fallbackReason"]),
                 "agent_hybrid_guard_status": agent_hybrid_decision.get("decisionGuard", {}).get("status"),
+                "agent_hybrid_provider": hybrid_metadata.get("provider"),
+                "agent_hybrid_prompt_version": hybrid_metadata.get("promptVersion"),
                 "agent_tool_count": len(agent_tools),
                 "agent_decision_first_tool": first_action["toolName"],
                 "agent_decision_first_risk": first_action["riskLevel"],
@@ -339,6 +469,37 @@ def main() -> None:
                 "agent_run_latest_feedback_status": (
                     updated_agent_run["feedbackSummary"]["latestStatus"]
                 ),
+                "agent_loop_status": executed_loop_run["status"],
+                "agent_loop_stop_reason": executed_loop_run["stopReason"],
+                "agent_loop_step_count": len(executed_loop_run["steps"]),
+                "agent_loop_error": executed_loop_run["error"],
+                "agent_loop_reflection": bool(
+                    executed_loop_run["decisionSnapshot"].get("reflection")
+                ),
+                "agent_loop_step_errors": [
+                    step["error"] for step in executed_loop_run["steps"] if step["error"]
+                ],
+                "agent_draft_waiting_status": executed_draft_run["status"],
+                "agent_draft_run_status": applied_draft_run["status"],
+                "agent_draft_step_tool": draft_step["toolName"],
+                "agent_draft_created_count": draft_step["toolOutput"]["data"]["createdCount"],
+                "agent_draft_reused_count": draft_step["toolOutput"]["data"]["reusedCount"],
+                "agent_draft_status": applied_draft.json()["data"]["status"],
+                "agent_draft_list_count": len(persisted_drafts),
+                "agent_draft_apply_count": applied_draft_step["toolOutput"]["data"]["appliedCount"],
+                "agent_draft_formal_task_count": len(store.list_goal_tasks(draft_goal_id)),
+                "agent_draft_readback_status": applied_draft_run["status"],
+                "agent_draft_readback_task_total": (
+                    applied_draft_run["contextSnapshot"]["summary"]["taskTotal"]
+                ),
+                "agent_draft_readback_applied_count": (
+                    applied_draft_run["contextSnapshot"]["drafts"]["appliedCount"]
+                ),
+                "agent_draft_snapshot_matches_get": (
+                    persisted_draft_run["contextSnapshot"] == applied_draft_run["contextSnapshot"]
+                    and persisted_draft_run["decisionSnapshot"] == applied_draft_run["decisionSnapshot"]
+                ),
+                "agent_draft_duplicate_task_count": len(store.list_goal_tasks(draft_goal_id)),
                 "agent_context_flashcard_before_confirmed_write": (
                     agent_context_before_custom_flashcard["summary"]["flashcardTotal"]
                 ),

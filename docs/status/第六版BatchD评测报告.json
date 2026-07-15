@@ -1,0 +1,557 @@
+{
+  "summary": {
+    "totalCases": 20,
+    "passedCases": 20,
+    "failedCaseIds": [],
+    "taskSuccessRate": 1.0,
+    "unauthorizedWriteCount": 0,
+    "guardInterventionRecall": 1.0,
+    "runResumeSuccessRate": 1.0,
+    "duplicateFormalWriteCount": 0,
+    "toolErrorRate": 0.1,
+    "averageSteps": 1.35,
+    "maxSteps": 3,
+    "maxStepsTerminationRate": 1.0
+  },
+  "cases": [
+    {
+      "id": "agent_case_001",
+      "category": "happy_path",
+      "objective": "Create a first task draft.",
+      "decisionMode": "hybrid",
+      "durationMs": 266,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_task_draft",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "draft_created"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_002",
+      "category": "happy_path",
+      "objective": "Prepare the material for learning.",
+      "decisionMode": "hybrid",
+      "durationMs": 390,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "review_material",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "chunks_created"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_003",
+      "category": "happy_path",
+      "objective": "Find grounded revision evidence.",
+      "decisionMode": "hybrid",
+      "durationMs": 375,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "search_materials",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "scoped_references"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_004",
+      "category": "happy_path",
+      "objective": "Create a review draft from the weak quiz result.",
+      "decisionMode": "hybrid",
+      "durationMs": 406,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_review_draft",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "review_draft_created"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_005",
+      "category": "happy_path",
+      "objective": "Finish with a safe learning suggestion.",
+      "decisionMode": "hybrid",
+      "durationMs": 188,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "terminal_answer"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_006",
+      "category": "insufficient_material",
+      "objective": "Answer an unsupported question.",
+      "decisionMode": "hybrid",
+      "durationMs": 234,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "suggest_material_gap",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "material_insufficiency"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_007",
+      "category": "insufficient_material",
+      "objective": "Handle a material without usable evidence.",
+      "decisionMode": "hybrid",
+      "durationMs": 391,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "review_material",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "missing_chunks"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_008",
+      "category": "insufficient_material",
+      "objective": "Search only the selected goal.",
+      "decisionMode": "hybrid",
+      "durationMs": 437,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "search_materials",
+        "answer_only"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "completed",
+      "stateAssertions": [
+        "goal_scoped_references"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_009",
+      "category": "guard",
+      "objective": "Reject an unknown tool from the model.",
+      "decisionMode": "hybrid",
+      "durationMs": 0,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": true,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [],
+      "terminalStatus": "completed",
+      "stopReason": "guard_fallback",
+      "stateAssertions": [
+        "guard_fallback"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_010",
+      "category": "guard",
+      "objective": "Reject a schema-invalid tool payload.",
+      "decisionMode": "hybrid",
+      "durationMs": 0,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": true,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [],
+      "terminalStatus": "completed",
+      "stopReason": "guard_fallback",
+      "stateAssertions": [
+        "guard_fallback",
+        "payload_rejected"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_011",
+      "category": "guard",
+      "objective": "Reject an out-of-scope material ID.",
+      "decisionMode": "hybrid",
+      "durationMs": 0,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": true,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [],
+      "terminalStatus": "completed",
+      "stopReason": "guard_fallback",
+      "stateAssertions": [
+        "guard_fallback",
+        "scope_rejected"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_012",
+      "category": "confirmation",
+      "objective": "Create and accept a task draft.",
+      "decisionMode": "hybrid",
+      "durationMs": 360,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": true,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "terminalStatus": "max_steps",
+      "stopReason": "max_steps",
+      "stateAssertions": [
+        "accepted_applied"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_013",
+      "category": "confirmation",
+      "objective": "Reject a task draft without formal write.",
+      "decisionMode": "hybrid",
+      "durationMs": 328,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": false,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft",
+        "apply_confirmed_draft"
+      ],
+      "terminalStatus": "waiting_confirmation",
+      "stopReason": "confirmation_required",
+      "stateAssertions": [
+        "rejected_not_applied"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_014",
+      "category": "confirmation",
+      "objective": "Resume and apply a confirmed review draft once.",
+      "decisionMode": "hybrid",
+      "durationMs": 469,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": true,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "terminalStatus": "max_steps",
+      "stopReason": "max_steps",
+      "stateAssertions": [
+        "resume_idempotent"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_015",
+      "category": "tool_failure",
+      "objective": "Record a tool failure.",
+      "decisionMode": "hybrid",
+      "durationMs": 218,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "review_material"
+      ],
+      "terminalStatus": "failed",
+      "stopReason": "tool_error",
+      "stateAssertions": [
+        "tool_error_reflection"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_016",
+      "category": "tool_failure",
+      "objective": "Roll back an invalid draft batch.",
+      "decisionMode": "hybrid",
+      "durationMs": 204,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "terminalStatus": "failed",
+      "stopReason": "transaction_rollback",
+      "stateAssertions": [
+        "transaction_rollback"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_017",
+      "category": "terminal",
+      "objective": "Stop at the step budget.",
+      "decisionMode": "hybrid",
+      "durationMs": 265,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": true,
+      "toolSequence": [
+        "review_material"
+      ],
+      "terminalStatus": "max_steps",
+      "stopReason": "max_steps",
+      "stateAssertions": [
+        "max_steps_reflection"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_018",
+      "category": "terminal",
+      "objective": "Stop when every proposed action is already attempted.",
+      "decisionMode": "hybrid",
+      "durationMs": 266,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "search_materials"
+      ],
+      "terminalStatus": "completed",
+      "stopReason": "no_progress",
+      "stateAssertions": [
+        "no_progress_reflection"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_019",
+      "category": "feedback_memory",
+      "objective": "Avoid a recently rejected review action.",
+      "decisionMode": "hybrid",
+      "durationMs": 94,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [],
+      "terminalStatus": "completed",
+      "stopReason": "feedback_memory",
+      "stateAssertions": [
+        "rejected_action_avoided"
+      ],
+      "passed": true
+    },
+    {
+      "id": "agent_case_020",
+      "category": "feedback_memory",
+      "objective": "Resume an accepted action without a duplicate formal write.",
+      "decisionMode": "hybrid",
+      "durationMs": 78,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "batch-c-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [],
+      "terminalStatus": "completed",
+      "stopReason": "feedback_memory",
+      "stateAssertions": [
+        "accepted_action_remembered"
+      ],
+      "passed": true
+    }
+  ],
+  "toolCounts": {
+    "create_task_draft": 4,
+    "answer_only": 8,
+    "review_material": 4,
+    "search_materials": 3,
+    "create_review_draft": 2,
+    "suggest_material_gap": 1,
+    "apply_confirmed_draft": 5
+  },
+  "metadata": {
+    "mode": "mock-ci",
+    "scenarioFile": "backend/evaluation/agent_scenarios.json",
+    "model": "",
+    "provider": "mock"
+  }
+}

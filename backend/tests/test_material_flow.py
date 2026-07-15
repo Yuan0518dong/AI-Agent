@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from backend.app.main import app
-from backend.app.services import material_store, store
+from backend.app.services import embedding_provider, material_store, store
 
 
 client = TestClient(app)
@@ -124,7 +124,6 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
     empty_search_response = client.get("/api/materials/search", params={"query": "unrelated biology topic"})
     assert empty_search_response.status_code == 200
     assert empty_search_response.json()["data"] == []
-
     flashcards_response = client.post(f"/api/materials/{material_id}/flashcards")
     assert flashcards_response.status_code == 200
     flashcards = flashcards_response.json()["data"]
@@ -193,6 +192,34 @@ def test_material_crud_summary_flashcards_and_quiz_flow():
     assert client.get(f"/api/materials/{material_id}/qa").status_code == 404
     assert client.get(f"/api/materials/{material_id}/flashcards").status_code == 404
     assert client.get(f"/api/materials/{material_id}/quiz").status_code == 404
+
+
+def test_semantic_search_matches_related_wording_without_keyword_overlap():
+    material = create_material(payload={"content": "Review tasks help learners remember key ideas."})
+    assert client.post(f"/api/materials/{material['id']}/chunks").status_code == 200
+
+    response = client.get("/api/materials/search", params={"query": "revision actions"})
+
+    assert response.status_code == 200
+    result = response.json()["data"][0]
+    assert result["materialId"] == material["id"]
+    assert result["searchMode"] == "semantic"
+    assert 0 < result["score"] <= 1
+
+
+def test_chunk_generation_and_search_fall_back_when_embedding_provider_fails(monkeypatch):
+    class FailingProvider:
+        def embed(self, text: str) -> list[float]:
+            raise RuntimeError("embedding unavailable")
+
+    monkeypatch.setattr(embedding_provider, "get_embedding_provider", lambda: FailingProvider())
+    material = create_material()
+    chunks_response = client.post(f"/api/materials/{material['id']}/chunks")
+    response = client.get("/api/materials/search", params={"query": "review tasks"})
+
+    assert chunks_response.status_code == 200
+    assert response.status_code == 200
+    assert response.json()["data"][0]["searchMode"] == "keyword"
 
 
 def test_material_validation_and_missing_resources():

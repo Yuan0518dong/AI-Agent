@@ -1,8 +1,8 @@
 # RAG chunks 接口说明
 
-更新时间：2026-07-02
+更新时间：2026-07-15
 
-适用分支：`feature/rag-material-chunks`
+适用分支：`feature/v3-agent-action-entry`
 
 ## 1. 文档目的
 
@@ -11,7 +11,7 @@
 当前版本目标不是直接完成完整 RAG，而是先打通基础链路：
 
 ```text
-资料 content -> 文本切分 -> material_chunks 入库 -> 关键词检索 -> 返回相关片段
+资料 content -> 文本切分 -> embedding 入库 -> 语义 Top-K 检索 -> 返回相关片段
 ```
 
 后续接入大模型时，可以继续演进为：
@@ -28,21 +28,20 @@
 1. 新增 material_chunks 数据表。
 2. 支持按资料生成 chunks。
 3. 支持查看某个资料的 chunks。
-4. 支持基于关键词搜索 chunks。
+4. 支持基于 cosine similarity 的语义 Top-K 搜索。
 5. 自动化测试和冒烟测试覆盖基础链路。
+6. embedding 不可用时自动回退关键词搜索。
 ```
 
 当前暂未完成：
 
 ```text
-1. 暂未接入 embedding。
-2. 暂未接入向量数据库。
-3. 暂未接入真实大模型问答。
-4. 暂未做多用户隔离。
-5. 暂未做前端 chunks 页面展示。
+1. 暂未接入独立向量数据库。
+2. 暂未接入真实 embedding 服务，当前使用确定性 MockEmbeddingProvider。
+3. 暂未做前端 chunks 页面展示。
 ```
 
-因此当前搜索属于 MVP 关键词检索，不是完整语义检索。
+当前版本是在 SQLite 中保存 JSON 向量的第一阶段语义检索，不是完整向量数据库方案。
 
 ## 3. 数据表设计
 
@@ -63,6 +62,7 @@
 | chunk_index | INTEGER NOT NULL | chunk 在原资料中的顺序 |
 | content | TEXT NOT NULL | chunk 文本内容 |
 | keywords | TEXT NOT NULL | 关键词数组的 JSON 字符串 |
+| embedding | TEXT NOT NULL | embedding 向量的 JSON 字符串，不通过 chunks API 返回 |
 | created_at | TEXT NOT NULL | 创建时间 |
 | updated_at | TEXT NOT NULL | 更新时间 |
 
@@ -100,7 +100,8 @@ MaterialChunk = {
 {
   materialTitle,
   goalId,
-  score
+  score,
+  searchMode
 }
 ```
 
@@ -114,7 +115,8 @@ MaterialChunk = {
 | keywords | 从标题和 chunk 内容中提取的简单关键词 |
 | materialTitle | 搜索结果所属资料标题 |
 | goalId | 搜索结果所属目标 ID |
-| score | 当前关键词检索的匹配分数 |
+| score | semantic 模式为 cosine similarity；keyword 模式为关键词匹配分数 |
+| searchMode | `semantic` 或 `keyword`，用于标识本条结果的检索策略 |
 
 ## 5. 切分逻辑
 
@@ -191,7 +193,7 @@ POST /api/materials/{material_id}/chunks
 1. 查询资料是否存在。
 2. 读取 material.content；如果 content 为空，则使用 material.url。
 3. 调用 split_material_content() 进行切分。
-4. 为每个 chunk 生成 id、chunkIndex、keywords 和时间字段。
+4. 为每个 chunk 生成 id、chunkIndex、keywords、embedding 和时间字段。
 5. 删除该资料旧 chunks。
 6. 写入新 chunks。
 7. 返回最新 chunks。
@@ -275,7 +277,7 @@ GET /api/materials/search?query=review%20tasks&limit=5
 用途：
 
 ```text
-根据关键词搜索 material_chunks，返回最相关的片段。
+优先按 query embedding 与 chunk embedding 的 cosine similarity 返回 Top-K 片段；向量不可用或没有语义结果时使用关键词检索兜底。
 ```
 
 查询参数：
@@ -302,7 +304,8 @@ GET /api/materials/search?query=review%20tasks&limit=5
       "updatedAt": "2026-07-02T10:00:00+00:00",
       "materialTitle": "Updated material",
       "goalId": "goal_xxx",
-      "score": 2
+      "score": 0.912341,
+      "searchMode": "semantic"
     }
   ]
 }
@@ -318,20 +321,21 @@ limit 小于 1 或大于 20：422 参数校验失败
 
 ## 7. 当前检索评分规则
 
-当前使用轻量关键词评分：
+当前使用“语义优先、关键词兜底”的两级检索：
 
 ```text
-1. 如果完整 query 出现在 chunk 文本、标题或关键词中，加更高分。
-2. 如果 query 拆出的关键词部分命中，也会加分。
-3. 按 score 从高到低排序。
-4. 返回前 limit 条。
+1. 生成 query embedding。
+2. 对已有 embedding 的 chunks 计算 cosine similarity。
+3. 过滤低相似度结果，按相似度从高到低返回 Top-K。
+4. Top-K 未满时用关键词结果补位，并按 chunk ID 去重。
+5. provider 异常、query embedding 为空或历史 chunk 缺少 embedding 时保留关键词 fallback。
 ```
 
 注意：
 
 ```text
-这个评分只是 MVP 版本，用于先打通检索链路。
-它不能理解深层语义，也不能替代 embedding 相似度搜索。
+MockEmbeddingProvider 只用于离线开发和稳定测试，不代表真实模型的召回质量。
+后续接入真实 embedding provider 时不需要改动 SQLite 检索与 fallback 边界。
 ```
 
 ## 8. 测试方式
@@ -354,6 +358,8 @@ python -m pytest backend/tests -v --basetemp .pytest_tmp_rag_chunks_final
 5. 无关关键词返回空数组。
 6. 删除资料后，chunks 相关接口返回 404。
 7. 不存在的资料生成 chunks 返回 404。
+8. 关键词不重合但语义接近的查询可以命中目标 chunk。
+9. embedding provider 失败时，chunk 生成和搜索仍可走关键词链路。
 ```
 
 ### 8.2 冒烟测试
@@ -408,7 +414,7 @@ searchMaterialChunks(query, limit)
 3. 将命中的 chunks 拼成 context。
 4. 先返回 mock answer 和 references。
 5. 再接入真实大模型。
-6. 再升级为 embedding + 向量检索。
+6. 按真实数据规模评估是否从 SQLite JSON 向量迁移到独立向量索引。
 ```
 
 完整 RAG 链路目标：

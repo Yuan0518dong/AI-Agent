@@ -40,6 +40,14 @@ def test_health_check():
     assert response.json()["data"]["status"] == "ok"
 
 
+def test_root_serves_frontend_entrypoint_for_one_command_startup():
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "智能体工作台" in response.text
+
+
 def test_goal_crud_and_partial_update_keeps_existing_fields():
     goal = create_goal()
     goal_id = goal["id"]

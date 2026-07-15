@@ -5,13 +5,16 @@ from backend.app.schemas.agent import (
     AgentActionLogUpdate,
     AgentAskRequest,
     AgentRunCreate,
+    AgentRunExecute,
     AgentRunUpdate,
 )
 from backend.app.services import (
     agent_action_log_service,
     agent_context_service,
     agent_decision_service,
+    agent_draft_service,
     agent_run_service,
+    agent_loop_service,
     agent_service,
     agent_tool_registry_service,
     material_store,
@@ -39,7 +42,7 @@ def get_agent_context(
 @router.post("/decide")
 def decide_agent_next_action(
     goalId: str | None = Query(default=None),
-    decisionMode: str = Query(default="rule-based", pattern="^(rule-based|llm-json|hybrid)$"),
+    decisionMode: str = Query(default="hybrid", pattern="^(rule-based|llm-json|hybrid)$"),
     user_id: str | None = Depends(current_user_id),
 ):
     goal_id = _normalize_goal_id(goalId)
@@ -87,15 +90,53 @@ def update_agent_action_log(
     payload: AgentActionLogUpdate,
     user_id: str | None = Depends(current_user_id),
 ):
-    action_log = agent_action_log_service.update_action_log_status(
-        log_id,
-        payload.status,
-        user_id,
-    )
+    try:
+        action_log = agent_action_log_service.update_action_log_status(
+            log_id,
+            payload.status,
+            user_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not action_log:
         raise HTTPException(status_code=404, detail="Action log not found")
 
     return ok(action_log)
+
+
+@router.get("/drafts")
+def list_agent_drafts(
+    goalId: str | None = Query(default=None),
+    draftType: str | None = Query(default=None, pattern="^(review|task)$"),
+    status: str | None = Query(default=None, pattern="^(proposed|confirmed|applied|rejected)$"),
+    limit: int = Query(default=20, ge=1, le=100),
+    user_id: str | None = Depends(current_user_id),
+):
+    goal_id = _normalize_goal_id(goalId)
+    if goal_id and not store.get_goal(goal_id, user_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    return ok(
+        agent_draft_service.list_agent_drafts(
+            user_id=user_id,
+            goal_id=goal_id,
+            draft_type=draftType,
+            status=status,
+            limit=limit,
+        )
+    )
+
+
+@router.get("/drafts/{draft_id}")
+def get_agent_draft(
+    draft_id: str,
+    user_id: str | None = Depends(current_user_id),
+):
+    draft = agent_draft_service.get_agent_draft(draft_id, user_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Agent draft not found")
+
+    return ok(draft)
 
 
 @router.get("/tools")
@@ -112,7 +153,16 @@ def create_agent_run(
     if goal_id and not store.get_goal(goal_id, user_id):
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    return ok(agent_run_service.create_agent_run(goal_id, user_id, payload.trigger))
+    return ok(
+        agent_run_service.create_agent_run(
+            goal_id,
+            user_id,
+            payload.trigger,
+            payload.objective,
+            payload.decisionMode,
+            payload.maxSteps,
+        )
+    )
 
 
 @router.get("/runs")
@@ -153,6 +203,30 @@ def update_agent_run(
     return ok(agent_run)
 
 
+@router.post("/runs/{run_id}/cancel")
+def cancel_agent_run(
+    run_id: str,
+    user_id: str | None = Depends(current_user_id),
+):
+    agent_run = agent_run_service.cancel_agent_run(run_id, user_id)
+    if not agent_run:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+    return ok(agent_run)
+
+
+@router.post("/runs/{run_id}/execute")
+def execute_agent_run(
+    run_id: str,
+    payload: AgentRunExecute,
+    user_id: str | None = Depends(current_user_id),
+):
+    agent_run = agent_loop_service.execute_agent_run(run_id, user_id, payload.maxSteps)
+    if not agent_run:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+
+    return ok(agent_run)
+
+
 @router.post("/ask")
 def ask_agent(payload: AgentAskRequest, user_id: str | None = Depends(current_user_id)):
     goal_id = _normalize_goal_id(payload.goalId)
@@ -169,37 +243,13 @@ def ask_agent(payload: AgentAskRequest, user_id: str | None = Depends(current_us
     if goal_context_id and not goal:
         raise HTTPException(status_code=404, detail="Goal not found")
 
-    answer = agent_service.answer_question(
+    answer = agent_service.answer_and_record(
         question=payload.question,
         goal=goal,
         material_id=material_id,
         limit=payload.limit,
         user_id=user_id,
     )
-    if answer["materialId"]:
-        now = store.now_iso()
-        material_qa_record = {
-            "id": store.make_id("qa"),
-            "materialId": answer["materialId"],
-            "goalId": answer["goalId"],
-            "question": answer["question"],
-            "answer": answer["answer"],
-            "basis": answer["basis"],
-            "suggestion": answer["suggestion"],
-            "sourceTitle": answer["sourceTitle"],
-            "isFromMaterial": answer["isFromMaterial"],
-            "confidence": answer["confidence"],
-            "mode": answer["mode"],
-            "nextAction": answer["nextAction"],
-            "requiresConfirmation": answer["requiresConfirmation"],
-            "insufficiencyReason": answer["insufficiencyReason"],
-            "reviewDrafts": answer["reviewDrafts"],
-            "createdAt": now,
-        }
-        material_store.save_qa_record(material_qa_record)
-        answer["id"] = material_qa_record["id"]
-        answer["createdAt"] = now
-
     return ok(answer)
 
 

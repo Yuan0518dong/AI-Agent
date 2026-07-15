@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Run pytest
+    name: Reliability checks
     runs-on: ubuntu-latest
 
     steps:
@@ -20,6 +20,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install dependencies
         run: python -m pip install -r backend/requirements.txt
 
@@ -27,4 +32,22 @@ jobs:
         env:
           PYTHONPATH: .
           LLM_PROVIDER: mock
-        run: python -m pytest backend/tests -v --tb=short
+          LLM_ENV_FILE: .missing-ci.env
+        run: python -m pytest backend/tests -q --tb=short
+
+      - name: Compile backend
+        run: python -m compileall -q backend
+
+      - name: Run mock smoke test
+        env:
+          PYTHONPATH: .
+          LLM_PROVIDER: mock
+          LLM_ENV_FILE: .missing-ci.env
+        run: python backend/smoke_api.py
+
+      - name: Check frontend syntax and diff whitespace
+        run: |
+          node --check app/api.js
+          node --check app/app.js
+          node --check app/modules/agent-workbench.js
+          git diff --check

@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "provider": "openai-compatible",
+    "model": "embedding-3",
+    "queryCount": 3,
+    "caseFile": "backend/evaluation/retrieval_cases.json"
+  },
+  "keyword": {
+    "recallAt3": 0.6667,
+    "mrr": 0.6667
+  },
+  "semantic": {
+    "recallAt3": 1.0,
+    "mrr": 0.8333
+  },
+  "queries": [
+    {
+      "id": "retrieval_case_001",
+      "relevantChunkIds": [
+        "chunk_eval_spaced_repetition"
+      ],
+      "keywordChunkIds": [
+        "chunk_eval_retrieval_practice"
+      ],
+      "semanticChunkIds": [
+        "chunk_eval_retrieval_practice",
+        "chunk_eval_spaced_repetition",
+        "chunk_eval_weak_quiz_review"
+      ]
+    },
+    {
+      "id": "retrieval_case_002",
+      "relevantChunkIds": [
+        "chunk_eval_retrieval_practice"
+      ],
+      "keywordChunkIds": [
+        "chunk_eval_retrieval_practice",
+        "chunk_eval_weak_quiz_review"
+      ],
+      "semanticChunkIds": [
+        "chunk_eval_retrieval_practice",
+        "chunk_eval_spaced_repetition",
+        "chunk_eval_weak_quiz_review"
+      ]
+    },
+    {
+      "id": "retrieval_case_003",
+      "relevantChunkIds": [
+        "chunk_eval_weak_quiz_review"
+      ],
+      "keywordChunkIds": [
+        "chunk_eval_weak_quiz_review",
+        "chunk_eval_spaced_repetition",
+        "chunk_eval_container_deployment"
+      ],
+      "semanticChunkIds": [
+        "chunk_eval_weak_quiz_review",
+        "chunk_eval_retrieval_practice",
+        "chunk_eval_spaced_repetition"
+      ]
+    }
+  ]
+}

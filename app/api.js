@@ -142,7 +142,7 @@ const agentApi = {
     return request(`/agent/context${query}`);
   },
 
-    decide(goalId = "", decisionMode = "rule-based") {
+    decide(goalId = "", decisionMode = "hybrid") {
       const params = new URLSearchParams({ decisionMode });
       if (goalId) {
         params.set("goalId", goalId);
@@ -175,6 +175,46 @@ const agentApi = {
     return request(`/agent/action-logs/${logId}`, {
       method: "PATCH",
       body: JSON.stringify(payload)
+    });
+  },
+
+  createRun(payload) {
+    return request("/agent/runs", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  listRuns(goalId = "", limit = 20) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (goalId) {
+      params.set("goalId", goalId);
+    }
+    return request(`/agent/runs?${params.toString()}`);
+  },
+
+  getRun(runId) {
+    return request(`/agent/runs/${runId}`);
+  },
+
+  executeRun(runId, maxSteps = null) {
+    return request(`/agent/runs/${runId}/execute`, {
+      method: "POST",
+      body: JSON.stringify(maxSteps ? { maxSteps } : {})
+    });
+  },
+
+  updateRun(runId, status) {
+    return request(`/agent/runs/${runId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    });
+  },
+
+  cancelRun(runId) {
+    return request(`/agent/runs/${runId}/cancel`, {
+      method: "POST",
+      body: "{}"
     });
   }
 };

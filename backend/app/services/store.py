@@ -112,14 +112,65 @@ def init_db() -> None:
                 user_id TEXT,
                 goal_id TEXT,
                 trigger TEXT NOT NULL,
+                objective TEXT NOT NULL DEFAULT '',
+                decision_mode TEXT NOT NULL DEFAULT 'rule-based',
+                max_steps INTEGER NOT NULL DEFAULT 4,
+                current_step INTEGER NOT NULL DEFAULT 0,
                 context_snapshot TEXT NOT NULL,
                 decision_snapshot TEXT NOT NULL,
                 feedback_summary TEXT NOT NULL,
                 status TEXT NOT NULL,
+                stop_reason TEXT NOT NULL DEFAULT '',
+                error TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL
             );
+
+            CREATE TABLE IF NOT EXISTS agent_run_steps (
+                id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                step_index INTEGER NOT NULL,
+                context_snapshot TEXT NOT NULL,
+                decision_snapshot TEXT NOT NULL,
+                action_snapshot TEXT NOT NULL,
+                tool_name TEXT NOT NULL,
+                tool_input TEXT NOT NULL,
+                tool_output TEXT NOT NULL,
+                action_log_id TEXT,
+                status TEXT NOT NULL,
+                error TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(run_id, step_index),
+                FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE,
+                FOREIGN KEY (action_log_id) REFERENCES agent_action_logs(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS agent_drafts (
+                id TEXT PRIMARY KEY,
+                user_id TEXT,
+                goal_id TEXT,
+                run_id TEXT NOT NULL,
+                step_id TEXT NOT NULL,
+                draft_type TEXT NOT NULL CHECK(draft_type IN ('review', 'task')),
+                payload TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('proposed', 'confirmed', 'applied', 'rejected')),
+                idempotency_key TEXT NOT NULL UNIQUE,
+                applied_entity_ids TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                applied_at TEXT,
+                FOREIGN KEY (goal_id) REFERENCES goals(id) ON DELETE SET NULL,
+                FOREIGN KEY (run_id) REFERENCES agent_runs(id) ON DELETE CASCADE,
+                FOREIGN KEY (step_id) REFERENCES agent_run_steps(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_drafts_owner_created
+            ON agent_drafts(user_id, created_at DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_agent_drafts_owner_goal_created
+            ON agent_drafts(user_id, goal_id, created_at DESC);
             """
         )
         _ensure_columns(conn)
@@ -207,6 +258,8 @@ def init_db() -> None:
 def reset() -> None:
     init_db()
     with db_connection() as conn:
+        conn.execute("DELETE FROM agent_drafts")
+        conn.execute("DELETE FROM agent_run_steps")
         conn.execute("DELETE FROM agent_runs")
         conn.execute("DELETE FROM agent_action_logs")
         conn.execute("DELETE FROM checkins")
@@ -443,6 +496,23 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     goal_columns = _column_names(conn, "goals")
     if "user_id" not in goal_columns:
         conn.execute("ALTER TABLE goals ADD COLUMN user_id TEXT")
+
+    agent_run_columns = _column_names(conn, "agent_runs")
+    agent_run_defaults = {
+        "objective": "''",
+        "decision_mode": "'rule-based'",
+        "max_steps": "4",
+        "current_step": "0",
+        "stop_reason": "''",
+        "error": "''",
+    }
+    integer_columns = {"max_steps", "current_step"}
+    for column, default in agent_run_defaults.items():
+        if column not in agent_run_columns:
+            column_type = "INTEGER" if column in integer_columns else "TEXT"
+            conn.execute(
+                f"ALTER TABLE agent_runs ADD COLUMN {column} {column_type} NOT NULL DEFAULT {default}"
+            )
 
 
 def _column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:

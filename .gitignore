@@ -14,4 +14,5 @@ __pycache__/
 .pytest_tmp*/
 .tmp_pytest*/
 .test_artifacts/
+.dev-logs/
 backend/data/

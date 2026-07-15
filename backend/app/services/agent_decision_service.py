@@ -11,20 +11,67 @@ def decide_next_action(
     goal_id: str | None = None,
     user_id: str | None = None,
     decision_mode: str = "rule-based",
+    objective: str = "",
+    step_history: list[dict] | None = None,
 ) -> dict:
     context = agent_context_service.build_agent_context(goal_id, user_id)
-    summary = context["summary"]
+    return decide_next_action_from_context(
+        context,
+        goal_id=goal_id,
+        user_id=user_id,
+        decision_mode=decision_mode,
+        objective=objective,
+        step_history=step_history,
+    )
+
+
+def decide_next_action_from_context(
+    context: dict,
+    *,
+    goal_id: str | None = None,
+    user_id: str | None = None,
+    decision_mode: str = "rule-based",
+    objective: str = "",
+    step_history: list[dict] | None = None,
+) -> dict:
+    """Generate a decision from an already-scoped Context snapshot."""
+    decision_context = {
+        **context,
+        "agentRun": {
+            "objective": objective,
+            "stepHistory": _compact_step_history(step_history or []),
+        },
+    }
+    summary = decision_context["summary"]
     action_logs = agent_action_log_service.list_action_logs(goal_id, user_id, limit=20)
     feedback_memory = _feedback_memory(action_logs)
-    rule_based_decision = _rule_based_decision(context, summary, feedback_memory)
+    rule_based_decision = _rule_based_decision(
+        decision_context,
+        summary,
+        feedback_memory,
+    )
     if decision_mode == "rule-based":
         return rule_based_decision
 
     return agent_decision_provider.decide_with_llm_json(
-        context,
+        decision_context,
         rule_based_decision,
         decision_mode,
     )
+
+
+def _compact_step_history(steps: list[dict]) -> list[dict]:
+    return [
+        {
+            "stepIndex": step.get("stepIndex"),
+            "actionType": (step.get("actionSnapshot") or {}).get("type", ""),
+            "toolName": step.get("toolName", ""),
+            "status": step.get("status", ""),
+            "observation": (step.get("toolOutput") or {}).get("observation", ""),
+            "data": (step.get("toolOutput") or {}).get("data", {}),
+        }
+        for step in steps[-8:]
+    ]
 
 
 def _rule_based_decision(context: dict, summary: dict, feedback_memory: dict) -> dict:
@@ -67,6 +114,16 @@ def _collect_problems(context: dict) -> list[dict]:
             )
         )
         return problems
+
+    if summary.get("draftProposedCount", 0):
+        problems.append(
+            _problem(
+                "proposed_drafts",
+                "high",
+                f"{summary['draftProposedCount']} draft(s) are ready for confirmation.",
+                "The Agent must wait for the user before writing formal learning records.",
+            )
+        )
 
     if summary["taskOverdue"]:
         overdue_groups = [group for group in context["tasks"] if group["overdue"]]
@@ -149,6 +206,19 @@ def _proposed_actions(context: dict, problems: list[dict]) -> list[dict]:
     actions = []
     problem_types = {problem["type"] for problem in problems}
 
+    if "proposed_drafts" in problem_types:
+        draft_ids = [draft["id"] for draft in context["drafts"].get("proposed", [])]
+        if draft_ids:
+            return [
+                _action(
+                    "apply_confirmed_draft",
+                    "Apply confirmed learning drafts",
+                    "The proposed drafts are ready for the user's one-time confirmation before formal write.",
+                    {"draftIds": draft_ids},
+                    True,
+                )
+            ]
+
     if "missing_goal" in problem_types:
         actions.append(
             _action(
@@ -200,7 +270,7 @@ def _proposed_actions(context: dict, problems: list[dict]) -> list[dict]:
                 "Turn weak quiz points into review cards",
                 "Use the weak quiz attempts as the basis for follow-up review drafts or flashcards.",
                 {"weakAttemptCount": context["quiz"].get("weakAttemptCount", 0)},
-                True,
+                False,
             )
         )
 
@@ -236,7 +306,7 @@ def _proposed_actions(context: dict, problems: list[dict]) -> list[dict]:
                 "Generate learning tasks",
                 "Create a short action plan so progress can be tracked.",
                 {"goalIds": [goal["id"] for goal in context["goals"]]},
-                True,
+                False,
             )
         )
 

@@ -223,8 +223,19 @@ def _build_fallback_suggestion(goal: dict | None) -> str:
 
 
 def _estimate_confidence(references: list[dict]) -> str:
-    best_score = max(reference["score"] for reference in references)
-    if best_score >= 3:
+    semantic_scores = [
+        reference["score"]
+        for reference in references
+        if reference.get("searchMode") == "semantic"
+    ]
+    if semantic_scores and max(semantic_scores) >= 0.55:
+        return "high"
+    keyword_scores = [
+        reference["score"]
+        for reference in references
+        if reference.get("searchMode", "keyword") == "keyword"
+    ]
+    if keyword_scores and max(keyword_scores) >= 3:
         return "high"
     return "medium"
 

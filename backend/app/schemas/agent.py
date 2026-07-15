@@ -21,7 +21,8 @@ class AgentReference(BaseModel):
     materialTitle: str
     chunkIndex: int
     content: str
-    score: int
+    score: float
+    searchMode: str = "keyword"
 
 
 class AgentAskResponse(BaseModel):
@@ -60,7 +61,21 @@ class AgentActionLogUpdate(BaseModel):
 class AgentRunCreate(BaseModel):
     goalId: str | None = None
     trigger: str = Field(default="manual", pattern="^(manual|after_write|scheduled)$")
+    objective: str = Field(default="", max_length=500)
+    decisionMode: str = Field(default="hybrid", pattern="^(rule-based|llm-json|hybrid)$")
+    maxSteps: int = Field(default=4, ge=1, le=8)
+
+    @field_validator("objective")
+    @classmethod
+    def normalize_objective(cls, value: str) -> str:
+        return value.strip()
+
+
+class AgentRunExecute(BaseModel):
+    maxSteps: int | None = Field(default=None, ge=1, le=8)
 
 
 class AgentRunUpdate(BaseModel):
-    status: str = Field(pattern="^(created|decided|feedback_recorded|executed|closed)$")
+    status: str = Field(
+        pattern="^(created|decided|running|waiting_confirmation|feedback_recorded|executed|completed|failed|max_steps|cancelled|closed)$"
+    )
