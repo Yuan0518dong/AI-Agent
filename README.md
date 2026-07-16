@@ -14,11 +14,13 @@ AI-Agent：面向个人学习规划的可控学习智能体
 把目标、资料、任务、问答、测试、复习和进度反馈串成完整学习闭环，让 Agent 能根据当前学习状态判断下一步动作，并在用户确认后写入任务或复习内容。
 ```
 
-## 第七版本地演示
+## 第七版公开演示
 
 当前本地演示使用同源 FastAPI 前端和数据库会话：浏览器只持有 `HttpOnly`、`SameSite=Lax` 的 `ai_agent_session` Cookie，服务端仅保存令牌 SHA-256 哈希。登录、注册和“一键试用”均建立独立会话；访客演示会在事务中生成隔离的目标、任务、已处理资料、闪卡、测试题和等待确认的 Agent Run，不调用真实模型。
 
-登录页提供“一键试用”。计划部署到 Render 免费 Web 服务时，服务闲置 15 分钟后可能休眠，首次访问可能需要约 1 分钟唤醒；当前仓库尚未声明一个已经通过 Neon/Render 验收的公开 URL。
+在线 Demo：[https://ai-agent-v7-yuan0518dong.onrender.com](https://ai-agent-v7-yuan0518dong.onrender.com)。该服务运行在 Render Free Web Service，闲置 15 分钟后可能休眠，首次访问可能需要约 1 分钟唤醒。
+
+公开实例使用 Neon PostgreSQL，且当前刻意配置为 `LLM_PROVIDER=mock`：一键试用只生成确定性演示数据，不会发起真实模型调用。真实 Provider 的能力与指标仍以专门的真实模型验收记录为准。
 
 当前主线：
 
@@ -225,7 +227,7 @@ MIGRATION_DATABASE_URL    Neon direct PostgreSQL URL，供 Alembic 迁移使用
 APP_ENV=production
 CORS_ORIGINS              公开应用的完整 Origin，不使用 *
 RATE_LIMIT_HASH_SALT       至少 32 字节的随机服务端盐
-LLM_* / EMBEDDING_*        真实 Provider 的连接与模型配置
+LLM_* / EMBEDDING_*        可选真实 Provider 的连接与模型配置；公开 Demo 可显式使用 mock
 ```
 
 Docker 启动时先运行 `python -m alembic -c backend/alembic.ini upgrade head`，迁移失败不会启动应用。生产启动会拒绝非 Neon 的运行连接、非池化 `DATABASE_URL`、池化的迁移连接、缺失的限流盐和未声明可信 CIDR 的代理转发头。公开 Demo smoke 工作流仅支持手动触发或每月运行，不会用高频请求阻止 Render 休眠。

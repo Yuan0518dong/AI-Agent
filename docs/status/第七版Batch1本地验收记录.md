@@ -4,7 +4,7 @@
 
 ## 状态
 
-本记录描述已经获得的本地、浏览器和真实 Neon 证据。Batch 1 尚未完成 Render/公开 Demo 验收，当前不得创建 Batch 2 分支，也不得把 Docker、部署或公开 smoke 写成已完成。
+本记录描述已经获得的本地、浏览器、真实 Neon、GitHub Actions 和公开 Render 证据。Batch 1 尚未完成最终验收，当前不得创建 Batch 2 分支；尚未完成的 Render 重启持久化、默认分支公开 smoke 和求职季政策复核不得写成已完成。
 
 ## 已验证需求
 
@@ -17,6 +17,8 @@
 - `DEPLOY-01`、`DEPLOY-02`：前端请求固定为同源 `/api`；CORS 使用显式列表，`*` 被拒绝，生产写请求要求允许的 Origin。错误均包含类型、用户消息、字段错误和 `requestId`。
 - `DEPLOY-04`：README、登录页和部署说明都提示 Render 免费 Web 服务闲置 15 分钟后可能休眠，首次访问可能需要约 1 分钟唤醒。
 - `DB-01`：隔离 Neon 测试分支与生产 Neon 分支均通过 Alembic `20260716_01` 迁移；生产直连已实际读取 `vector` 扩展和 `users` 表，生产池化 URL 也可读取 schema。
+- `DB-02`：GitHub Actions [run 29481386235](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29481386235) 针对 `46d62ec` 成功；其中 `PostgreSQL pgvector integration` job 在 `pgvector/pgvector:pg16` 服务中执行 Alembic 并通过 `3 passed, 117 deselected`。生产代码在 `APP_ENV=production` 下拒绝缺失、非 Neon 或非池化的运行连接；公开服务的 Demo 数据读写已实际经过该配置。
+- `OPS-02`：2026-07-16 已完成求职季前平台政策复核，结论记录在本文件的“平台政策复核”部分；后续每次求职季开始前仍须重新执行。
 
 ## 本地证据
 
@@ -57,7 +59,7 @@ python -m alembic -c backend/alembic.ini upgrade head
 python -m pytest backend/tests -m postgres -q --tb=short
 ```
 
-结果为 `3 passed, 117 deselected`。测试实际验证 `vector` 扩展、会话令牌 SHA-256 哈希、注册/登录/Demo/LLM 的 PostgreSQL 原子限流与 `429`、并发额度预留、资料批量写入、chunks、总结、闪卡和测试题。
+结果为 `3 passed, 117 deselected`；2026-07-16 以同一隔离分支重复执行仍为 `3 passed, 117 deselected`。测试实际验证 `vector` 扩展、会话令牌 SHA-256 哈希、注册/登录/Demo/LLM 的 PostgreSQL 原子限流与 `429`、并发额度预留、资料批量写入、chunks、总结、闪卡和测试题。
 
 生产 Neon 分支使用直连 `MIGRATION_DATABASE_URL` 迁移到 `20260716_01`；直连查询确认 `vector` 扩展与 `users` 表，池化 `DATABASE_URL` 也确认可读 schema。生产配置下的两次 FastAPI 生命周期实际完成一键试用，第二次实例可通过 Secure Cookie 读回同一会话和 1 个目标。
 
@@ -67,24 +69,36 @@ python -m pytest backend/tests -m postgres -q --tb=short
 python -m pytest backend/tests -m postgres -q --tb=short
 ```
 
-结果为 `3 skipped, 117 deselected`，不是 PostgreSQL 通过证据。本机 `docker` 命令不可用，未执行 Docker build 或容器迁移。
+结果为 `3 skipped, 117 deselected`，不是 PostgreSQL 通过证据。本机 `docker` 命令不可用，未执行本地 Docker build 或容器迁移。
+
+## GitHub Actions 与公开 Render 证据
+
+- `46d62ec` 已推送到 `personal/feature/v7-security-demo`。GitHub Actions [run 29481386235](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29481386235) 于 2026-07-16 成功完成 `Reliability checks` 和 `PostgreSQL pgvector integration` 两个 job。
+- Render Docker Web 服务公开地址为 [https://ai-agent-v7-yuan0518dong.onrender.com](https://ai-agent-v7-yuan0518dong.onrender.com)。`GET /` 与 `GET /api/health` 均为 `200`；公开 API smoke 真实验证同源 `POST /api/auth/demo`、Cookie `GET /api/auth/me`、`GET /api/goals` 的 1 个隔离目标、未知 Origin 的 `403 origin_forbidden`，以及 `Secure; HttpOnly; SameSite=Lax` Cookie 属性。
+- 公开 URL 的 Edge + Playwright 验收真实点击“一键试用”：Demo Cookie 会话与 1 个目标可读回，`document.cookie` 不含会话名；登出后 `/api/auth/me` 返回 `401 auth_required`；`390px` 和 `1440px` 的文档宽度均不超过视口。页面无异常，除登出后的预期 `401 /api/auth/me` 外无失败 API 响应，console/page error 均为 `0`。
+- Render 公开 Demo 当前显式使用 Mock Provider；这证明部署、会话、数据和界面链路，不构成真实模型性能或成本证据。
+
+## 平台政策复核
+
+- [Render Free 官方文档](https://render.com/docs/free) 于 2026-07-16 可访问，明确 Free Web Service 在 15 分钟无入站流量后休眠、重新唤醒约需 1 分钟，且本地文件系统会在休眠、重启和重新部署后丢失；免费 Render PostgreSQL 在创建 30 天后过期，14 天宽限期后删除。因此公开服务只使用 Render Web Service，不把本地 SQLite 或 Render PostgreSQL 当作生产数据源。
+- [Neon Plans 官方文档](https://neon.com/docs/introduction/plans) 于 2026-07-16 可访问。Free 当前包含 100 CU-hours/项目/月、0.5 GB 存储/项目和 5 GB 公网传输/月；计算或出网超额会暂停到下个计费周期，存储超额会拒绝增加存储的操作，文档明确这些限额不会删除数据。当前用 Neon 作为生产持久化存储仍符合“无固定自动删除期限”的约束。
+- 风险与动作：免费方案/额度不是固定承诺；每次求职季前必须复查上述官方页面。若 Neon 出现固定自动删除期限或现有项目接近额度，应先导出数据，再迁移到满足同等持久化约束的托管 PostgreSQL。
 
 ## 剩余部署缺口
 
 以下需求保持未勾选：
 
-- `DB-02`：PostgreSQL CI job 已定义且本地 Neon 集成通过，但尚未在 GitHub Actions 实际运行；生产环境在 Render 上的无 SQLite 回退仍需部署证据。
-- `DEPLOY-03`：尚未构建 Docker 镜像或向 Render 注入真实 Provider/Neon 配置。
-- `OPS-01`：公开 Demo smoke 工作流已定义，但没有 `PUBLIC_DEMO_URL`，未实际唤醒 Render、连接 Neon 或运行线上链路。
-- `OPS-02`：属于求职季前持续复核事项，尚未发生。
+- `DEPLOY-03`：Dockerfile、`.dockerignore`、Neon 连接分工和 Provider 变量说明已提交，Render Docker 服务也已上线；仍需在 Render 重新部署后用既有 Cookie/数据读回，才能证明运行实例不依赖临时本地状态。
+- `OPS-01`：公开 API 链路已手工验证，但 `public-demo-smoke.yml` 只存在于功能分支；GitHub 默认分支为 `main`，`workflow_dispatch` 与 `schedule` 因此不能实际运行。`PUBLIC_DEMO_URL` 变量应先由仓库管理员配置，随后需将已验收的工作流放入默认分支并手动运行一次。
 
 ## 需要的外部授权
 
 继续 Batch 1 最终验收需要用户授权：
 
 ```text
-向个人 GitHub 远程推送当前 Batch 1 分支，仅用于 Render 部署，不合并
-Render 服务配置和 PUBLIC_DEMO_URL
+在个人 GitHub 仓库配置 PUBLIC_DEMO_URL
+将已验收的 Public Demo Smoke 工作流合并或单独提交到个人仓库默认分支 main
+在 Render 执行一次重新部署，并允许用临时 Demo Cookie 做重启后的只读回验
 ```
 
-Neon 连接串仍不得写入仓库或状态文档。取得远程推送和 Render 授权后，应构建 Docker、验证 Render 重启/重新部署后 Neon 数据可读回，并手动触发公开 Demo smoke。只有这些证据存在时才能勾选剩余 Batch 1 条目、创建本批验收提交并进入 Batch 2。
+Neon 连接串仍不得写入仓库或状态文档。取得上述授权后，应验证 Render 重新部署后 Neon 数据可读回，并从默认分支手动触发公开 Demo smoke。只有这些证据存在时才能勾选剩余 Batch 1 条目、创建本批验收提交并进入 Batch 2。
