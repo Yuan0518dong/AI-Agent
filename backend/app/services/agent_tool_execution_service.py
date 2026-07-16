@@ -1,4 +1,5 @@
 import os
+from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from typing import Callable
 
@@ -93,7 +94,8 @@ def _execute_with_timeout(tool_name: str, call: Callable[[], dict]) -> dict:
 
 def _call_with_deadline(call: Callable[[], dict], timeout_seconds: float) -> dict:
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="agent-tool")
-    future = executor.submit(call)
+    request_context = copy_context()
+    future = executor.submit(request_context.run, call)
     try:
         return future.result(timeout=timeout_seconds)
     except FutureTimeoutError:
@@ -208,10 +210,10 @@ def _review_material(
         chunks = material_store.list_chunks_for_material(material["id"])
         summary = material_store.get_material_summary(material["id"])
         if not chunks:
-            chunks = material_processing_service.generate_material_chunks(material)
+            chunks = material_processing_service.generate_material_chunks(material, user_id)
             generated_chunks += 1
         if not summary:
-            summary = material_processing_service.summarize_material(material)
+            summary = material_processing_service.summarize_material(material, user_id)
             generated_summaries += 1
         inspected.append(
             {

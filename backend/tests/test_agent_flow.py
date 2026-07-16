@@ -19,9 +19,11 @@ from backend.app.services import (
     agent_tool_registry_service,
     store,
 )
+from backend.tests.auth_helpers import copy_session_cookie, register_session
 
 
 client = TestClient(app)
+DEFAULT_TEST_EMAIL = "agent-default@example.com"
 
 
 @pytest.fixture(autouse=True)
@@ -31,9 +33,12 @@ def clean_store(tmp_path, monkeypatch):
     monkeypatch.setenv("EMBEDDING_PROVIDER", "mock")
     monkeypatch.setenv("EMBEDDING_ENV_FILE", str(tmp_path / "missing.env"))
     test_db_path = tmp_path / "test_ai_agent.db"
+    client.cookies.clear()
     store.set_db_path(test_db_path)
     store.reset()
+    register_session(client, email=DEFAULT_TEST_EMAIL, name="Agent Default")
     yield
+    client.cookies.clear()
     store.reset()
 
 
@@ -51,6 +56,12 @@ def create_goal(name: str = "Agent goal") -> dict:
     )
     assert response.status_code == 200
     return response.json()["data"]
+
+
+def current_test_user_id() -> str:
+    user = store.get_user_by_email(DEFAULT_TEST_EMAIL)
+    assert user is not None
+    return user["id"]
 
 
 def create_material(
@@ -819,7 +830,7 @@ def test_agent_loop_applies_accepted_task_draft_from_the_same_run():
     retry_output = agent_tool_execution_service.execute_action(
         completed_run["steps"][2]["actionSnapshot"],
         goal["id"],
-        None,
+        current_test_user_id(),
         run["objective"],
         action_log_id=apply_action_log_id,
     )
@@ -874,7 +885,7 @@ def test_agent_review_draft_persists_retries_idempotently_and_cascades_with_run(
     retry_output = agent_tool_execution_service.execute_action(
         step["actionSnapshot"],
         goal["id"],
-        None,
+        current_test_user_id(),
         run["objective"],
         run_id=run["id"],
         step_id=step["id"],
@@ -904,80 +915,56 @@ def test_agent_review_draft_persists_retries_idempotently_and_cascades_with_run(
     assert client.get(f"/api/agent/drafts/{draft['id']}").status_code == 404
 
 
-def test_agent_drafts_are_isolated_by_user_header():
-    first_user = client.post(
-        "/api/auth/register",
-        json={"name": "Draft First", "email": "first-draft@example.com", "password": "secret123"},
-    ).json()["data"]
-    second_user = client.post(
-        "/api/auth/register",
-        json={"name": "Draft Second", "email": "second-draft@example.com", "password": "secret123"},
-    ).json()["data"]
-    first_headers = {"X-User-Id": first_user["id"]}
-    second_headers = {"X-User-Id": second_user["id"]}
+def test_agent_drafts_are_isolated_by_cookie_session():
+    with TestClient(app) as first_client, TestClient(app) as second_client:
+        register_session(first_client, email="first-draft@example.com", name="Draft First")
+        register_session(second_client, email="second-draft@example.com", name="Draft Second")
 
-    first_goal = client.post(
-        "/api/goals",
-        headers=first_headers,
-        json={
-            "name": "First draft goal",
-            "subject": "AI Agent",
-            "level": "basic",
-            "deadline": "2026-07-15",
-            "daily_minutes": 30,
-            "notes": "",
-        },
-    ).json()["data"]
-    second_goal = client.post(
-        "/api/goals",
-        headers=second_headers,
-        json={
-            "name": "Second draft goal",
-            "subject": "AI Agent",
-            "level": "basic",
-            "deadline": "2026-07-15",
-            "daily_minutes": 30,
-            "notes": "",
-        },
-    ).json()["data"]
+        def create_owned_goal(session_client: TestClient, name: str) -> dict:
+            response = session_client.post(
+                "/api/goals",
+                json={
+                    "name": name,
+                    "subject": "AI Agent",
+                    "level": "basic",
+                    "deadline": "2026-07-15",
+                    "daily_minutes": 30,
+                    "notes": "",
+                },
+            )
+            assert response.status_code == 200
+            return response.json()["data"]
 
-    first_run = client.post(
-        "/api/agent/runs",
-        headers=first_headers,
-        json={"goalId": first_goal["id"], "maxSteps": 1},
-    ).json()["data"]
-    second_run = client.post(
-        "/api/agent/runs",
-        headers=second_headers,
-        json={"goalId": second_goal["id"], "maxSteps": 1},
-    ).json()["data"]
-    first_draft = client.post(
-        f"/api/agent/runs/{first_run['id']}/execute",
-        headers=first_headers,
-        json={},
-    ).json()["data"]["steps"][0]["toolOutput"]["data"]["drafts"][0]
-    second_draft = client.post(
-        f"/api/agent/runs/{second_run['id']}/execute",
-        headers=second_headers,
-        json={},
-    ).json()["data"]["steps"][0]["toolOutput"]["data"]["drafts"][0]
+        first_goal = create_owned_goal(first_client, "First draft goal")
+        second_goal = create_owned_goal(second_client, "Second draft goal")
+        first_run = first_client.post(
+            "/api/agent/runs",
+            json={"goalId": first_goal["id"], "maxSteps": 1},
+        ).json()["data"]
+        second_run = second_client.post(
+            "/api/agent/runs",
+            json={"goalId": second_goal["id"], "maxSteps": 1},
+        ).json()["data"]
+        first_draft = first_client.post(
+            f"/api/agent/runs/{first_run['id']}/execute",
+            json={},
+        ).json()["data"]["steps"][0]["toolOutput"]["data"]["drafts"][0]
+        second_draft = second_client.post(
+            f"/api/agent/runs/{second_run['id']}/execute",
+            json={},
+        ).json()["data"]["steps"][0]["toolOutput"]["data"]["drafts"][0]
 
-    first_list = client.get(
-        "/api/agent/drafts",
-        headers=first_headers,
-        params={"goalId": first_goal["id"], "draftType": "task", "status": "proposed"},
-    )
-    assert first_list.status_code == 200
-    assert [item["id"] for item in first_list.json()["data"]] == [first_draft["id"]]
-    assert client.get(
-        f"/api/agent/drafts/{second_draft['id']}",
-        headers=first_headers,
-    ).status_code == 404
-    assert client.get(
-        "/api/agent/drafts",
-        headers=first_headers,
-        params={"goalId": second_goal["id"]},
-    ).status_code == 404
+        first_list = first_client.get(
+            "/api/agent/drafts",
+            params={"goalId": first_goal["id"], "draftType": "task", "status": "proposed"},
+        )
+        assert first_list.status_code == 200
+        assert [item["id"] for item in first_list.json()["data"]] == [first_draft["id"]]
+        assert first_client.get(f"/api/agent/drafts/{second_draft['id']}").status_code == 404
+        assert first_client.get(
+            "/api/agent/drafts",
+            params={"goalId": second_goal["id"]},
+        ).status_code == 404
 
 
 def test_agent_loop_rejects_confirmed_draft_without_formal_write():
@@ -1073,7 +1060,7 @@ def test_confirmed_draft_apply_rolls_back_formal_writes_on_payload_error():
                 "sourceReason": "Transaction rollback test.",
             }
         ],
-        user_id=None,
+        user_id=current_test_user_id(),
         goal_id=goal["id"],
         run_id=run["id"],
         step_id=source_step["id"],
@@ -1107,7 +1094,7 @@ def test_confirmed_draft_apply_rolls_back_formal_writes_on_payload_error():
         agent_tool_execution_service.execute_action(
             action,
             goal["id"],
-            None,
+            current_test_user_id(),
             action_log_id=action_log["id"],
         )
 
@@ -1119,81 +1106,68 @@ def test_confirmed_draft_apply_rolls_back_formal_writes_on_payload_error():
 
 
 def test_confirmed_draft_action_log_rejects_cross_user_draft_ids():
-    first_user = client.post(
-        "/api/auth/register",
-        json={"name": "Apply First", "email": "apply-first@example.com", "password": "secret123"},
-    ).json()["data"]
-    second_user = client.post(
-        "/api/auth/register",
-        json={"name": "Apply Second", "email": "apply-second@example.com", "password": "secret123"},
-    ).json()["data"]
-    first_headers = {"X-User-Id": first_user["id"]}
-    second_headers = {"X-User-Id": second_user["id"]}
+    with TestClient(app) as first_client, TestClient(app) as second_client:
+        register_session(first_client, email="apply-first@example.com", name="Apply First")
+        register_session(second_client, email="apply-second@example.com", name="Apply Second")
 
-    def create_owned_goal(headers: dict, name: str) -> dict:
-        response = client.post(
-            "/api/goals",
-            headers=headers,
-            json={
-                "name": name,
-                "subject": "AI Agent",
-                "level": "basic",
-                "deadline": "2026-07-15",
-                "daily_minutes": 30,
-                "notes": "",
-            },
+        def create_owned_goal(session_client: TestClient, name: str) -> dict:
+            response = session_client.post(
+                "/api/goals",
+                json={
+                    "name": name,
+                    "subject": "AI Agent",
+                    "level": "basic",
+                    "deadline": "2026-07-15",
+                    "daily_minutes": 30,
+                    "notes": "",
+                },
+            )
+            assert response.status_code == 200
+            return response.json()["data"]
+
+        first_goal = create_owned_goal(first_client, "First apply goal")
+        second_goal = create_owned_goal(second_client, "Second apply goal")
+        second_run = second_client.post(
+            "/api/agent/runs",
+            json={"goalId": second_goal["id"], "maxSteps": 3},
+        ).json()["data"]
+        second_waiting_run = second_client.post(
+            f"/api/agent/runs/{second_run['id']}/execute",
+            json={},
+        ).json()["data"]
+        second_draft = second_waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
+        malicious_action = agent_tool_registry_service.enrich_action(
+            {
+                "type": "apply_confirmed_draft",
+                "label": "Apply other user's draft",
+                "description": "This must be rejected by owner isolation.",
+                "payload": {"draftIds": [second_draft["id"]]},
+                "requiresConfirmation": True,
+                "status": "proposed",
+            }
         )
-        assert response.status_code == 200
-        return response.json()["data"]
-
-    first_goal = create_owned_goal(first_headers, "First apply goal")
-    second_goal = create_owned_goal(second_headers, "Second apply goal")
-    second_run = client.post(
-        "/api/agent/runs",
-        headers=second_headers,
-        json={"goalId": second_goal["id"], "maxSteps": 3},
-    ).json()["data"]
-    second_waiting_run = client.post(
-        f"/api/agent/runs/{second_run['id']}/execute",
-        headers=second_headers,
-        json={},
-    ).json()["data"]
-    second_draft = second_waiting_run["steps"][0]["toolOutput"]["data"]["drafts"][0]
-    malicious_action = agent_tool_registry_service.enrich_action(
-        {
-            "type": "apply_confirmed_draft",
-            "label": "Apply other user's draft",
-            "description": "This must be rejected by owner isolation.",
-            "payload": {"draftIds": [second_draft["id"]]},
-            "requiresConfirmation": True,
-            "status": "proposed",
-        }
-    )
-    malicious_log = client.post(
-        "/api/agent/action-logs",
-        headers=first_headers,
-        json={
-            "goalId": first_goal["id"],
-            "actionType": "apply_confirmed_draft",
-            "proposedPayload": {
-                **malicious_action,
-                "draftIds": malicious_action["payload"]["draftIds"],
+        malicious_log = first_client.post(
+            "/api/agent/action-logs",
+            json={
+                "goalId": first_goal["id"],
+                "actionType": "apply_confirmed_draft",
+                "proposedPayload": {
+                    **malicious_action,
+                    "draftIds": malicious_action["payload"]["draftIds"],
+                },
+                "status": "proposed",
             },
-            "status": "proposed",
-        },
-    ).json()["data"]
+        ).json()["data"]
 
-    response = client.patch(
-        f"/api/agent/action-logs/{malicious_log['id']}",
-        headers=first_headers,
-        json={"status": "accepted"},
-    )
+        response = first_client.patch(
+            f"/api/agent/action-logs/{malicious_log['id']}",
+            json={"status": "accepted"},
+        )
 
-    assert response.status_code == 400
-    assert client.get(
-        f"/api/agent/drafts/{second_draft['id']}",
-        headers=second_headers,
-    ).json()["data"]["status"] == "proposed"
+        assert response.status_code == 400
+        assert second_client.get(
+            f"/api/agent/drafts/{second_draft['id']}",
+        ).json()["data"]["status"] == "proposed"
 
 
 def test_agent_loop_stops_at_step_budget():
@@ -1403,7 +1377,11 @@ def test_search_materials_tool_filters_results_to_goal_scope():
         }
     )
 
-    output = agent_tool_execution_service.execute_action(action, target_goal["id"], None)
+    output = agent_tool_execution_service.execute_action(
+        action,
+        target_goal["id"],
+        current_test_user_id(),
+    )
 
     assert [item["materialId"] for item in output["data"]["references"]] == [
         target_material["id"]
@@ -1493,74 +1471,51 @@ def test_agent_action_log_validation_and_missing_resources():
     ).status_code == 404
 
 
-def test_agent_runs_are_isolated_by_user_header():
-    first_user = client.post(
-        "/api/auth/register",
-        json={"name": "First", "email": "first-run@example.com", "password": "secret123"},
-    ).json()["data"]
-    second_user = client.post(
-        "/api/auth/register",
-        json={"name": "Second", "email": "second-run@example.com", "password": "secret123"},
-    ).json()["data"]
+def test_agent_runs_are_isolated_by_cookie_session():
+    with TestClient(app) as first_client, TestClient(app) as second_client:
+        register_session(first_client, email="first-run@example.com", name="First")
+        register_session(second_client, email="second-run@example.com", name="Second")
+        first_goal = first_client.post(
+            "/api/goals",
+            json={
+                "name": "First user run goal",
+                "subject": "AI Agent",
+                "level": "basic",
+                "deadline": "2026-07-15",
+                "daily_minutes": 30,
+                "notes": "",
+            },
+        ).json()["data"]
+        second_goal = second_client.post(
+            "/api/goals",
+            json={
+                "name": "Second user run goal",
+                "subject": "AI Agent",
+                "level": "basic",
+                "deadline": "2026-07-15",
+                "daily_minutes": 30,
+                "notes": "",
+            },
+        ).json()["data"]
+        first_run = first_client.post(
+            "/api/agent/runs",
+            json={"goalId": first_goal["id"]},
+        ).json()["data"]
+        second_run = second_client.post(
+            "/api/agent/runs",
+            json={"goalId": second_goal["id"]},
+        ).json()["data"]
 
-    first_goal_response = client.post(
-        "/api/goals",
-        headers={"X-User-Id": first_user["id"]},
-        json={
-            "name": "First user run goal",
-            "subject": "AI Agent",
-            "level": "basic",
-            "deadline": "2026-07-15",
-            "daily_minutes": 30,
-            "notes": "",
-        },
-    )
-    second_goal_response = client.post(
-        "/api/goals",
-        headers={"X-User-Id": second_user["id"]},
-        json={
-            "name": "Second user run goal",
-            "subject": "AI Agent",
-            "level": "basic",
-            "deadline": "2026-07-15",
-            "daily_minutes": 30,
-            "notes": "",
-        },
-    )
-    first_goal = first_goal_response.json()["data"]
-    second_goal = second_goal_response.json()["data"]
+        first_runs = first_client.get("/api/agent/runs").json()["data"]
+        second_runs = second_client.get("/api/agent/runs").json()["data"]
 
-    first_run = client.post(
-        "/api/agent/runs",
-        headers={"X-User-Id": first_user["id"]},
-        json={"goalId": first_goal["id"]},
-    ).json()["data"]
-    second_run = client.post(
-        "/api/agent/runs",
-        headers={"X-User-Id": second_user["id"]},
-        json={"goalId": second_goal["id"]},
-    ).json()["data"]
-
-    first_runs = client.get(
-        "/api/agent/runs",
-        headers={"X-User-Id": first_user["id"]},
-    ).json()["data"]
-    second_runs = client.get(
-        "/api/agent/runs",
-        headers={"X-User-Id": second_user["id"]},
-    ).json()["data"]
-
-    assert [run["id"] for run in first_runs] == [first_run["id"]]
-    assert [run["id"] for run in second_runs] == [second_run["id"]]
-    assert client.get(
-        f"/api/agent/runs/{second_run['id']}",
-        headers={"X-User-Id": first_user["id"]},
-    ).status_code == 404
-    assert client.post(
-        f"/api/agent/runs/{second_run['id']}/execute",
-        headers={"X-User-Id": first_user["id"]},
-        json={},
-    ).status_code == 404
+        assert [run["id"] for run in first_runs] == [first_run["id"]]
+        assert [run["id"] for run in second_runs] == [second_run["id"]]
+        assert first_client.get(f"/api/agent/runs/{second_run['id']}").status_code == 404
+        assert first_client.post(
+            f"/api/agent/runs/{second_run['id']}/execute",
+            json={},
+        ).status_code == 404
 
 
 def test_agent_context_reads_back_confirmed_flashcard_write():
@@ -1847,78 +1802,65 @@ def test_batch_b6_decision_readback_failure_keeps_latest_context(monkeypatch):
 
 
 def test_batch_b6_readback_uses_original_run_user_and_goal_scope(monkeypatch):
-    first_user = client.post(
-        "/api/auth/register",
-        json={"name": "B6 First", "email": "b6-first@example.com", "password": "secret123"},
-    ).json()["data"]
-    second_user = client.post(
-        "/api/auth/register",
-        json={"name": "B6 Second", "email": "b6-second@example.com", "password": "secret123"},
-    ).json()["data"]
-    first_headers = {"X-User-Id": first_user["id"]}
-    second_headers = {"X-User-Id": second_user["id"]}
+    with TestClient(app) as first_client, TestClient(app) as second_client:
+        register_session(first_client, email="b6-first@example.com", name="B6 First")
+        register_session(second_client, email="b6-second@example.com", name="B6 Second")
+        first_user_id = store.get_user_by_email("b6-first@example.com")["id"]
+        first_goal = first_client.post(
+            "/api/goals",
+            json={
+                "name": "B6 first goal",
+                "subject": "AI Agent",
+                "level": "basic",
+                "deadline": "2026-07-15",
+                "daily_minutes": 30,
+                "notes": "",
+            },
+        ).json()["data"]
+        second_goal = second_client.post(
+            "/api/goals",
+            json={
+                "name": "B6 second goal",
+                "subject": "AI Agent",
+                "level": "basic",
+                "deadline": "2026-07-15",
+                "daily_minutes": 30,
+                "notes": "",
+            },
+        ).json()["data"]
+        run = first_client.post(
+            "/api/agent/runs",
+            json={"goalId": first_goal["id"], "maxSteps": 2},
+        ).json()["data"]
+        waiting_run = first_client.post(
+            f"/api/agent/runs/{run['id']}/execute",
+            json={},
+        ).json()["data"]
+        apply_step = waiting_run["steps"][1]
+        assert first_client.patch(
+            f"/api/agent/action-logs/{apply_step['actionLogId']}",
+            json={"status": "accepted"},
+        ).status_code == 200
 
-    first_goal = client.post(
-        "/api/goals",
-        headers=first_headers,
-        json={
-            "name": "B6 first goal",
-            "subject": "AI Agent",
-            "level": "basic",
-            "deadline": "2026-07-15",
-            "daily_minutes": 30,
-            "notes": "",
-        },
-    ).json()["data"]
-    second_goal = client.post(
-        "/api/goals",
-        headers=second_headers,
-        json={
-            "name": "B6 second goal",
-            "subject": "AI Agent",
-            "level": "basic",
-            "deadline": "2026-07-15",
-            "daily_minutes": 30,
-            "notes": "",
-        },
-    ).json()["data"]
-    run = client.post(
-        "/api/agent/runs",
-        headers=first_headers,
-        json={"goalId": first_goal["id"], "maxSteps": 2},
-    ).json()["data"]
-    waiting_run = client.post(
-        f"/api/agent/runs/{run['id']}/execute",
-        headers=first_headers,
-        json={},
-    ).json()["data"]
-    apply_step = waiting_run["steps"][1]
-    assert client.patch(
-        f"/api/agent/action-logs/{apply_step['actionLogId']}",
-        headers=first_headers,
-        json={"status": "accepted"},
-    ).status_code == 200
+        context_calls = []
+        original_build_context = agent_context_service.build_agent_context
 
-    context_calls = []
-    original_build_context = agent_context_service.build_agent_context
+        def capture_scope(goal_id=None, user_id=None):
+            context_calls.append((goal_id, user_id))
+            return original_build_context(goal_id, user_id)
 
-    def capture_scope(goal_id=None, user_id=None):
-        context_calls.append((goal_id, user_id))
-        return original_build_context(goal_id, user_id)
+        monkeypatch.setattr(agent_context_service, "build_agent_context", capture_scope)
+        executed_run = first_client.post(
+            f"/api/agent/runs/{run['id']}/execute",
+            json={},
+        ).json()["data"]
 
-    monkeypatch.setattr(agent_context_service, "build_agent_context", capture_scope)
-    executed_run = client.post(
-        f"/api/agent/runs/{run['id']}/execute",
-        headers=first_headers,
-        json={},
-    ).json()["data"]
-
-    context = executed_run["contextSnapshot"]
-    assert context_calls == [(first_goal["id"], first_user["id"])]
-    assert context["scope"]["goalId"] == first_goal["id"]
-    assert [goal["id"] for goal in context["goals"]] == [first_goal["id"]]
-    assert [task_group["goalId"] for task_group in context["tasks"]] == [first_goal["id"]]
-    assert second_goal["id"] not in [goal["id"] for goal in context["goals"]]
+        context = executed_run["contextSnapshot"]
+        assert context_calls == [(first_goal["id"], first_user_id)]
+        assert context["scope"]["goalId"] == first_goal["id"]
+        assert [goal["id"] for goal in context["goals"]] == [first_goal["id"]]
+        assert [task_group["goalId"] for task_group in context["tasks"]] == [first_goal["id"]]
+        assert second_goal["id"] not in [goal["id"] for goal in context["goals"]]
 
 
 def test_agent_ask_filters_references_by_goal():
@@ -2104,6 +2046,7 @@ def test_agent_ask_qa_records_persist_and_cascade_with_material():
     assert second_response.status_code == 200
 
     with TestClient(app) as second_client:
+        copy_session_cookie(client, second_client)
         history_response = second_client.get(f"/api/materials/{material['id']}/qa")
 
     assert history_response.status_code == 200
@@ -2194,9 +2137,9 @@ def test_batch_f_concurrent_execute_claims_only_one_executor(monkeypatch):
 
     monkeypatch.setattr(agent_tool_execution_service, "execute_action", slow_execute)
     with ThreadPoolExecutor(max_workers=2) as executor:
-        first = executor.submit(agent_loop_service.execute_agent_run, run["id"])
+        first = executor.submit(agent_loop_service.execute_agent_run, run["id"], current_test_user_id())
         assert started.wait(timeout=3)
-        contender = agent_loop_service.execute_agent_run(run["id"])
+        contender = agent_loop_service.execute_agent_run(run["id"], current_test_user_id())
         assert contender["status"] == "running"
         release.set()
         completed = first.result(timeout=5)
@@ -2230,7 +2173,7 @@ def test_batch_f_cancelled_run_is_not_overwritten_by_inflight_executor(monkeypat
 
     monkeypatch.setattr(agent_tool_execution_service, "execute_action", slow_execute)
     with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(agent_loop_service.execute_agent_run, run["id"])
+        future = executor.submit(agent_loop_service.execute_agent_run, run["id"], current_test_user_id())
         assert started.wait(timeout=3)
         cancelled = client.post(f"/api/agent/runs/{run['id']}/cancel")
         assert cancelled.status_code == 200
@@ -2312,7 +2255,8 @@ def test_batch_f_does_not_retry_timed_out_write_tool(monkeypatch):
 
 def test_batch_f_redacts_step_and_action_log_diagnostics():
     goal = create_goal("Batch F redaction")
-    run = agent_run_service.create_agent_run(goal["id"], objective="token=run-secret")
+    user_id = current_test_user_id()
+    run = agent_run_service.create_agent_run(goal["id"], user_id=user_id, objective="token=run-secret")
     action = _batch_f_decision(goal["id"], "answer_only", {})["proposedActions"][0]
     step_id = agent_loop_service._insert_step(
         run,
@@ -2338,10 +2282,11 @@ def test_batch_f_redacts_step_and_action_log_diagnostics():
             "decision": {"api_key": "decision-secret"},
             "proposedPayload": {"authorization": "Bearer payload-secret"},
             "status": "proposed",
-        }
+        },
+        user_id,
     )
 
-    step = agent_run_service.get_agent_run(run["id"])["steps"][0]
+    step = agent_run_service.get_agent_run(run["id"], user_id)["steps"][0]
     serialized_step = json.dumps(step)
     serialized_log = json.dumps(action_log)
     for secret in (

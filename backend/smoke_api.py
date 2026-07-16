@@ -13,6 +13,22 @@ from backend.app.main import app
 from backend.app.services import store
 
 
+def _register_disposable_session(client: TestClient) -> None:
+    client.headers.update({"Origin": "http://127.0.0.1:8001"})
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Smoke Session",
+            "email": "smoke-session@example.invalid",
+            "password": "SmokeSession123!",
+        },
+    )
+    response.raise_for_status()
+    if not client.cookies.get("ai_agent_session"):
+        raise RuntimeError("Smoke registration did not establish an auth session")
+    client.get("/api/auth/me").raise_for_status()
+
+
 def main() -> None:
     with TemporaryDirectory() as temp_dir:
         os.environ["LLM_PROVIDER"] = "mock"
@@ -25,6 +41,7 @@ def main() -> None:
         with TestClient(app) as client:
             health = client.get("/api/health")
             health.raise_for_status()
+            _register_disposable_session(client)
 
             goal_response = client.post(
                 "/api/goals",

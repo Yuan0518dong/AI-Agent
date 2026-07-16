@@ -3,6 +3,7 @@ import pytest
 
 from backend.app.main import app
 from backend.app.services import embedding_provider, material_store, store
+from backend.tests.auth_helpers import copy_session_cookie, register_session
 
 
 client = TestClient(app)
@@ -12,9 +13,12 @@ client = TestClient(app)
 def clean_store(tmp_path, monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "mock")
     test_db_path = tmp_path / "test_ai_agent.db"
+    client.cookies.clear()
     store.set_db_path(test_db_path)
     store.reset()
+    register_session(client, email="material-default@example.com", name="Material Default")
     yield
+    client.cookies.clear()
     store.reset()
 
 
@@ -265,8 +269,10 @@ def test_material_validation_and_missing_resources():
 
 def test_material_store_uses_same_temporary_database_as_goal_store(tmp_path):
     test_db_path = tmp_path / "shared_test_ai_agent.db"
+    client.cookies.clear()
     store.set_db_path(test_db_path)
     store.reset()
+    register_session(client, email="material-default@example.com", name="Material Default")
 
     assert material_store.DB_PATH == test_db_path
 
@@ -277,6 +283,7 @@ def test_material_store_uses_same_temporary_database_as_goal_store(tmp_path):
     quiz_questions = client.post(f"/api/materials/{material['id']}/quiz").json()["data"]
 
     with TestClient(app) as second_client:
+        copy_session_cookie(client, second_client)
         material_response = second_client.get(f"/api/materials/{material['id']}")
         summary_response = second_client.get(f"/api/materials/{material['id']}/summary")
         flashcards_response = second_client.get(f"/api/materials/{material['id']}/flashcards")

@@ -1,52 +1,93 @@
-const API_AUTH_STORAGE_KEY = "student-assistant-auth";
-const API_BASE_URL_STORAGE_KEY = "ai-agent-api-base-url";
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:8001/api";
-const STALE_API_BASE_URLS = new Set([
-  "http://127.0.0.1:8000/api",
-  "http://localhost:8000/api"
-]);
-const API_BASE_URL = getApiBaseUrl();
+const API_BASE_URL = "/api";
 
-function getApiBaseUrl() {
-  const savedUrl = localStorage.getItem(API_BASE_URL_STORAGE_KEY);
-  if (!savedUrl || STALE_API_BASE_URLS.has(savedUrl)) {
-    if (savedUrl) {
-      localStorage.removeItem(API_BASE_URL_STORAGE_KEY);
-    }
-    return DEFAULT_API_BASE_URL;
+class ApiError extends Error {
+  constructor({ status = 0, type = "request_failed", message = "请求失败", fieldErrors = null, requestId = "", retryAfter = null }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.type = type;
+    this.fieldErrors = fieldErrors;
+    this.requestId = requestId;
+    this.retryAfter = retryAfter;
   }
-  return savedUrl;
 }
 
 async function request(path, options = {}) {
-  const userId = getCurrentApiUserId();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(userId ? { "X-User-Id": userId } : {}),
-      ...(options.headers || {})
-    }
-  });
-  const result = await response.json();
+  const { headers: requestHeaders, ...fetchOptions } = options;
+  const headers = new Headers(requestHeaders || {});
 
-  if (!response.ok) {
-    throw new Error(result.detail || result.message || "请求失败");
+  if (typeof fetchOptions.body === "string" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
 
-  return result.data;
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...fetchOptions,
+      credentials: "same-origin",
+      headers
+    });
+  } catch (error) {
+    throw new ApiError({
+      type: "network_error",
+      message: "无法连接服务，请检查网络后重试。"
+    });
+  }
+
+  const result = await readResponseBody(response);
+  if (!response.ok || (result && typeof result === "object" && result.code !== undefined && result.code !== 0)) {
+    throw createApiError(response, result);
+  }
+
+  return result && typeof result === "object" && Object.prototype.hasOwnProperty.call(result, "data")
+    ? result.data
+    : result;
 }
 
-function getCurrentApiUserId() {
-  const raw = localStorage.getItem(API_AUTH_STORAGE_KEY);
-  if (!raw) return "";
+async function readResponseBody(response) {
+  const text = await response.text();
+  if (!text) return null;
 
   try {
-    const user = JSON.parse(raw);
-    return user && user.id ? user.id : "";
+    return JSON.parse(text);
   } catch {
-    return "";
+    return { message: "服务返回了无法识别的响应。" };
   }
+}
+
+function createApiError(response, payload) {
+  const payloadObject = asRecord(payload) || {};
+  const detail = asRecord(payloadObject.error) || asRecord(payloadObject.detail) || payloadObject;
+  const fallbackDetail = typeof payloadObject.detail === "string" ? payloadObject.detail : "";
+  const fieldErrors = detail.fieldErrors || detail.fields || payloadObject.fieldErrors || payloadObject.fields || (Array.isArray(payloadObject.detail) ? payloadObject.detail : null);
+  const retryAfter = parseRetryAfter(response.headers.get("Retry-After"))
+    ?? parseRetryAfter(detail.retryAfter ?? detail.retryAfterSeconds ?? payloadObject.retryAfter ?? payloadObject.retryAfterSeconds);
+
+  return new ApiError({
+    status: response.status,
+    type: detail.type || detail.errorType || payloadObject.type || payloadObject.errorType || "request_failed",
+    message: detail.userMessage || detail.message || payloadObject.userMessage || payloadObject.message || fallbackDetail || "请求失败",
+    fieldErrors,
+    requestId: detail.requestId || payloadObject.requestId || response.headers.get("X-Request-Id") || "",
+    retryAfter
+  });
+}
+
+function asRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+}
+
+function parseRetryAfter(value) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds);
+  }
+
+  const retryAt = Date.parse(value);
+  if (Number.isNaN(retryAt)) return null;
+  return Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
 }
 
 const authApi = {
@@ -61,6 +102,22 @@ const authApi = {
     return request("/auth/login", {
       method: "POST",
       body: JSON.stringify(payload)
+    });
+  },
+
+  demo() {
+    return request("/auth/demo", {
+      method: "POST"
+    });
+  },
+
+  me() {
+    return request("/auth/me");
+  },
+
+  logout() {
+    return request("/auth/logout", {
+      method: "POST"
     });
   }
 };

@@ -32,12 +32,15 @@ def run_evaluation(report_dir: Path = DEFAULT_REPORT_DIR) -> dict:
     os.environ["EMBEDDING_PROVIDER"] = "mock"
     os.environ["LLM_ENV_FILE"] = str(ROOT_DIR / "backend" / "missing-evaluation.env")
     os.environ["EMBEDDING_ENV_FILE"] = str(ROOT_DIR / "backend" / "missing-evaluation.env")
+    os.environ["REGISTERED_DAILY_LLM_LIMIT"] = "1000"
+    os.environ["GLOBAL_DAILY_LLM_LIMIT"] = "1000"
     scenarios = json.loads(SCENARIO_PATH.read_text(encoding="utf-8"))
     with TemporaryDirectory() as temp_dir:
         store.set_db_path(Path(temp_dir) / "evaluation.db")
         store.reset()
         with TestClient(app) as client:
-            results = [_run_case(client, scenario) for scenario in scenarios]
+            user_id = _register_disposable_session(client)
+            results = [_run_case(client, scenario, user_id) for scenario in scenarios]
     report = evaluation_service.build_runtime_report(results)
     report["metadata"] = {
         "mode": "mock-ci",
@@ -56,10 +59,31 @@ def run_evaluation(report_dir: Path = DEFAULT_REPORT_DIR) -> dict:
     return report
 
 
-def _run_case(client: TestClient, scenario: dict) -> dict:
+def _register_disposable_session(client: TestClient) -> str:
+    email = "agent-evaluation@example.invalid"
+    client.headers.update({"Origin": "http://127.0.0.1:8001"})
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Agent Evaluation",
+            "email": email,
+            "password": "AgentEvaluation123!",
+        },
+    )
+    response.raise_for_status()
+    if not client.cookies.get("ai_agent_session"):
+        raise RuntimeError("Agent evaluation registration did not establish an auth session")
+    client.get("/api/auth/me").raise_for_status()
+    user = store.get_user_by_email(email)
+    if not user:
+        raise RuntimeError("Agent evaluation registration did not create a user")
+    return user["id"]
+
+
+def _run_case(client: TestClient, scenario: dict, user_id: str) -> dict:
     started = time.monotonic()
     try:
-        result = _dispatch_case(client, scenario)
+        result = _dispatch_case(client, scenario, user_id)
         result["passed"] = bool(result.pop("assertionsPassed"))
     except Exception as exc:
         result = {
@@ -88,14 +112,14 @@ def _run_case(client: TestClient, scenario: dict) -> dict:
     }
 
 
-def _dispatch_case(client: TestClient, scenario: dict) -> dict:
+def _dispatch_case(client: TestClient, scenario: dict, user_id: str) -> dict:
     category = scenario["category"]
     if category == "guard":
         return _run_guard_case(scenario)
     if category == "tool_failure":
-        return _run_failure_case(client, scenario)
+        return _run_failure_case(client, scenario, user_id)
     if category == "feedback_memory":
-        return _run_feedback_case(client, scenario)
+        return _run_feedback_case(client, scenario, user_id)
     if category == "confirmation":
         return _run_confirmation_case(client, scenario)
     return _run_runtime_case(client, scenario)
@@ -303,9 +327,9 @@ def _run_guard_case(scenario: dict) -> dict:
     return {"assertionsPassed": rejected, "toolSequence": [], "terminalStatus": "completed", "stopReason": "guard_fallback", "stateAssertions": scenario["expected"]["stateAssertions"]}
 
 
-def _run_failure_case(client: TestClient, scenario: dict) -> dict:
+def _run_failure_case(client: TestClient, scenario: dict, user_id: str) -> dict:
     if scenario["id"] == "agent_case_016":
-        return _run_transaction_rollback_case(client, scenario)
+        return _run_transaction_rollback_case(client, scenario, user_id)
     goal = _create_goal(client, scenario["id"])
     material = _create_material(client, goal["id"], chunks=False)
     action = _action("review_material", {"materialIds": [material["id"]]})
@@ -322,7 +346,7 @@ def _run_failure_case(client: TestClient, scenario: dict) -> dict:
     return {"assertionsPassed": failed["status"] == "failed" and bool(failed["decisionSnapshot"]["reflection"]), "toolSequence": [step["toolName"] for step in failed["steps"]], "terminalStatus": failed["status"], "stopReason": failed["stopReason"], "stateAssertions": scenario["expected"]["stateAssertions"]}
 
 
-def _run_transaction_rollback_case(client: TestClient, scenario: dict) -> dict:
+def _run_transaction_rollback_case(client: TestClient, scenario: dict, user_id: str) -> dict:
     goal = _create_goal(client, scenario["id"])
     action = _action("create_followup_tasks", {"goalIds": [goal["id"]]})
     original_decide = agent_decision_service.decide_next_action
@@ -337,7 +361,7 @@ def _run_transaction_rollback_case(client: TestClient, scenario: dict) -> dict:
     invalid_draft = agent_draft_service.create_or_reuse_drafts(
         draft_type="task",
         payloads=[{"goalId": goal["id"], "detail": "Missing title", "date": store.today_iso(), "priority": "medium", "sourceReason": "evaluation rollback"}],
-        user_id=None,
+        user_id=user_id,
         goal_id=goal["id"],
         run_id=run["id"],
         step_id=source_step["id"],
@@ -347,20 +371,20 @@ def _run_transaction_rollback_case(client: TestClient, scenario: dict) -> dict:
     action_log = client.post("/api/agent/action-logs", json={"goalId": goal["id"], "actionType": "apply_confirmed_draft", "proposedPayload": {**apply_action, "draftIds": apply_action["payload"]["draftIds"]}, "status": "proposed"}).json()["data"]
     client.patch(f"/api/agent/action-logs/{action_log['id']}", json={"status": "accepted"}).raise_for_status()
     try:
-        agent_tool_execution_service.execute_action(apply_action, goal["id"], None, action_log_id=action_log["id"])
+        agent_tool_execution_service.execute_action(apply_action, goal["id"], user_id, action_log_id=action_log["id"])
         rolled_back = False
     except ValueError:
         rolled_back = len(store.list_goal_tasks(goal["id"])) == 0
     return {"assertionsPassed": rolled_back, "toolSequence": ["create_task_draft", "apply_confirmed_draft"], "terminalStatus": "failed", "stopReason": "transaction_rollback", "stateAssertions": scenario["expected"]["stateAssertions"]}
 
 
-def _run_feedback_case(client: TestClient, scenario: dict) -> dict:
+def _run_feedback_case(client: TestClient, scenario: dict, user_id: str) -> dict:
     goal = _create_goal(client, scenario["id"])
-    decision = agent_decision_service.decide_next_action(goal["id"], decision_mode="rule-based")
+    decision = agent_decision_service.decide_next_action(goal["id"], user_id=user_id, decision_mode="rule-based")
     action = decision["proposedActions"][0]
     status = "rejected" if scenario["id"] == "agent_case_019" else "accepted"
     client.post("/api/agent/action-logs", json={"goalId": goal["id"], "actionType": action["type"], "proposedPayload": action, "status": status}).raise_for_status()
-    next_decision = agent_decision_service.decide_next_action(goal["id"], decision_mode="rule-based")
+    next_decision = agent_decision_service.decide_next_action(goal["id"], user_id=user_id, decision_mode="rule-based")
     action_types = [item["type"] for item in next_decision["proposedActions"]]
     passed = action["type"] not in action_types if status == "rejected" else next_decision["proposedActions"][0].get("status") == "accepted"
     return {"assertionsPassed": passed, "toolSequence": [], "terminalStatus": "completed", "stopReason": "feedback_memory", "stateAssertions": scenario["expected"]["stateAssertions"]}

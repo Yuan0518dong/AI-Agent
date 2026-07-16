@@ -140,7 +140,7 @@ def get_agent_draft(
 
 
 @router.get("/tools")
-def list_agent_tools():
+def list_agent_tools(user_id: str | None = Depends(current_user_id)):
     return ok(agent_tool_registry_service.list_tools())
 
 

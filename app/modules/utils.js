@@ -1,8 +1,30 @@
 // utils module extracted from app.js.
 
 function showError(error) {
+  const status = Number(error?.status || 0);
+
+  if (status === 401) {
+    const sessionEnded = typeof handleUnauthorizedSession === "function" && handleUnauthorizedSession();
+    showToast(sessionEnded ? "登录状态已失效，请重新登录。" : "邮箱或密码不正确，请重试。", "error");
+    return;
+  }
+
+  if (status === 403) {
+    showToast("当前操作未被允许，请刷新页面后重试。", "error");
+    return;
+  }
+
+  if (status === 429) {
+    const retryAfter = Number(error?.retryAfter);
+    const waitMessage = Number.isFinite(retryAfter) && retryAfter > 0
+      ? `请求过于频繁，请在 ${retryAfter} 秒后重试。`
+      : "请求过于频繁，请稍后重试。";
+    showToast(waitMessage, "error");
+    return;
+  }
+
   console.error(error);
-  showToast(error.message || "操作失败，请确认后端服务已经启动。", "error");
+  showToast(error?.message || "操作失败，请确认服务连接后重试。", "error");
 }
 
 function showSuccess(message) {

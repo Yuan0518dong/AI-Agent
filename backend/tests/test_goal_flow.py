@@ -3,6 +3,7 @@ import pytest
 
 from backend.app.main import app
 from backend.app.services import ai_learning_service, store
+from backend.tests.auth_helpers import copy_session_cookie, register_session
 
 
 client = TestClient(app)
@@ -10,9 +11,12 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def clean_store(tmp_path):
+    client.cookies.clear()
     store.set_db_path(tmp_path / "test_ai_agent.db")
     store.reset()
+    register_session(client, email="goal-default@example.com", name="Goal Default")
     yield
+    client.cookies.clear()
     store.reset()
 
 
@@ -281,6 +285,7 @@ def test_sqlite_data_persists_with_same_database_file():
     goal = create_goal({"name": "Persisted goal"})
 
     with TestClient(app) as second_client:
+        copy_session_cookie(client, second_client)
         response = second_client.get(f"/api/goals/{goal['id']}")
 
     assert response.status_code == 200

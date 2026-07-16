@@ -3,6 +3,7 @@ from backend.app.services import (
     agent_context_service,
     agent_decision_provider,
     agent_tool_registry_service,
+    model_usage_service,
     store,
 )
 
@@ -53,11 +54,12 @@ def decide_next_action_from_context(
     if decision_mode == "rule-based":
         return rule_based_decision
 
-    return agent_decision_provider.decide_with_llm_json(
-        decision_context,
-        rule_based_decision,
-        decision_mode,
-    )
+    with model_usage_service.user_usage_scope(user_id):
+        return agent_decision_provider.decide_with_llm_json(
+            decision_context,
+            rule_based_decision,
+            decision_mode,
+        )
 
 
 def _compact_step_history(steps: list[dict]) -> list[dict]:

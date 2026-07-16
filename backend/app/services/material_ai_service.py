@@ -2,6 +2,8 @@ import json
 import re
 from typing import Any
 
+from fastapi import HTTPException
+
 from backend.app.services import llm_provider
 
 
@@ -100,6 +102,8 @@ def _generate_summary_json(material: dict) -> dict[str, Any]:
         content = result["choices"][0]["message"]["content"]
         parsed = llm_provider._parse_model_json(content)
         return parsed if isinstance(parsed, dict) else {}
+    except HTTPException:
+        raise
     except Exception:
         return {}
 

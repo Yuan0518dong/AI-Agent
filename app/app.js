@@ -1,5 +1,5 @@
 const STORAGE_KEY = "student-assistant-mvp";
-const AUTH_STORAGE_KEY = "student-assistant-auth";
+const SESSION_HINT_STORAGE_KEY = "ai-agent-session-hint";
 const SIDEBAR_STORAGE_KEY = "student-assistant-sidebar-collapsed";
 const defaultState = {
   goals: [],
@@ -48,7 +48,7 @@ const defaultState = {
   chat: []
 };
 
-var currentUser = loadCurrentUser();
+var currentUser = null;
 var state = loadState();
 var activeCardIndex = 0;
 var editingGoalId = "";
@@ -69,6 +69,21 @@ const views = {
 
 document.getElementById("show-login").addEventListener("click", () => switchAuthMode("login"));
 document.getElementById("show-register").addEventListener("click", () => switchAuthMode("register"));
+document.getElementById("demo-login").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  setButtonLoading(button, true, "正在准备演示");
+
+  try {
+    const user = await authApi.demo();
+    markSessionHint();
+    await enterApp(user);
+    showSuccess("已进入独立演示环境");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
+});
 
 document.getElementById("login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -83,6 +98,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
       email: data.get("email").trim(),
       password: data.get("password")
     });
+    markSessionHint();
     await enterApp(user);
     form.reset();
     showSuccess("登录成功");
@@ -114,6 +130,7 @@ document.getElementById("register-form").addEventListener("submit", async (event
       email: data.get("email").trim(),
       password
     });
+    markSessionHint();
     await enterApp(user);
     form.reset();
     showSuccess("注册成功");
@@ -124,11 +141,20 @@ document.getElementById("register-form").addEventListener("submit", async (event
   }
 });
 
-document.getElementById("logout-button").addEventListener("click", () => {
-  currentUser = null;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
-  renderAuth();
-  showSuccess("已退出登录");
+document.getElementById("logout-button").addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  setButtonLoading(button, true, "退出中");
+
+  try {
+    await authApi.logout();
+    clearAuthenticatedState();
+    renderAuth();
+    showSuccess("已退出登录");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
 });
 
 document.getElementById("sidebar-toggle").addEventListener("click", () => {
@@ -396,20 +422,24 @@ document.getElementById("reset-data").addEventListener("click", () => {
 init();
 
 async function init() {
+  removeLegacyAuthState();
   document.getElementById("today-date-filter").value = selectedTaskDate;
   applySidebarState();
   renderAuth();
-
-  if (!currentUser) {
+  if (!hasSessionHint()) {
     return;
   }
 
   try {
-    await loadAppDataFromApi();
+    const user = await authApi.me();
+    await enterApp(user, { restoreLocalState: true });
   } catch (error) {
+    if (error && error.status === 401) {
+      clearAuthenticatedState();
+      renderAuth();
+      return;
+    }
     showError(error);
-  } finally {
-    render();
   }
 }
 
@@ -427,10 +457,13 @@ function updateSidebarToggleLabel() {
   button.title = collapsed ? "展开侧边栏" : "折叠侧边栏";
 }
 
-async function enterApp(user) {
+async function enterApp(user, { restoreLocalState = false } = {}) {
   currentUser = user;
-  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-  state = loadState();
+  if (restoreLocalState) {
+    state = loadState();
+  } else {
+    resetLocalAppState();
+  }
   selectedGoalId = state.selectedGoalId || "";
   activeCardIndex = 0;
   renderAuth();
@@ -444,18 +477,6 @@ async function loadAppDataFromApi() {
   await loadAgentContextFromApi();
   await loadAgentActionLogsFromApi();
   await loadAgentRunsFromApi();
-}
-
-function loadCurrentUser() {
-  const raw = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (!raw) return null;
-
-  try {
-    const user = JSON.parse(raw);
-    return user && user.id ? user : null;
-  } catch {
-    return null;
-  }
 }
 
 function renderAuth() {
@@ -477,6 +498,47 @@ function switchAuthMode(mode) {
   document.getElementById("register-form").classList.toggle("active", !isLogin);
 }
 
+function clearAuthenticatedState() {
+  currentUser = null;
+  localStorage.removeItem(SESSION_HINT_STORAGE_KEY);
+  resetLocalAppState();
+}
+
+function markSessionHint() {
+  localStorage.setItem(SESSION_HINT_STORAGE_KEY, "1");
+}
+
+function hasSessionHint() {
+  return localStorage.getItem(SESSION_HINT_STORAGE_KEY) === "1";
+}
+
+function handleUnauthorizedSession() {
+  if (!currentUser) return false;
+  clearAuthenticatedState();
+  renderAuth();
+  return true;
+}
+
+function resetLocalAppState() {
+  localStorage.removeItem(STORAGE_KEY);
+  state = normalizeState(structuredClone(defaultState));
+  selectedGoalId = "";
+  activeCardIndex = 0;
+  editingGoalId = "";
+  editingMaterialId = "";
+  pendingChatMaterialId = "";
+}
+
+function removeLegacyAuthState() {
+  localStorage.removeItem("student-assistant-auth");
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key && key.startsWith(`${STORAGE_KEY}:`)) {
+      localStorage.removeItem(key);
+    }
+  }
+}
+
 function loadState() {
   const raw = localStorage.getItem(getStateStorageKey());
   if (!raw) return normalizeState(structuredClone(defaultState));
@@ -490,8 +552,8 @@ function loadState() {
   }
 }
 
-function getStateStorageKey(user = currentUser) {
-  return user && user.id ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
+function getStateStorageKey() {
+  return STORAGE_KEY;
 }
 
 function saveState() {

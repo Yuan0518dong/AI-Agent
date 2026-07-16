@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
 from typing import Any
+
+from backend.app.services import model_usage_service
 from typing import Protocol
 
 
@@ -107,6 +109,7 @@ class OpenAICompatibleLLMProvider:
             return self.fallback_provider.generate_answer(context)
 
     def _post_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
+        model_usage_service.consume_llm_call()
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = urllib.request.Request(
             url=f"{self.base_url}/chat/completions",

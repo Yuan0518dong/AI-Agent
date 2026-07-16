@@ -1,6 +1,6 @@
 import re
 
-from backend.app.services import llm_provider, material_store, store
+from backend.app.services import llm_provider, material_store, model_usage_service, store
 
 
 def answer_question(
@@ -30,15 +30,16 @@ def answer_question(
         for chunk in matches[:limit]
     ]
 
-    provider = llm_provider.get_llm_provider()
-    generated = provider.generate_answer(
-        llm_provider.LLMAnswerContext(
-            question=question,
-            goal=goal,
-            material_id=material_id,
-            references=references,
+    with model_usage_service.user_usage_scope(user_id):
+        provider = llm_provider.get_llm_provider()
+        generated = provider.generate_answer(
+            llm_provider.LLMAnswerContext(
+                question=question,
+                goal=goal,
+                material_id=material_id,
+                references=references,
+            )
         )
-    )
     answer_material_id = material_id or (references[0]["materialId"] if references else None)
     return {
         "id": None,

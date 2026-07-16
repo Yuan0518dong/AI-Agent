@@ -14,6 +14,12 @@ AI-Agent：面向个人学习规划的可控学习智能体
 把目标、资料、任务、问答、测试、复习和进度反馈串成完整学习闭环，让 Agent 能根据当前学习状态判断下一步动作，并在用户确认后写入任务或复习内容。
 ```
 
+## 第七版本地演示
+
+当前本地演示使用同源 FastAPI 前端和数据库会话：浏览器只持有 `HttpOnly`、`SameSite=Lax` 的 `ai_agent_session` Cookie，服务端仅保存令牌 SHA-256 哈希。登录、注册和“一键试用”均建立独立会话；访客演示会在事务中生成隔离的目标、任务、已处理资料、闪卡、测试题和等待确认的 Agent Run，不调用真实模型。
+
+登录页提供“一键试用”。计划部署到 Render 免费 Web 服务时，服务闲置 15 分钟后可能休眠，首次访问可能需要约 1 分钟唤醒；当前仓库尚未声明一个已经通过 Neon/Render 验收的公开 URL。
+
 当前主线：
 
 ```text
@@ -155,7 +161,7 @@ python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8001
 健康检查：http://127.0.0.1:8001/api/health
 ```
 
-前端默认请求 `http://127.0.0.1:8001/api`。如果后端改用其他端口，需要同步调整 `app/api.js` 中的默认 API 地址。
+前端固定请求同源 `/api`，无需也不应在 `app/api.js` 中写入生产环境 `localhost` 地址。若本地改用其他端口，请通过 `CORS_ORIGINS` 将该完整本地 Origin 加入白名单，再从同一 Uvicorn 服务访问页面。
 
 本地开发可额外添加 `--reload`：
 
@@ -205,27 +211,24 @@ python -m uvicorn backend.app.main:app --reload
 4. 后端会读取 backend/.env，但不会覆盖系统环境变量。
 ```
 
-## 可选：单独启动前端静态服务
+## 同源前端
 
-默认不需要本节；一条 uvicorn 命令已经会服务前端。若需要单独调试静态页面，才运行：
+登录后的页面必须由同一个 FastAPI Uvicorn 服务提供，避免跨源 Cookie、客户端可信用户 ID 和生产环境 `localhost` 地址。不要用 `python -m http.server` 或直接打开 `app/index.html` 验证登录、资料或 Agent 流程；这些方式不具备同源会话条件。
 
-```bash
-python -m http.server 5500 --directory app
-```
+## Render + Neon 部署准备
 
-然后访问：
+生产环境使用 Neon PostgreSQL，Render 只运行 FastAPI Web 服务，不使用 Render 免费 PostgreSQL。部署前复制并填写 [backend/.env.example](backend/.env.example) 中的变量，但不要提交真实值：
 
 ```text
-http://127.0.0.1:5500/index.html
+DATABASE_URL              Neon pooled PostgreSQL URL，供应用运行时使用
+MIGRATION_DATABASE_URL    Neon direct PostgreSQL URL，供 Alembic 迁移使用
+APP_ENV=production
+CORS_ORIGINS              公开应用的完整 Origin，不使用 *
+RATE_LIMIT_HASH_SALT       至少 32 字节的随机服务端盐
+LLM_* / EMBEDDING_*        真实 Provider 的连接与模型配置
 ```
 
-如果只是看静态页面，也可以直接打开：
-
-```text
-app/index.html
-```
-
-单独静态服务仍会请求 `http://127.0.0.1:8001/api`，因此后端必须保持运行。
+Docker 启动时先运行 `python -m alembic -c backend/alembic.ini upgrade head`，迁移失败不会启动应用。生产启动会拒绝非 Neon 的运行连接、非池化 `DATABASE_URL`、池化的迁移连接、缺失的限流盐和未声明可信 CIDR 的代理转发头。公开 Demo smoke 工作流仅支持手动触发或每月运行，不会用高频请求阻止 Render 休眠。
 
 ## 一键初始化 Batch E 演示数据
 
@@ -265,7 +268,7 @@ python -m pytest backend/tests -v --basetemp .pytest_tmp
 
 ## SQLite 数据库
 
-本地开发数据库默认位置：
+SQLite 仅用于本地开发和快速测试，默认位置：
 
 ```text
 backend/data/ai_agent.db
@@ -291,18 +294,16 @@ agent_runs
 
 ```text
 1. backend/data/ 已加入 .gitignore，不会提交到 Git。
-2. 后端重启后，本地 SQLite 数据仍会保留。
+2. 后端重启后，本地 SQLite 数据仍会保留；公开部署必须配置 Neon PostgreSQL，不能依赖该文件。
 3. 自动化测试使用临时 SQLite 数据库，不会清空本地开发数据。
 4. 如果想重新开始测试，可以停止后端后手动删除 backend/data/ai_agent.db。
 ```
 
 ## 常见问题
 
-### 1. 打开 http://127.0.0.1:8001 显示 404
+### 1. 打开 http://127.0.0.1:8001 无法显示应用
 
-这是正常的。当前后端没有定义首页接口。
-
-请访问：
+通过 README 中的 Uvicorn 命令启动后，该地址应直接显示前端页面。请确认命令是在项目根目录执行，且后端进程仍在运行；接口文档和健康检查分别位于：
 
 ```text
 http://127.0.0.1:8001/docs
@@ -322,17 +323,16 @@ http://127.0.0.1:8001/api/health
 4. 数字范围不合法，例如 daily_minutes <= 0。
 ```
 
-### 3. 端口 8001 或 5500 被占用
+### 3. 端口 8001 被占用
 
-先关闭之前启动服务的终端，或按 `Ctrl + C` 停止服务。
+先关闭之前启动服务的终端，或按 `Ctrl + C` 停止服务。也可以使用另一个端口，但前端和 API 仍必须由同一个 Uvicorn 服务提供：
 
-如果仍然占用，可以换一个端口。例如前端换成 5501：
-
-```bash
-python -m http.server 5501 --directory app
+```powershell
+$env:CORS_ORIGINS="http://127.0.0.1:8002,http://localhost:8002"
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8002
 ```
 
-如果后端换端口，需要同时修改前端 `app/api.js` 中的 API 地址。
+不要改动 `app/api.js` 的 `/api` 同源地址，也不要使用 `python -m http.server` 提供登录后的页面。
 
 ### 4. 前端拿不到后端数据
 
@@ -341,8 +341,8 @@ python -m http.server 5501 --directory app
 ```text
 1. 后端是否启动。
 2. http://127.0.0.1:8001/api/health 是否返回 success。
-3. 前端是否通过 http://127.0.0.1:5500/index.html 打开。
-4. app/api.js 中 API_BASE_URL 是否是 http://127.0.0.1:8001/api。
+3. 前端是否从同一 Uvicorn 服务的 http://127.0.0.1:8001/ 打开。
+4. app/api.js 中 API_BASE_URL 是否保持为 `/api`。
 ```
 
 ### 5. 成长问答回答不准确

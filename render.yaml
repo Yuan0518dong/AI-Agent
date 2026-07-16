@@ -1,16 +1,42 @@
 services:
   - type: web
     name: ai-agent-backend
-    runtime: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: PYTHONPATH
-        value: .
-      - key: LLM_PROVIDER
-        value: mock
-      # 部署后把下面的值改为你的 GitHub Pages 或前端地址
-      # 例如：https://yuan0518dong.github.io/AI-Agent
-      - key: CORS_ORIGINS
-        value: "*"
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      # Neon pooled URL used by the application process.
+      - key: DATABASE_URL
+        sync: false
+      # Neon direct URL used only by the Alembic command in Dockerfile.
+      - key: MIGRATION_DATABASE_URL
+        sync: false
+      # Must be an explicit public-origin allowlist, never '*'.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: RATE_LIMIT_HASH_SALT
+        sync: false
+      # Configure only after verifying the Render proxy source CIDRs.
+      - key: TRUST_PROXY_HEADERS
+        sync: false
+      - key: TRUSTED_PROXY_CIDRS
+        sync: false
+      - key: LLM_PROVIDER
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: EMBEDDING_PROVIDER
+        sync: false
+      - key: EMBEDDING_API_KEY
+        sync: false
+      - key: EMBEDDING_BASE_URL
+        sync: false
+      - key: EMBEDDING_MODEL
+        sync: false

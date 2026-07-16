@@ -114,7 +114,7 @@ def generate_material_chunks(material_id: str, user_id: str | None = Depends(cur
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    return ok(material_processing_service.generate_material_chunks(material))
+    return ok(material_processing_service.generate_material_chunks(material, user_id))
 
 
 @router.get("/{material_id}/chunks")
@@ -139,7 +139,7 @@ def summarize_material(material_id: str, user_id: str | None = Depends(current_u
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
 
-    return ok(material_processing_service.summarize_material(material))
+    return ok(material_processing_service.summarize_material(material, user_id))
 
 
 @router.get("/{material_id}/summary")
@@ -184,8 +184,12 @@ def generate_material_flashcards(material_id: str, user_id: str | None = Depends
 
 
 @router.post("/{material_id}/flashcards/custom")
-def create_material_flashcard(material_id: str, payload: FlashcardCreate):
-    if not material_store.get_material(material_id):
+def create_material_flashcard(
+    material_id: str,
+    payload: FlashcardCreate,
+    user_id: str | None = Depends(current_user_id),
+):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     front = payload.front.strip()
@@ -207,8 +211,13 @@ def create_material_flashcard(material_id: str, payload: FlashcardCreate):
 
 
 @router.patch("/{material_id}/flashcards/{flashcard_id}")
-def update_material_flashcard_status(material_id: str, flashcard_id: str, payload: FlashcardStatusUpdate):
-    if not material_store.get_material(material_id):
+def update_material_flashcard_status(
+    material_id: str,
+    flashcard_id: str,
+    payload: FlashcardStatusUpdate,
+    user_id: str | None = Depends(current_user_id),
+):
+    if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
     flashcard = material_store.update_flashcard_status(
@@ -246,7 +255,7 @@ def generate_material_quiz(
         raise HTTPException(status_code=409, detail="Material summary required")
 
     question_count = count or max(1, len(summary["keyPoints"]))
-    generated = ai_learning_service.generate_quiz_questions(material, question_count)
+    generated = ai_learning_service.generate_quiz_questions(material, question_count, user_id)
     now = store.now_iso()
     questions = [
         {
@@ -287,7 +296,7 @@ def grade_material_quiz_answer(
     if not question:
         raise HTTPException(status_code=404, detail="Quiz question not found")
 
-    grading = ai_learning_service.grade_quiz_answer(question, payload.answer)
+    grading = ai_learning_service.grade_quiz_answer(question, payload.answer, user_id)
     attempt = {
         "id": store.make_id("attempt"),
         "quizId": quiz_id,

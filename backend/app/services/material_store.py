@@ -5,7 +5,9 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
-from backend.app.services import embedding_provider
+from fastapi import HTTPException
+
+from backend.app.services import database, embedding_provider, model_usage_service
 
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
@@ -20,6 +22,9 @@ def set_db_path(path: str | Path | None) -> None:
 
 
 def init_db() -> None:
+    if database.using_postgres():
+        database.ensure_postgres_schema_ready()
+        return
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -326,7 +331,11 @@ def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> lis
         ).fetchall()
 
     try:
-        query_embedding = embedding_provider.get_embedding_provider().embed(normalized_query)
+        with model_usage_service.user_usage_scope(user_id):
+            with model_usage_service.embedding_usage_scope("query"):
+                query_embedding = embedding_provider.get_embedding_provider().embed(normalized_query)
+    except HTTPException:
+        raise
     except Exception:
         query_embedding = []
 
@@ -659,6 +668,14 @@ def extract_keywords(text: str) -> list[str]:
 
 @contextmanager
 def _connect():
+    if database.using_postgres():
+        conn = database.connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+        return
     init_db()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row

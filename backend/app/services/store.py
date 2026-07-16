@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 # Keep this hook when migrating goal/task storage; material data lives in material_store.
-from backend.app.services import material_store
+from backend.app.services import database, material_store
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
@@ -15,12 +15,15 @@ DB_PATH = DEFAULT_DB_PATH
 
 def set_db_path(path: str | Path | None) -> None:
     global DB_PATH
+    database.set_sqlite_test_mode(path is not None)
     DB_PATH = Path(path) if path else DEFAULT_DB_PATH
-    init_db()
     material_store.set_db_path(DB_PATH)
+    init_db()
 
 
-def get_connection() -> sqlite3.Connection:
+def get_connection():
+    if database.using_postgres():
+        return database.connect()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if DB_PATH.parent != DATA_DIR:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -42,6 +45,9 @@ def db_connection():
 
 
 def init_db() -> None:
+    if database.using_postgres():
+        database.ensure_postgres_schema_ready()
+        return
     with db_connection() as conn:
         conn.executescript(
             """
@@ -89,8 +95,45 @@ def init_db() -> None:
                 email TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
+                account_type TEXT NOT NULL DEFAULT 'registered',
+                password_algorithm TEXT NOT NULL DEFAULT 'pbkdf2_sha256',
+                expires_at TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                token_hash TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                revoked_at TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_auth_sessions_token_hash
+            ON auth_sessions(token_hash);
+
+            CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id
+            ON auth_sessions(user_id);
+
+            CREATE TABLE IF NOT EXISTS rate_limit_counters (
+                scope TEXT NOT NULL,
+                identifier_hash TEXT NOT NULL,
+                window_start TEXT NOT NULL,
+                count INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (scope, identifier_hash, window_start)
+            );
+
+            CREATE TABLE IF NOT EXISTS model_usage_counters (
+                scope TEXT NOT NULL,
+                owner_hash TEXT NOT NULL,
+                period_start TEXT NOT NULL,
+                units INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (scope, owner_hash, period_start)
             );
 
             CREATE TABLE IF NOT EXISTS agent_action_logs (
@@ -254,10 +297,16 @@ def init_db() -> None:
             """
         )
 
+    # Keep the material schema hook aligned for fresh local databases.
+    material_store.init_db()
+
 
 def reset() -> None:
     init_db()
     with db_connection() as conn:
+        conn.execute("DELETE FROM model_usage_counters")
+        conn.execute("DELETE FROM rate_limit_counters")
+        conn.execute("DELETE FROM auth_sessions")
         conn.execute("DELETE FROM agent_drafts")
         conn.execute("DELETE FROM agent_run_steps")
         conn.execute("DELETE FROM agent_runs")
@@ -265,6 +314,7 @@ def reset() -> None:
         conn.execute("DELETE FROM checkins")
         conn.execute("DELETE FROM tasks")
         conn.execute("DELETE FROM goals")
+        conn.execute("DELETE FROM users")
 
     # Smoke tests call store.reset(), so material SQLite test data must be cleared here too.
     material_store.clear_material_data()
@@ -318,9 +368,11 @@ def create_user(user: dict) -> dict:
         conn.execute(
             """
             INSERT INTO users (
-                id, name, email, password_hash, password_salt, created_at, updated_at
+                id, name, email, password_hash, password_salt, account_type,
+                password_algorithm, expires_at, created_at, updated_at
             ) VALUES (
-                :id, :name, :email, :password_hash, :password_salt, :created_at, :updated_at
+                :id, :name, :email, :password_hash, :password_salt, :account_type,
+                :password_algorithm, :expires_at, :created_at, :updated_at
             )
             """,
             user,
@@ -333,6 +385,165 @@ def get_user_by_email(email: str) -> dict | None:
     with db_connection() as conn:
         row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
     return _user_from_row(row) if row else None
+
+
+def get_user_by_id(user_id: str) -> dict | None:
+    init_db()
+    with db_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return _user_from_row(row) if row else None
+
+
+def update_user_password(
+    user_id: str,
+    password_hash: str,
+    password_salt: str,
+    password_algorithm: str,
+    updated_at: str,
+) -> dict | None:
+    init_db()
+    with db_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE users
+            SET password_hash = ?, password_salt = ?, password_algorithm = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (password_hash, password_salt, password_algorithm, updated_at, user_id),
+        )
+        if cursor.rowcount == 0:
+            return None
+    return get_user_by_id(user_id)
+
+
+def create_auth_session(session: dict) -> dict:
+    init_db()
+    with db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO auth_sessions (id, user_id, token_hash, expires_at, revoked_at, created_at)
+            VALUES (:id, :user_id, :token_hash, :expires_at, :revoked_at, :created_at)
+            """,
+            session,
+        )
+    return session
+
+
+def get_active_user_by_session_hash(token_hash: str, now: str) -> dict | None:
+    init_db()
+    with db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT users.*
+            FROM auth_sessions
+            JOIN users ON users.id = auth_sessions.user_id
+            WHERE auth_sessions.token_hash = ?
+              AND auth_sessions.revoked_at IS NULL
+              AND auth_sessions.expires_at > ?
+              AND (users.expires_at IS NULL OR users.expires_at > ?)
+            """,
+            (token_hash, now, now),
+        ).fetchone()
+    return _user_from_row(row) if row else None
+
+
+def revoke_auth_session(token_hash: str, revoked_at: str) -> bool:
+    init_db()
+    with db_connection() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE auth_sessions
+            SET revoked_at = ?
+            WHERE token_hash = ? AND revoked_at IS NULL
+            """,
+            (revoked_at, token_hash),
+        )
+    return cursor.rowcount > 0
+
+
+def increment_rate_limit(
+    scope: str,
+    identifier_hash: str,
+    window_start: str,
+    limit: int,
+    updated_at: str,
+) -> int | None:
+    """Atomically reserve one request slot, returning the new count or None when exhausted."""
+    init_db()
+    with db_connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO rate_limit_counters (scope, identifier_hash, window_start, count, updated_at)
+            VALUES (?, ?, ?, 1, ?)
+            ON CONFLICT(scope, identifier_hash, window_start) DO UPDATE SET
+                count = rate_limit_counters.count + 1,
+                updated_at = excluded.updated_at
+            WHERE rate_limit_counters.count < ?
+            RETURNING count
+            """,
+            (scope, identifier_hash, window_start, updated_at, limit),
+        ).fetchone()
+    return int(row["count"]) if row else None
+
+
+def increment_model_usage(
+    scope: str,
+    owner_hash: str,
+    period_start: str,
+    units: int,
+    limit: int,
+    updated_at: str,
+) -> int | None:
+    """Atomically reserve model usage units, returning the new total or None when exhausted."""
+    init_db()
+    with db_connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO model_usage_counters (scope, owner_hash, period_start, units, updated_at)
+            SELECT ?, ?, ?, ?, ?
+            WHERE ? <= ?
+            ON CONFLICT(scope, owner_hash, period_start) DO UPDATE SET
+                units = model_usage_counters.units + excluded.units,
+                updated_at = excluded.updated_at
+            WHERE model_usage_counters.units + excluded.units <= ?
+            RETURNING units
+            """,
+            (scope, owner_hash, period_start, units, updated_at, units, limit, limit),
+        ).fetchone()
+    return int(row["units"]) if row else None
+
+
+class UsageLimitExceeded(Exception):
+    pass
+
+
+def reserve_model_usage_limits(
+    reservations: list[tuple[str, str, str, int, int]],
+    updated_at: str,
+) -> bool:
+    """Reserve all model quotas in one transaction or roll every reservation back."""
+    init_db()
+    try:
+        with db_connection() as conn:
+            for scope, owner_hash, period_start, units, limit in reservations:
+                row = conn.execute(
+                    """
+                    INSERT INTO model_usage_counters (scope, owner_hash, period_start, units, updated_at)
+                    SELECT ?, ?, ?, ?, ?
+                    WHERE ? <= ?
+                    ON CONFLICT(scope, owner_hash, period_start) DO UPDATE SET
+                        units = model_usage_counters.units + excluded.units,
+                        updated_at = excluded.updated_at
+                    WHERE model_usage_counters.units + excluded.units <= ?
+                    RETURNING units
+                    """,
+                    (scope, owner_hash, period_start, units, updated_at, units, limit, limit),
+                ).fetchone()
+                if not row:
+                    raise UsageLimitExceeded(scope)
+    except UsageLimitExceeded:
+        return False
+    return True
 
 
 def get_goal(goal_id: str, user_id: str | None = None) -> dict | None:
@@ -497,6 +708,20 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     if "user_id" not in goal_columns:
         conn.execute("ALTER TABLE goals ADD COLUMN user_id TEXT")
 
+    user_columns = _column_names(conn, "users")
+    user_defaults = {
+        "account_type": "'registered'",
+        "password_algorithm": "'pbkdf2_sha256'",
+        "expires_at": None,
+    }
+    for column, default in user_defaults.items():
+        if column in user_columns:
+            continue
+        if default is None:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {column} TEXT")
+        else:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {column} TEXT NOT NULL DEFAULT {default}")
+
     agent_run_columns = _column_names(conn, "agent_runs")
     agent_run_defaults = {
         "objective": "''",
@@ -559,6 +784,9 @@ def _user_from_row(row: sqlite3.Row) -> dict:
         "email": row["email"],
         "password_hash": row["password_hash"],
         "password_salt": row["password_salt"],
+        "account_type": row["account_type"],
+        "password_algorithm": row["password_algorithm"],
+        "expires_at": row["expires_at"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

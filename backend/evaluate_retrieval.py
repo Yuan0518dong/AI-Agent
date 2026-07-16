@@ -37,6 +37,22 @@ class _FailingEmbeddingProvider:
         raise RuntimeError("keyword baseline disables embedding queries")
 
 
+def _register_disposable_session(client: TestClient) -> None:
+    client.headers.update({"Origin": "http://127.0.0.1:8001"})
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Retrieval Evaluation",
+            "email": "retrieval-evaluation@example.invalid",
+            "password": "RetrievalEvaluation123!",
+        },
+    )
+    response.raise_for_status()
+    if not client.cookies.get("ai_agent_session"):
+        raise RuntimeError("Retrieval evaluation registration did not establish an auth session")
+    client.get("/api/auth/me").raise_for_status()
+
+
 def run_retrieval_evaluation(report_dir: Path = REPORT_DIR) -> dict:
     os.environ["EMBEDDING_PROVIDER"] = "openai-compatible"
     os.environ["EMBEDDING_MODEL"] = os.getenv("EMBEDDING_MODEL", "embedding-3")
@@ -46,6 +62,7 @@ def run_retrieval_evaluation(report_dir: Path = REPORT_DIR) -> dict:
         store.set_db_path(Path(temp_dir) / "retrieval_evaluation.db")
         store.reset()
         with TestClient(app) as client:
+            _register_disposable_session(client)
             goal = _create_goal(client)
             for title, content in MATERIALS.items():
                 material = _create_material(client, goal["id"], title, content)

@@ -3,7 +3,9 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
-from backend.app.services import llm_provider, material_ai_service, material_store, store
+from fastapi import HTTPException
+
+from backend.app.services import llm_provider, material_ai_service, material_store, model_usage_service, store
 
 
 def generate_learning_plan(goal: dict, days: int, user_id: str | None = None) -> dict:
@@ -27,7 +29,7 @@ def generate_learning_plan(goal: dict, days: int, user_id: str | None = None) ->
         chunks.extend(relevant_chunks[:3])
 
     fallback = _fallback_plan(goal, days, summaries, chunks)
-    data = _generate_json(
+    data = _generate_json_for_user(
         system=(
             "You are an AI study planner. Return only JSON. "
             "The JSON shape is {\"tasks\":[{\"day\":1,\"title\":\"...\","
@@ -50,21 +52,23 @@ def generate_learning_plan(goal: dict, days: int, user_id: str | None = None) ->
             },
             ensure_ascii=False,
         ),
+        user_id=user_id,
     )
     tasks = _normalize_plan_tasks(data.get("tasks"), fallback["tasks"], days)
     tasks = _ensure_goal_aligned_plan_tasks(goal, tasks, fallback["tasks"])
     return {"tasks": tasks, "mode": _result_mode(data, fallback)}
 
 
-def generate_quiz_questions(material: dict, count: int = 5) -> dict:
+def generate_quiz_questions(material: dict, count: int = 5, user_id: str | None = None) -> dict:
     summary = material_store.get_material_summary(material["id"])
     if not summary:
-        summary = {
-            "materialId": material["id"],
-            **material_ai_service.summarize_material(material),
-            "createdAt": store.now_iso(),
-            "updatedAt": store.now_iso(),
-        }
+        with model_usage_service.user_usage_scope(user_id):
+            summary = {
+                "materialId": material["id"],
+                **material_ai_service.summarize_material(material),
+                "createdAt": store.now_iso(),
+                "updatedAt": store.now_iso(),
+            }
     chunks = material_store.list_chunks_for_material(material["id"])
     if not chunks:
         source_text = material["content"] or material["url"] or material["title"]
@@ -78,7 +82,7 @@ def generate_quiz_questions(material: dict, count: int = 5) -> dict:
         ]
 
     fallback = _fallback_quiz(summary, count)
-    data = _generate_json(
+    data = _generate_json_for_user(
         system=(
             "You are an AI quiz generator. Return only JSON. "
             "The JSON shape is {\"questions\":[{\"type\":\"short|choice|judge\","
@@ -104,14 +108,15 @@ def generate_quiz_questions(material: dict, count: int = 5) -> dict:
             },
             ensure_ascii=False,
         ),
+        user_id=user_id,
     )
     questions = _normalize_quiz_questions(data.get("questions"), fallback["questions"], count)
     return {"questions": questions, "mode": _result_mode(data, fallback)}
 
 
-def grade_quiz_answer(question: dict, user_answer: str) -> dict:
+def grade_quiz_answer(question: dict, user_answer: str, user_id: str | None = None) -> dict:
     fallback = _fallback_grade(question, user_answer)
-    data = _generate_json(
+    data = _generate_json_for_user(
         system=(
             "You are an AI quiz grader. Return only JSON. "
             "The JSON shape is {\"isCorrect\":true,\"score\":0-100,"
@@ -133,6 +138,7 @@ def grade_quiz_answer(question: dict, user_answer: str) -> dict:
             },
             ensure_ascii=False,
         ),
+        user_id=user_id,
     )
     return {
         "isCorrect": _as_bool(data.get("isCorrect"), fallback["isCorrect"]),
@@ -141,6 +147,11 @@ def grade_quiz_answer(question: dict, user_answer: str) -> dict:
         "suggestion": _text(data.get("suggestion"), fallback["suggestion"]),
         "mode": _result_mode(data, fallback),
     }
+
+
+def _generate_json_for_user(system: str, user: str, user_id: str | None) -> dict[str, Any]:
+    with model_usage_service.user_usage_scope(user_id):
+        return _generate_json(system, user)
 
 
 def _generate_json(system: str, user: str) -> dict[str, Any]:
@@ -162,6 +173,8 @@ def _generate_json(system: str, user: str) -> dict[str, Any]:
         content = result["choices"][0]["message"]["content"]
         parsed = llm_provider._parse_model_json(content)
         return parsed if isinstance(parsed, dict) else {}
+    except HTTPException:
+        raise
     except Exception:
         return {}
 

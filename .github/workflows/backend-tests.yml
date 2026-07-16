@@ -28,10 +28,14 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r backend/requirements.txt
 
+      - name: Verify dependency consistency
+        run: python -m pip check
+
       - name: Run backend tests
         env:
           PYTHONPATH: .
           LLM_PROVIDER: mock
+          EMBEDDING_PROVIDER: mock
           LLM_ENV_FILE: .missing-ci.env
         run: python -m pytest backend/tests -q --tb=short
 
@@ -42,6 +46,7 @@ jobs:
         env:
           PYTHONPATH: .
           LLM_PROVIDER: mock
+          EMBEDDING_PROVIDER: mock
           LLM_ENV_FILE: .missing-ci.env
         run: python backend/smoke_api.py
 
@@ -50,4 +55,55 @@ jobs:
           node --check app/api.js
           node --check app/app.js
           node --check app/modules/agent-workbench.js
+          node --check app/modules/utils.js
           git diff --check
+
+  postgres:
+    name: PostgreSQL pgvector integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: ai_agent_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_agent_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PYTHONPATH: .
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_agent_test
+      MIGRATION_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_agent_test
+      POSTGRES_TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/ai_agent_test
+      CORS_ORIGINS: http://127.0.0.1:8001,http://localhost:8001
+      LLM_PROVIDER: mock
+      EMBEDDING_PROVIDER: mock
+      LLM_ENV_FILE: .missing-ci.env
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Verify dependency consistency
+        run: python -m pip check
+
+      - name: Apply PostgreSQL migrations
+        run: python -m alembic -c backend/alembic.ini upgrade head
+
+      - name: Run PostgreSQL integration tests
+        run: python -m pytest backend/tests -m postgres -q --tb=short

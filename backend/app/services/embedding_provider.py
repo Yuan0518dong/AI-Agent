@@ -7,6 +7,10 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol
 
+from fastapi import HTTPException
+
+from backend.app.services import model_usage_service
+
 
 class EmbeddingProvider(Protocol):
     mode: str
@@ -77,6 +81,7 @@ class OpenAICompatibleEmbeddingProvider:
         return [float(value) for value in vector]
 
     def _post_embeddings(self, payload: dict) -> dict:
+        model_usage_service.consume_embedding_call()
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -118,6 +123,8 @@ def get_embedding_provider() -> EmbeddingProvider:
 def embed_text(text: str) -> list[float]:
     try:
         return get_embedding_provider().embed(text)
+    except HTTPException:
+        raise
     except Exception:
         return []
 
