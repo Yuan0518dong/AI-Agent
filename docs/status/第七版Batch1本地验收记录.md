@@ -17,7 +17,7 @@
 - `DEPLOY-01`、`DEPLOY-02`：前端请求固定为同源 `/api`；CORS 使用显式列表，`*` 被拒绝，生产写请求要求允许的 Origin。错误均包含类型、用户消息、字段错误和 `requestId`。
 - `DEPLOY-04`：README、登录页和部署说明都提示 Render 免费 Web 服务闲置 15 分钟后可能休眠，首次访问可能需要约 1 分钟唤醒。
 - `DB-01`：隔离 Neon 测试分支与生产 Neon 分支均通过 Alembic `20260716_01` 迁移；生产直连已实际读取 `vector` 扩展和 `users` 表，生产池化 URL 也可读取 schema。
-- `DB-02`：GitHub Actions [run 29481386235](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29481386235) 针对 `46d62ec` 成功；其中 `PostgreSQL pgvector integration` job 在 `pgvector/pgvector:pg16` 服务中执行 Alembic 并通过 `3 passed, 117 deselected`。生产代码在 `APP_ENV=production` 下拒绝缺失、非 Neon 或非池化的运行连接；公开服务的 Demo 数据读写已实际经过该配置。
+- `DB-02`：GitHub Actions [run 29485625666](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29485625666) 成功；其中 `PostgreSQL pgvector integration` job 在 `pgvector/pgvector:pg16` 服务中执行 Alembic 并通过 `3 passed, 117 deselected`，Reliability job 也通过 Mock 全量门禁、语法与提交范围空白检查。生产代码在 `APP_ENV=production` 下拒绝缺失、非 Neon 或非池化的运行连接；公开服务的 Demo 数据读写已实际经过该配置。
 - `OPS-02`：2026-07-16 已完成求职季前平台政策复核，结论记录在本文件的“平台政策复核”部分；后续每次求职季开始前仍须重新执行。
 
 ## 本地证据
@@ -73,7 +73,8 @@ python -m pytest backend/tests -m postgres -q --tb=short
 
 ## GitHub Actions 与公开 Render 证据
 
-- `46d62ec` 已推送到 `personal/feature/v7-security-demo`。GitHub Actions [run 29481386235](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29481386235) 于 2026-07-16 成功完成 `Reliability checks` 和 `PostgreSQL pgvector integration` 两个 job。
+- `46d62ec` 的部署候选及后续验收/CI 修正提交已推送到 `personal/feature/v7-security-demo`。GitHub Actions [run 29485625666](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29485625666) 于 2026-07-16 成功完成 `Reliability checks` 和 `PostgreSQL pgvector integration` 两个 job。
+- 验收记录提交的首次 CI run `29485463169` 失败是一个真实发现：浅克隆使 `git show --check` 将仓库既有历史空白问题当作当前提交检查。后续提交改为 `fetch-depth: 2` 与 `git diff --check HEAD^ HEAD`，最终 run `29485625666` 两个 job 均通过；历史文件未被伪装为本批修复。
 - Render Docker Web 服务公开地址为 [https://ai-agent-v7-yuan0518dong.onrender.com](https://ai-agent-v7-yuan0518dong.onrender.com)。`GET /` 与 `GET /api/health` 均为 `200`；公开 API smoke 真实验证同源 `POST /api/auth/demo`、Cookie `GET /api/auth/me`、`GET /api/goals` 的 1 个隔离目标、未知 Origin 的 `403 origin_forbidden`，以及 `Secure; HttpOnly; SameSite=Lax` Cookie 属性。
 - 公开 URL 的 Edge + Playwright 验收真实点击“一键试用”：Demo Cookie 会话与 1 个目标可读回，`document.cookie` 不含会话名；登出后 `/api/auth/me` 返回 `401 auth_required`；`390px` 和 `1440px` 的文档宽度均不超过视口。页面无异常，除登出后的预期 `401 /api/auth/me` 外无失败 API 响应，console/page error 均为 `0`。
 - Render 公开 Demo 当前显式使用 Mock Provider；这证明部署、会话、数据和界面链路，不构成真实模型性能或成本证据。
