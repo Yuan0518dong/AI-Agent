@@ -21,6 +21,7 @@ const defaultState = {
     results: []
   },
   selectedGoal: null,
+  selectedGoalId: "",
   selectedGoalTasks: [],
   selectedGoalProgress: null,
   flashcards: [],
@@ -52,7 +53,7 @@ var state = loadState();
 var activeCardIndex = 0;
 var editingGoalId = "";
 var editingMaterialId = "";
-var selectedGoalId = "";
+var selectedGoalId = state.selectedGoalId || "";
 var selectedTaskDate = todayString();
 var pendingChatMaterialId = "";
 
@@ -61,7 +62,7 @@ const views = {
   goals: "成长目标",
   materials: "成长资料",
   study: "成长问答",
-  agent: "智能体工作台",
+  agent: "智能学习助手",
   memory: "记忆训练",
   progress: "成长进度"
 };
@@ -154,6 +155,10 @@ document.getElementById("agent-run-start").addEventListener("click", async (even
   await startAgentRun(event.currentTarget);
 });
 
+document.getElementById("agent-goal-select").addEventListener("change", async (event) => {
+  await selectAgentGoal(event.currentTarget.value, event.currentTarget);
+});
+
 document.getElementById("agent-open-progress").addEventListener("click", () => switchView("progress"));
 document.getElementById("agent-open-goals").addEventListener("click", () => switchView("goals"));
 document.getElementById("agent-open-materials").addEventListener("click", () => switchView("materials"));
@@ -184,13 +189,13 @@ document.getElementById("goal-form").addEventListener("submit", async (event) =>
   try {
     if (editingGoalId) {
       await goalApi.updateGoal(editingGoalId, payload);
-      selectedGoalId = editingGoalId;
+      setSelectedGoalId(editingGoalId);
       editingGoalId = "";
       showSuccess("目标已更新");
     } else {
       const goal = await goalApi.createGoal(payload);
 
-      selectedGoalId = goal.id;
+      setSelectedGoalId(goal.id);
       await generatePlanForGoalApi(goal.id, getPlanDays("goal-plan-days"));
       showSuccess("目标已创建，并生成行动计划");
     }
@@ -426,6 +431,7 @@ async function enterApp(user) {
   currentUser = user;
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   state = loadState();
+  selectedGoalId = state.selectedGoalId || "";
   activeCardIndex = 0;
   renderAuth();
   await loadAppDataFromApi();
@@ -554,6 +560,7 @@ function normalizeState(nextState) {
   nextState.selectedAgentRunId = nextState.selectedAgentRunId || "";
   nextState.selectedAgentRun = nextState.selectedAgentRun || null;
   nextState.quizAttempts = nextState.quizAttempts || {};
+  nextState.selectedGoalId = nextState.selectedGoalId || "";
   nextState.qaReviewDrafts = nextState.qaReviewDrafts || [];
   nextState.agentTaskDrafts = nextState.agentTaskDrafts || [];
   nextState.chunkSearch = nextState.chunkSearch || { query: "", results: [] };

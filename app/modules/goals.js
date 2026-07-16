@@ -13,6 +13,8 @@ async function loadGoalDataFromApi() {
 
   if (selectedGoalId && state.goals.some((goal) => goal.id === selectedGoalId)) {
     await loadSelectedGoalFromApi(selectedGoalId);
+  } else if (state.goals.length === 1) {
+    await loadSelectedGoalFromApi(state.goals[0].id);
   } else {
     clearSelectedGoal();
   }
@@ -25,17 +27,25 @@ async function loadSelectedGoalFromApi(goalId) {
     goalApi.getGoalProgress(goalId)
   ]);
 
-  selectedGoalId = goalId;
+  setSelectedGoalId(goalId);
   state.selectedGoal = goalFromApi(goal);
   state.selectedGoalTasks = tasks.map(taskFromApi);
   state.selectedGoalProgress = progressFromApi(progress);
+  saveState();
 }
 
 function clearSelectedGoal() {
-  selectedGoalId = "";
+  setSelectedGoalId("");
   state.selectedGoal = null;
   state.selectedGoalTasks = [];
   state.selectedGoalProgress = null;
+  saveState();
+}
+
+function setSelectedGoalId(goalId) {
+  selectedGoalId = goalId || "";
+  state.selectedGoalId = selectedGoalId;
+  saveState();
 }
 
 async function generatePlanForGoalApi(goalId, days = 7) {
@@ -77,7 +87,7 @@ async function regenerateGoalPlan(goalId, triggerButton = null, days = getPlanDa
   setButtonLoading(triggerButton, true, "生成中");
 
   try {
-    selectedGoalId = goalId;
+    setSelectedGoalId(goalId);
     await generatePlanForGoalApi(goalId, days);
     await loadGoalDataFromApi();
     await loadAgentContextFromApi();
@@ -106,7 +116,7 @@ function startGoalEdit(goalId) {
   if (!goal) return;
 
   editingGoalId = goalId;
-  selectedGoalId = goalId;
+  setSelectedGoalId(goalId);
   fillGoalForm(goal);
   renderGoalFormMode();
   switchView("goals");
@@ -573,7 +583,7 @@ function renderAgentTaskDrafts(drafts) {
     <section class="agent-task-draft-panel">
       <div class="agent-task-draft-head">
         <div>
-          <h4>Agent 任务草稿</h4>
+          <h4>智能体任务草稿</h4>
           <p>草稿不会直接改任务表，确认后才进入正式计划生成。</p>
         </div>
         <span>${drafts.length} 条</span>
@@ -591,7 +601,7 @@ function renderAgentTaskDraftItem(draft) {
       <div class="agent-task-draft-title">
         <div>
           <strong>${escapeHtml(draft.title)}</strong>
-          <p>${escapeHtml(draft.reason || "Agent 建议先生成待确认任务草稿。")}</p>
+          <p>${escapeHtml(draft.reason || "智能体建议先生成待确认任务草稿。")}</p>
         </div>
         <span>${draft.suggestedDays} 天</span>
       </div>

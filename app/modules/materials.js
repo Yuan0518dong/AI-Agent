@@ -2,6 +2,7 @@
 
 let highlightedReviewDraftId = "";
 let highlightedMaterialQaRecordId = "";
+const quizAnswerDrafts = new Map();
 
 function normalizeSummary(material) {
   const timestamp = material.createdAt || new Date().toISOString();
@@ -209,9 +210,9 @@ function renderMaterialQaRecords(records) {
           </div>
           ${record.basis ? `<div class="qa-detail"><strong>依据</strong><span>${escapeHtml(record.basis)}</span></div>` : ""}
           ${record.suggestion ? `<div class="qa-detail"><strong>建议</strong><span>${escapeHtml(record.suggestion)}</span></div>` : ""}
-          ${record.nextAction ? `<div class="qa-next-action"><strong>Agent 建议</strong><span>${escapeHtml(getMaterialNextActionLabel(record.nextAction))}</span></div>` : ""}
+          ${record.nextAction ? `<div class="qa-next-action"><strong>智能体建议</strong><span>${escapeHtml(getMaterialNextActionLabel(record.nextAction))}</span></div>` : ""}
           ${record.insufficiencyReason ? `<div class="qa-detail"><strong>资料不足原因</strong><span>${escapeHtml(record.insufficiencyReason)}</span></div>` : ""}
-          ${record.reviewDrafts && record.reviewDrafts.length ? `<div class="qa-detail"><strong>待确认草稿</strong><span>Agent 已生成 ${record.reviewDrafts.length} 条，确认后再写入正式复习内容。</span></div>` : ""}
+          ${record.reviewDrafts && record.reviewDrafts.length ? `<div class="qa-detail"><strong>待确认草稿</strong><span>智能体已生成 ${record.reviewDrafts.length} 条，确认后再写入正式复习内容。</span></div>` : ""}
           <div class="qa-actions">
             ${record.reviewDrafts && record.reviewDrafts.length ? `
               <button
@@ -220,7 +221,7 @@ function renderMaterialQaRecords(records) {
                 data-material-id="${escapeHtml(record.materialId || "")}"
                 data-record-id="${escapeHtml(record.id)}"
                 type="button"
-              >采纳 Agent 草稿</button>
+              >采纳智能体草稿</button>
             ` : ""}
             <button
               class="ghost-button"
@@ -257,7 +258,7 @@ function createReviewDraftFromQa(event) {
   const action = button.dataset.action;
   const preferredAgentDraft = action === "qa-agent-draft" ? getPreferredAgentReviewDraft(record) : null;
   if (action === "qa-agent-draft" && !preferredAgentDraft) {
-    showError(new Error("这条问答没有可采纳的 Agent 草稿"));
+    showError(new Error("这条问答没有可采纳的智能体草稿"));
     return;
   }
 
@@ -307,7 +308,7 @@ function createReviewDraftFromQa(event) {
   if (action === "qa-agent-draft") {
     switchView("memory");
     focusReviewDraft(draft.id);
-    showSuccess("已采纳 Agent 草稿，已放入复盘草稿区");
+    showSuccess("已采纳智能体草稿，已放入复盘草稿区");
     return;
   }
   showSuccess(type === "flashcard" ? "已生成闪卡草稿" : "已记录复习点");
@@ -419,7 +420,7 @@ function renderReviewDrafts() {
       <div class="review-draft-head">
         <div class="tag-row">
           <span class="tag">${draft.type === "flashcard" ? "闪卡草稿" : "复习点"}</span>
-          <span class="tag">${draft.source === "agent" ? "Agent 草稿" : "手动草稿"}</span>
+          <span class="tag">${draft.source === "agent" ? "智能体草稿" : "手动草稿"}</span>
           <span class="tag">${escapeHtml(getMaterialTitle(draft.materialId))}</span>
           ${isHighlighted ? `<span class="tag tag-accent">当前草稿</span>` : ""}
         </div>
@@ -543,7 +544,7 @@ function prefillQuestionFromMaterial(materialId) {
   if (!material) return;
 
   if (material.goalId) {
-    selectedGoalId = material.goalId;
+    setSelectedGoalId(material.goalId);
   }
   pendingChatMaterialId = material.id;
 
@@ -583,7 +584,7 @@ function getAgentMaterialDraftTitle(log) {
 function getAgentMaterialDraftContent(log) {
   const insufficiency = getAgentInsufficiencyRecord(log);
   const lines = [
-    "Agent 建议补充资料：",
+    "智能体建议补充资料：",
     log.proposedPayload?.description || log.observation || "当前资料不足以支撑后续学习判断。",
     ""
   ];
@@ -616,7 +617,7 @@ function prefillAgentSampleQuestion(sampleKey) {
   }
 
   if (material.goalId) {
-    selectedGoalId = material.goalId;
+    setSelectedGoalId(material.goalId);
   }
   pendingChatMaterialId = material.id;
 
@@ -696,6 +697,7 @@ function renderFlashcard() {
 
 function renderQuizzes() {
   const list = document.getElementById("quiz-list");
+  captureQuizAnswerDrafts(list);
   list.innerHTML = "";
 
   if (state.quizzes.length === 0) {
@@ -708,6 +710,7 @@ function renderQuizzes() {
     item.className = "item";
     const attempts = state.quizAttempts?.[quiz.materialId] || [];
     const latestAttempt = attempts.find((attempt) => attempt.quizId === quiz.id);
+    const answerValue = getQuizAnswerValue(quiz.materialId, quiz.id, latestAttempt);
     const options = quiz.options && quiz.options.length
       ? `<div class="quiz-options">${quiz.options.map((option) => `<span class="tag">${escapeHtml(option)}</span>`).join("")}</div>`
       : "";
@@ -721,6 +724,7 @@ function renderQuizzes() {
       ${latestAttempt ? `
         <div class="quiz-feedback ${latestAttempt.isCorrect ? "correct" : "review"}">
           <strong>${latestAttempt.isCorrect ? "回答较好" : "需要复习"} · ${latestAttempt.score} 分</strong>
+          <p><strong>你的答案：</strong>${escapeHtml(latestAttempt.userAnswer || "")}</p>
           <p>${escapeHtml(latestAttempt.feedback)}</p>
           <p>${escapeHtml(latestAttempt.suggestion)}</p>
           <span class="tag">${escapeHtml(latestAttempt.mode || "mock")}</span>
@@ -736,9 +740,38 @@ function renderQuizzes() {
         <span class="tag">${escapeHtml(quiz.type)}</span>
       </div>
     `;
-    item.querySelector(".quiz-answer-form").addEventListener("submit", submitQuizAnswer);
+    const form = item.querySelector(".quiz-answer-form");
+    const answerField = form.elements.answer;
+    answerField.value = answerValue;
+    answerField.addEventListener("input", () => {
+      quizAnswerDrafts.set(getQuizAnswerDraftKey(quiz.materialId, quiz.id), answerField.value);
+    });
+    form.addEventListener("submit", submitQuizAnswer);
     list.appendChild(item);
   });
+}
+
+function captureQuizAnswerDrafts(list) {
+  list.querySelectorAll(".quiz-answer-form").forEach((form) => {
+    const answerField = form.elements.answer;
+    if (!answerField) return;
+    quizAnswerDrafts.set(
+      getQuizAnswerDraftKey(form.dataset.materialId, form.dataset.quizId),
+      answerField.value
+    );
+  });
+}
+
+function getQuizAnswerValue(materialId, quizId, latestAttempt) {
+  const key = getQuizAnswerDraftKey(materialId, quizId);
+  if (quizAnswerDrafts.has(key)) {
+    return quizAnswerDrafts.get(key);
+  }
+  return latestAttempt?.userAnswer || "";
+}
+
+function getQuizAnswerDraftKey(materialId, quizId) {
+  return `${materialId}:${quizId}`;
 }
 
 async function submitQuizAnswer(event) {
@@ -749,6 +782,7 @@ async function submitQuizAnswer(event) {
   const quizId = form.dataset.quizId;
   const answer = new FormData(form).get("answer").trim();
   if (!answer) return;
+  quizAnswerDrafts.set(getQuizAnswerDraftKey(materialId, quizId), answer);
 
   setButtonLoading(button, true, "批改中");
 
@@ -756,7 +790,6 @@ async function submitQuizAnswer(event) {
     await materialApi.submitQuizAnswer(materialId, quizId, answer);
     state.quizAttempts[materialId] = await materialApi.listQuizAttempts(materialId);
     saveState();
-    form.reset();
     renderQuizzes();
     showSuccess("AI 批改完成");
   } catch (error) {

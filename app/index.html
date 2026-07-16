@@ -3,9 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>通用成长学习助手 App 原型</title>
+    <title>成长学习助手</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=v3-page-boundary-20260706" />
+    <link rel="stylesheet" href="./styles.css?v=sticky-navigation-20260716" />
   </head>
   <body>
     <section class="auth-shell" id="auth-shell">
@@ -17,7 +17,7 @@
               <span></span>
             </div>
             <div>
-              <p class="eyebrow">Growth Agent</p>
+              <p class="eyebrow">智能学习助手</p>
               <h1>成长学习助手</h1>
             </div>
           </div>
@@ -97,7 +97,7 @@
           <button class="nav-item" data-view="goals"><span>＋</span>目标</button>
           <button class="nav-item" data-view="materials"><span>▣</span>资料</button>
           <button class="nav-item" data-view="study"><span>?</span>学习</button>
-          <button class="nav-item" data-view="agent"><span>◎</span>智能体</button>
+          <button class="nav-item" data-view="agent"><span>◎</span>智能助手</button>
           <button class="nav-item" data-view="memory"><span>◇</span>记忆</button>
           <button class="nav-item" data-view="progress"><span>▥</span>进度</button>
         </nav>
@@ -106,7 +106,7 @@
       <main class="content">
         <header class="topbar">
           <div>
-            <p class="eyebrow">MVP Prototype</p>
+            <p class="eyebrow">成长学习系统</p>
             <h1 id="page-title">今日行动</h1>
           </div>
           <div class="top-actions">
@@ -401,16 +401,16 @@
         </section>
 
         <section class="view" id="view-agent">
-          <section class="agent-workbench" id="agent-workbench" aria-label="智能体工作台">
+          <section class="agent-workbench" id="agent-workbench" aria-label="智能学习助手">
             <div class="agent-workbench-head">
               <div>
-                <p class="eyebrow">AgentContext</p>
-                <h2>智能体工作台</h2>
+                <p class="eyebrow">学习状态分析</p>
+                <h2>智能学习助手</h2>
                 <p id="agent-context-updated">未刷新</p>
               </div>
               <div class="inline-actions">
                 <span class="panel-count" id="agent-scope-label">全部目标</span>
-                <button class="primary-button" id="agent-decide-button" type="button">生成建议</button>
+                <button class="primary-button" id="agent-decide-button" type="button">分析下一步</button>
                 <button class="ghost-button" id="agent-refresh-button" type="button">刷新状态</button>
               </div>
             </div>
@@ -437,21 +437,27 @@
             <section class="panel agent-run-panel">
               <div class="panel-head">
                 <div>
-                  <h2>Agent Run</h2>
-                  <p>围绕当前目标执行有限步骤，并保留完整决策与工具轨迹。</p>
+                  <h2>智能任务</h2>
+                  <p>选择学习目标，告诉智能体你希望完成什么，然后查看执行结果。</p>
                 </div>
                 <span class="panel-count" id="agent-run-count">0 条</span>
               </div>
               <div class="agent-run-create">
                 <label>
-                  <span>本次目标</span>
+                  <span>学习目标</span>
+                  <select id="agent-goal-select" aria-label="选择学习目标">
+                    <option value="">请选择目标</option>
+                  </select>
+                </label>
+                <label>
+                  <span>你希望智能体做什么</span>
                   <input id="agent-run-objective" maxlength="500" placeholder="例如：整理本周复习计划并生成一项待确认任务" />
                 </label>
                 <label>
-                  <span>最大步骤</span>
+                  <span>最多执行步骤</span>
                   <input id="agent-run-max-steps" type="number" min="1" max="8" value="3" />
                 </label>
-                <button class="primary-button" id="agent-run-start" type="button">启动 Run</button>
+                <button class="primary-button" id="agent-run-start" type="button">开始执行</button>
               </div>
               <div class="agent-run-list" id="agent-run-list"></div>
               <div class="agent-run-detail" id="agent-run-detail"></div>
@@ -460,7 +466,7 @@
             <div class="workspace agent-layout">
               <section class="panel agent-decision-panel">
                 <div class="panel-head">
-                  <h2>智能体建议</h2>
+                  <h2>下一步建议</h2>
                   <span class="panel-count" id="agent-decision-mode">未生成</span>
                 </div>
                 <div class="agent-decision-body" id="agent-decision-body"></div>
@@ -468,7 +474,7 @@
 
               <section class="panel agent-action-log-panel">
                 <div class="panel-head">
-                  <h2>反馈记录</h2>
+                  <h2>建议反馈</h2>
                   <span class="panel-count" id="agent-action-log-count">0 条</span>
                 </div>
                 <div class="agent-action-log-list" id="agent-action-log-list"></div>
@@ -595,11 +601,11 @@
     <script src="./api.js?v=batch-f-reliability-20260715"></script>
     <script src="./modules/utils.js?v=ai-learning-20260706"></script>
     <script src="./modules/chat.js?v=ai-learning-20260706"></script>
-    <script src="./modules/agent-workbench.js?v=batch-f-reliability-20260715"></script>
-    <script src="./modules/materials.js?v=ai-learning-20260706"></script>
-    <script src="./modules/goals.js?v=v3-page-boundary-20260706"></script>
+    <script src="./modules/agent-workbench.js?v=agent-chinese-ui-20260716"></script>
+    <script src="./modules/materials.js?v=quiz-answer-preservation-20260716"></script>
+    <script src="./modules/goals.js?v=agent-goal-selection-20260716"></script>
     <script src="./modules/progress.js?v=v3-page-boundary-20260706"></script>
-    <script src="./app.js?v=ai-learning-20260706"></script>
+    <script src="./app.js?v=agent-chinese-ui-20260716"></script>
   </body>
 </html>
 

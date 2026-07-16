@@ -5,7 +5,11 @@ let currentDecisionMode = "hybrid";
 function toggleAgentDecisionMode() {
   currentDecisionMode = currentDecisionMode === "rule-based" ? "hybrid" : "rule-based";
   const btn = document.getElementById("agent-mode-toggle-btn");
-  if (btn) btn.textContent = currentDecisionMode === "rule-based" ? "切换为 hybrid" : "切换为 rule-based";
+  if (btn) btn.textContent = getAgentModeToggleLabel();
+}
+
+function getAgentModeToggleLabel() {
+  return currentDecisionMode === "rule-based" ? "改用智能模式" : "改用本地规则";
 }
 
 async function loadAgentContextFromApi(goalId = selectedGoalId || "") {
@@ -49,7 +53,7 @@ async function generateAgentDecision(triggerButton = null, goalId = selectedGoal
     await loadAgentRunsFromApi(goalId);
     saveState();
     renderAgentWorkbench();
-    showSuccess("智能体建议已生成");
+    showSuccess("下一步建议已生成");
   } catch (error) {
     showError(error);
   } finally {
@@ -67,11 +71,33 @@ async function refreshAgentContext(triggerButton = null, goalId = selectedGoalId
     state.agentDecision = null;
     saveState();
     renderAgentWorkbench();
-    showSuccess("智能体上下文已刷新");
+    showSuccess("学习状态已刷新");
   } catch (error) {
     showError(error);
   } finally {
     setButtonLoading(triggerButton, false);
+  }
+}
+
+async function selectAgentGoal(goalId, selectElement = null) {
+  if (selectElement) selectElement.disabled = true;
+  try {
+    if (goalId) {
+      await loadSelectedGoalFromApi(goalId);
+    } else {
+      clearSelectedGoal();
+    }
+    await loadAgentContextFromApi(goalId);
+    await loadAgentActionLogsFromApi(goalId);
+    await loadAgentRunsFromApi(goalId);
+    state.agentDecision = null;
+    saveState();
+    render();
+    showSuccess(goalId ? "学习目标已切换" : "已切换为全部目标概览");
+  } catch (error) {
+    showError(error);
+  } finally {
+    if (selectElement) selectElement.disabled = false;
   }
 }
 
@@ -82,11 +108,12 @@ function renderAgentWorkbench() {
 
   if (!context) {
     root.innerHTML = "";
-    root.appendChild(emptyNode("暂无智能体上下文", "刷新后会展示 Agent 当前能看到的学习状态。"));
+    root.appendChild(emptyNode("暂时无法读取学习状态", "刷新后会展示智能体当前读取到的目标、任务、资料和复习状态。"));
     return;
   }
 
   renderAgentWorkbenchHeader(context);
+  renderAgentGoalSelect();
   renderAgentRunPanel();
   renderAgentDecisionPanel();
   renderAgentActionLogPanel();
@@ -100,7 +127,7 @@ function renderAgentWorkbench() {
 
 async function startAgentRun(triggerButton = null) {
   if (!selectedGoalId) {
-    showError(new Error("请先选择一个成长目标，再启动 Agent Run"));
+    showError(new Error("请先在“学习目标”中选择一个目标，再开始执行"));
     return;
   }
   const objectiveInput = document.getElementById("agent-run-objective");
@@ -119,7 +146,7 @@ async function startAgentRun(triggerButton = null) {
     const executed = await agentApi.executeRun(run.id);
     await syncAgentRunState(executed);
     await refreshAgentContext(null, selectedGoalId);
-    showSuccess("Agent Run 已启动");
+    showSuccess("智能任务已开始执行");
   } catch (error) {
     showError(error);
   } finally {
@@ -145,7 +172,7 @@ async function resumeAgentRun(runId, triggerButton = null) {
   try {
     await syncAgentRunState(await agentApi.executeRun(runId));
     await refreshAgentContext(null, selectedGoalId);
-    showSuccess("Agent Run 已恢复");
+    showSuccess("智能任务已继续执行");
   } catch (error) {
     showError(error);
   } finally {
@@ -156,7 +183,7 @@ async function resumeAgentRun(runId, triggerButton = null) {
 async function respondToAgentConfirmation(run, status, triggerButton = null) {
   const waitingStep = [...(run.steps || [])].reverse().find((step) => step.status === "waiting_confirmation");
   if (!waitingStep?.actionLogId) {
-    showError(new Error("当前 Run 没有待确认的正式写入步骤"));
+    showError(new Error("当前智能任务没有需要确认的内容"));
     return;
   }
   setButtonLoading(triggerButton, true, status === "accepted" ? "确认中" : "拒绝中");
@@ -164,7 +191,7 @@ async function respondToAgentConfirmation(run, status, triggerButton = null) {
     await agentApi.updateActionLog(waitingStep.actionLogId, { status });
     await syncAgentRunState(await agentApi.executeRun(run.id));
     await refreshAgentContext(null, selectedGoalId);
-    showSuccess(status === "accepted" ? "已确认并恢复 Run" : "已拒绝该正式写入");
+    showSuccess(status === "accepted" ? "已确认并继续执行" : "已拒绝写入，任务将继续判断");
   } catch (error) {
     showError(error);
   } finally {
@@ -178,7 +205,7 @@ async function closeAgentRun(runId, triggerButton = null) {
     await syncAgentRunState(await agentApi.cancelRun(runId));
     await loadAgentRunsFromApi(selectedGoalId);
     renderAgentWorkbench();
-    showSuccess("Run 已取消");
+    showSuccess("智能任务已取消");
   } catch (error) {
     showError(error);
   } finally {
@@ -363,7 +390,7 @@ function getAgentDraftQuestion(log, actionType) {
   if (payload.weakAttemptCount) {
     return `针对 ${payload.weakAttemptCount} 个薄弱测试结果生成复习卡片。`;
   }
-  return log.proposedPayload?.label || getAgentActionLabel(actionType);
+  return getAgentActionLabel(actionType);
 }
 
 function getAgentDraftFront(log, material, actionType) {
@@ -397,7 +424,7 @@ function createAgentTaskDraft(log, actionType) {
     return draft.agentActionLogId === log.id;
   });
   if (existingDraft) {
-    selectedGoalId = existingDraft.goalId;
+    setSelectedGoalId(existingDraft.goalId);
     return existingDraft;
   }
 
@@ -418,7 +445,7 @@ function createAgentTaskDraft(log, actionType) {
     createdAt: new Date().toISOString()
   };
 
-  selectedGoalId = goal.id;
+  setSelectedGoalId(goal.id);
   state.agentTaskDrafts.unshift(draft);
   return draft;
 }
@@ -485,13 +512,13 @@ function renderAgentDecisionPanel() {
   body.innerHTML = "";
   if (!decision) {
     mode.textContent = "未生成";
-    body.appendChild(emptyNode("暂无智能体建议", "点击“生成建议”后，Agent 会基于当前上下文输出下一步动作草案。"));
+    body.appendChild(emptyNode("暂无学习建议", "点击“分析下一步”后，智能体会根据当前学习状态给出下一步安排。"));
     return;
   }
 
-  mode.textContent = decision.mode || "rule-based";
+  mode.textContent = getAgentModeLabel(decision.mode);
   if (decision.requestedMode && decision.requestedMode !== decision.mode) {
-    mode.textContent = `${decision.requestedMode} → ${decision.mode}`;
+    mode.textContent = `${getAgentModeLabel(decision.requestedMode)} → ${getAgentModeLabel(decision.mode)}`;
   }
 
   // 模式切换控制条
@@ -500,7 +527,7 @@ function renderAgentDecisionPanel() {
   const toggleBtn = document.createElement("button");
   toggleBtn.id = "agent-mode-toggle-btn";
   toggleBtn.className = "ghost-button";
-  toggleBtn.textContent = currentDecisionMode === "rule-based" ? "切换为 hybrid" : "切换为 rule-based";
+  toggleBtn.textContent = getAgentModeToggleLabel();
   toggleBtn.addEventListener("click", () => {
     toggleAgentDecisionMode();
   });
@@ -514,8 +541,8 @@ function renderAgentDecisionPanel() {
       <span>下一步动作</span>
       <strong>${escapeHtml(getAgentActionLabel(decision.nextAction))}</strong>
     </div>
-    <p>${escapeHtml(decision.reason || "")}</p>
-    <p>${escapeHtml(decision.stateSummary || "")}</p>
+    <p>${escapeHtml(getAgentDecisionReason(decision))}</p>
+    <p>${escapeHtml(getAgentStateSummary(decision))}</p>
   `;
   body.appendChild(summary);
 
@@ -538,7 +565,7 @@ function renderAgentRunPanel() {
   count.textContent = `${runs.length} 条`;
   list.innerHTML = "";
   if (!runs.length) {
-    list.appendChild(emptyNode("暂无 Agent Run", "启动一次带目标的 Run 后，这里会保留可恢复的执行记录。"));
+    list.appendChild(emptyNode("暂无智能任务", "选择学习目标并开始执行后，这里会保留每次任务记录。"));
   } else {
     runs.slice(0, 8).forEach((run) => {
       const item = document.createElement("button");
@@ -557,7 +584,7 @@ function renderAgentRunPanel() {
   detail.innerHTML = "";
   const run = state.selectedAgentRun;
   if (!run || run.id !== state.selectedAgentRunId) {
-    detail.appendChild(emptyNode("选择一条 Run", "查看步骤、Guard、工具输入输出和停止原因。"));
+    detail.appendChild(emptyNode("选择一条智能任务", "可以查看每一步做了什么、执行结果以及停止原因。"));
     return;
   }
   detail.appendChild(agentRunSummaryNode(run));
@@ -570,34 +597,34 @@ function agentRunSummaryNode(run) {
   const guard = run.decisionSnapshot?.decisionGuard || {};
   const provider = run.decisionSnapshot?.providerMetadata || {};
   const providerLabel = provider.provider
-    ? `${provider.provider}${provider.model ? ` · ${provider.model}` : ""}`
+    ? `${getAgentProviderLabel(provider.provider)}${provider.model ? ` · ${provider.model}` : ""}`
     : "未记录";
   wrapper.innerHTML = `
     <div class="agent-card-head">
       <div>
-        <span>当前 Run</span>
+        <span>当前智能任务</span>
         <strong>${escapeHtml(run.objective || "未命名学习行动")}</strong>
       </div>
       <span class="agent-run-status ${escapeHtml(run.status || "decided")}">${escapeHtml(agentRunStatusLabel(run.status))}</span>
     </div>
     <div class="agent-chip-row">
-      <span>${escapeHtml(run.decisionMode || "hybrid")}</span>
+      <span>${escapeHtml(getAgentModeLabel(run.decisionMode))}</span>
       <span>${run.currentStep || 0}/${run.maxSteps || 0} 步</span>
-      <span>停止原因：${escapeHtml(run.stopReason || "进行中")}</span>
-      <span>Guard: ${escapeHtml(guard.status || "未触发")}</span>
+      <span>停止原因：${escapeHtml(getAgentStopReasonLabel(run.stopReason))}</span>
+      <span>安全检查：${escapeHtml(getAgentGuardStatusLabel(guard.status))}</span>
       <span>模型：${escapeHtml(providerLabel)}</span>
     </div>
-    ${run.error ? `<p class="agent-run-error">${escapeHtml(run.error)}</p>` : ""}
-    ${run.decisionSnapshot?.reflection ? `<p class="agent-run-reflection">${escapeHtml(run.decisionSnapshot.reflection)}</p>` : ""}
+    ${run.error ? `<p class="agent-run-error">${escapeHtml(localizeAgentText(run.error))}</p>` : ""}
+    ${run.decisionSnapshot?.reflection ? `<p class="agent-run-reflection">${escapeHtml(localizeAgentText(run.decisionSnapshot.reflection))}</p>` : ""}
   `;
   const actions = document.createElement("div");
   actions.className = "agent-run-actions";
   if (run.status === "waiting_confirmation") {
-    actions.appendChild(agentRunButton("接受并恢复原 Run", "primary-button", (button) => respondToAgentConfirmation(run, "accepted", button)));
-    actions.appendChild(agentRunButton("拒绝并继续 Run", "ghost-button", (button) => respondToAgentConfirmation(run, "rejected", button)));
+    actions.appendChild(agentRunButton("确认写入并继续", "primary-button", (button) => respondToAgentConfirmation(run, "accepted", button)));
+    actions.appendChild(agentRunButton("拒绝写入并继续", "ghost-button", (button) => respondToAgentConfirmation(run, "rejected", button)));
   } else if (!["completed", "failed", "max_steps", "cancelled", "closed"].includes(run.status)) {
     actions.appendChild(agentRunButton("继续执行", "primary-button", (button) => resumeAgentRun(run.id, button)));
-    actions.appendChild(agentRunButton("取消 Run", "ghost-button", (button) => closeAgentRun(run.id, button)));
+    actions.appendChild(agentRunButton("取消任务", "ghost-button", (button) => closeAgentRun(run.id, button)));
   }
   if (actions.children.length) wrapper.appendChild(actions);
   return wrapper;
@@ -606,10 +633,10 @@ function agentRunSummaryNode(run) {
 function agentRunTimelineNode(run) {
   const wrapper = document.createElement("section");
   wrapper.className = "agent-run-timeline";
-  wrapper.innerHTML = "<h3>AgentStep 时间线</h3>";
+  wrapper.innerHTML = "<h3>执行过程</h3>";
   const steps = run.steps || [];
   if (!steps.length) {
-    wrapper.appendChild(emptyNode("尚未执行工具", "Run 创建后会在这里显示决策、工具调用和观察结果。"));
+    wrapper.appendChild(emptyNode("尚未开始执行", "智能任务开始后，这里会按顺序显示每一步的处理结果。"));
     return wrapper;
   }
   steps.forEach((step) => {
@@ -624,21 +651,21 @@ function agentRunTimelineNode(run) {
       <div class="agent-step-main">
         <div class="agent-card-head">
           <div>
-            <strong>${escapeHtml(step.toolName || "等待决策")}</strong>
+            <strong>${escapeHtml(getAgentToolLabel(step.toolName))}</strong>
             <p>${escapeHtml(agentRunStatusLabel(step.status))} · ${escapeHtml(formatDateTime(step.createdAt))} · ${escapeHtml(formatAgentDuration(step.createdAt, step.updatedAt))}</p>
           </div>
-          <span>${escapeHtml(step.actionSnapshot?.riskLevel || "低风险")}</span>
+          <span>${escapeHtml(getAgentRiskLabel(step.actionSnapshot?.riskLevel || "low"))}</span>
         </div>
         <div class="agent-chip-row">
-          <span>${escapeHtml(decision.mode || "rule-based")}</span>
-          <span>${escapeHtml(decision.nextAction || "")}</span>
-          <span>Guard: ${escapeHtml(guard.status || "未触发")}</span>
-          <span>ActionLog: ${escapeHtml(actionLogStatus)}</span>
+          <span>${escapeHtml(getAgentModeLabel(decision.mode))}</span>
+          <span>${escapeHtml(getAgentActionLabel(step.actionSnapshot?.type || decision.nextAction))}</span>
+          <span>安全检查：${escapeHtml(getAgentGuardStatusLabel(guard.status))}</span>
+          <span>执行记录：${escapeHtml(actionLogStatus)}</span>
         </div>
-        ${decision.reason ? `<p class="agent-step-reason">决策原因：${escapeHtml(decision.reason)}</p>` : ""}
-        ${guardInterventions ? `<p class="agent-step-guard">Guard 处理：${escapeHtml(guardInterventions)}</p>` : ""}
-        ${decision.fallbackReason ? `<p class="agent-step-guard">回退原因：${escapeHtml(decision.fallbackReason)}</p>` : ""}
-        ${step.error ? `<p class="agent-run-error">${escapeHtml(step.error)}</p>` : ""}
+        ${decision.reason ? `<p class="agent-step-reason">判断依据：${escapeHtml(getAgentStepReason(step))}</p>` : ""}
+        ${guardInterventions ? `<p class="agent-step-guard">安全处理：${escapeHtml(guardInterventions)}</p>` : ""}
+        ${decision.fallbackReason ? `<p class="agent-step-guard">模式说明：${escapeHtml(localizeAgentText(decision.fallbackReason))}</p>` : ""}
+        ${step.error ? `<p class="agent-run-error">${escapeHtml(localizeAgentText(step.error))}</p>` : ""}
         ${agentStepObservation(step)}
         ${agentStepDetails(step)}
       </div>
@@ -651,7 +678,7 @@ function agentRunTimelineNode(run) {
 function agentStepObservation(step) {
   const observation = step.toolOutput?.observation || "";
   if (!observation) return "";
-  return `<p class="agent-step-observation">${escapeHtml(observation)}</p>`;
+  return `<p class="agent-step-observation">执行结果：${escapeHtml(localizeAgentText(observation))}</p>`;
 }
 
 function agentStepDetails(step) {
@@ -659,15 +686,15 @@ function agentStepDetails(step) {
     ["工具输入", step.toolInput],
     ["工具输出", step.toolOutput],
     ["动作", step.actionSnapshot],
-    ["Decision", step.decisionSnapshot],
-    ["Context 摘要", step.contextSnapshot?.summary || step.contextSnapshot?.scope || {}]
+    ["决策详情", step.decisionSnapshot],
+    ["学习状态摘要", step.contextSnapshot?.summary || step.contextSnapshot?.scope || {}]
   ].map(([label, value]) => `
     <section>
       <h4>${escapeHtml(label)}</h4>
       <pre>${escapeHtml(formatAgentJson(value))}</pre>
     </section>
   `).join("");
-  return `<details class="agent-step-details"><summary>查看输入、输出与决策详情</summary>${blocks}</details>`;
+  return `<details class="agent-step-details"><summary>查看技术详情（供排查使用）</summary>${blocks}</details>`;
 }
 
 function agentRunButton(label, className, onClick) {
@@ -681,7 +708,7 @@ function agentRunButton(label, className, onClick) {
 
 function agentRunStatusLabel(status) {
   const labels = { decided: "已决策", running: "执行中", waiting_confirmation: "等待确认", completed: "已完成", failed: "失败", max_steps: "达到步数上限", cancelled: "已取消", closed: "已停止" };
-  return labels[status] || status || "未知状态";
+  return labels[status] || "未知状态";
 }
 
 function agentActionLogStatusForStep(step) {
@@ -691,14 +718,17 @@ function agentActionLogStatusForStep(step) {
 }
 
 function agentGuardInterventionLabel(intervention) {
+  const type = typeof intervention === "string" ? intervention : intervention?.type;
   const labels = {
     force_confirmation: "强制确认",
     reject_unknown_action: "拒绝未知动作",
     reject_invalid_payload: "拒绝非法参数",
     reject_out_of_scope: "拒绝越权范围",
-    fallback_to_rule_based: "回退规则决策"
+    fallback_to_rule_based: "使用本地规则"
   };
-  return labels[intervention] || intervention;
+  const label = labels[type] || "已调整模型建议";
+  const reason = typeof intervention === "object" ? localizeAgentText(intervention.reason || "") : "";
+  return reason ? `${label}：${reason}` : label;
 }
 
 function formatAgentDuration(createdAt, updatedAt) {
@@ -739,21 +769,21 @@ function agentDecisionGuardNode(decision) {
   const status = guard.status || (decision.fallbackReason ? "fallback" : "accepted");
   const interventions = guard.interventions || [];
 
-  const STATUS_LABELS = { accepted: "通过", sanitized: "已修正", fallback: "已回退" };
+  const STATUS_LABELS = { accepted: "已通过", sanitized: "已修正", fallback: "已使用备用方案" };
   const INTERVENTION_LABELS = {
     force_confirmation: "强制确认要求",
     reject_unknown_action: "拒绝未知动作",
-    fallback_to_rule_based: "回退规则决策"
+    fallback_to_rule_based: "使用本地规则"
   };
 
   const wrapper = document.createElement("div");
   wrapper.className = "agent-decision-section agent-guard-section";
-  wrapper.innerHTML = `<h3>Decision Guard 评审 <span class="agent-guard-badge ${status}">${STATUS_LABELS[status] || status}</span></h3>`;
+  wrapper.innerHTML = `<h3>安全检查 <span class="agent-guard-badge ${status}">${STATUS_LABELS[status] || getAgentGuardStatusLabel(status)}</span></h3>`;
 
   if (decision.fallbackReason) {
     const reason = document.createElement("p");
     reason.className = "agent-guard-reason";
-    reason.textContent = `回退原因：${decision.fallbackReason}`;
+    reason.textContent = `模式说明：${localizeAgentText(decision.fallbackReason)}`;
     wrapper.appendChild(reason);
   }
 
@@ -763,10 +793,10 @@ function agentDecisionGuardNode(decision) {
       item.className = "agent-decision-problem medium";
       item.innerHTML = `
         <div class="agent-card-head">
-          <strong>${escapeHtml(INTERVENTION_LABELS[iv.type] || iv.type)}</strong>
-          <span>${escapeHtml(iv.action || "")}</span>
+          <strong>${escapeHtml(INTERVENTION_LABELS[iv.type] || agentGuardInterventionLabel(iv.type))}</strong>
+          <span>${escapeHtml(getAgentActionLabel(iv.actionType || iv.action))}</span>
         </div>
-        <p>${escapeHtml(iv.reason || "")}</p>
+        <p>${escapeHtml(localizeAgentText(iv.reason || ""))}</p>
       `;
       wrapper.appendChild(item);
     });
@@ -796,10 +826,10 @@ function agentDecisionProblemsNode(problems) {
     item.innerHTML = `
       <div class="agent-card-head">
         <strong>${escapeHtml(getAgentProblemLabel(problem.type))}</strong>
-        <span>${escapeHtml(problem.severity || "medium")}</span>
+        <span>${escapeHtml(getAgentSeverityLabel(problem.severity))}</span>
       </div>
-      <p>${escapeHtml(problem.message || "")}</p>
-      ${problem.evidence ? `<p>${escapeHtml(problem.evidence)}</p>` : ""}
+      <p>${escapeHtml(getAgentProblemMessage(problem))}</p>
+      ${problem.evidence ? `<p>相关内容：${escapeHtml(problem.evidence)}</p>` : ""}
     `;
     wrapper.appendChild(item);
   });
@@ -809,10 +839,10 @@ function agentDecisionProblemsNode(problems) {
 function agentDecisionActionsNode(actions) {
   const wrapper = document.createElement("div");
   wrapper.className = "agent-decision-section";
-  wrapper.innerHTML = `<h3>待确认动作</h3>`;
+  wrapper.innerHTML = `<h3>建议的下一步</h3>`;
 
   if (!actions.length) {
-    wrapper.appendChild(emptyNode("暂无动作草案", "Agent 暂未生成需要处理的动作。"));
+    wrapper.appendChild(emptyNode("暂无待处理建议", "当前学习状态暂时不需要额外处理。"));
     return wrapper;
   }
 
@@ -821,17 +851,14 @@ function agentDecisionActionsNode(actions) {
     item.className = `agent-action-card ${action.requiresConfirmation ? "confirm" : ""}`;
     item.innerHTML = `
       <div class="agent-card-head">
-        <strong>${escapeHtml(action.label || getAgentActionLabel(action.type))}</strong>
+        <strong>${escapeHtml(getAgentActionLabel(action.type))}</strong>
         <span>${action.requiresConfirmation ? "需确认" : "只读建议"}</span>
       </div>
-      <p>${escapeHtml(action.description || "")}</p>
+      <p>${escapeHtml(getAgentActionDescription(action))}</p>
       <div class="agent-chip-row">
-        <span>${escapeHtml(getAgentActionLabel(action.type))}</span>
-        <span>${escapeHtml(action.toolName || action.type)}</span>
+        <span>处理方式：${escapeHtml(getAgentToolLabel(action.toolName || action.type))}</span>
         <span>${escapeHtml(getAgentRiskLabel(action.riskLevel))}</span>
-        <span>${action.draftOnly ? "草稿态" : "直接入口"}</span>
-        <span>${escapeHtml(action.applyTarget || "agent")}</span>
-        <span>${escapeHtml(action.status || "proposed")}</span>
+        <span>${action.draftOnly ? "先生成草稿" : "可直接处理"}</span>
       </div>
       <div class="agent-action-feedback">
         <button class="ghost-button" data-feedback="accepted" type="button">采纳</button>
@@ -871,7 +898,7 @@ function renderAgentActionLogPanel() {
         <strong>${escapeHtml(getAgentActionLabel(log.actionType))}</strong>
         <span>${escapeHtml(getAgentFeedbackLabel(log.status))}</span>
       </div>
-      <p>${escapeHtml(log.proposedPayload?.description || log.observation || "")}</p>
+      <p>${escapeHtml(getAgentActionDescription(log.proposedPayload || log))}</p>
       <small>${escapeHtml(formatDateTime(log.createdAt))}</small>
       ${renderAgentExecutionHint(log)}
       ${log.status === "applied" ? "" : `
@@ -905,16 +932,34 @@ function renderAgentExecutionHint(log) {
 
 function renderAgentWorkbenchHeader(context) {
   const summary = context.summary || {};
+  const selectedGoal = state.goals.find((goal) => goal.id === selectedGoalId);
   document.getElementById("agent-context-updated").textContent = context.generatedAt
     ? `更新于 ${formatDateTime(context.generatedAt)}`
     : "未刷新";
-  document.getElementById("agent-scope-label").textContent = context.scope?.goalId
-    ? "当前目标"
-    : "全部目标";
+  document.getElementById("agent-scope-label").textContent = selectedGoal?.name || "全部目标概览";
   document.getElementById("agent-goal-total").textContent = summary.goalCount || 0;
   document.getElementById("agent-task-open-total").textContent = summary.taskOpen || 0;
   document.getElementById("agent-material-total").textContent = summary.materialTotal || 0;
   document.getElementById("agent-review-total").textContent = summary.flashcardTotal || 0;
+}
+
+function renderAgentGoalSelect() {
+  const select = document.getElementById("agent-goal-select");
+  if (!select) return;
+
+  select.innerHTML = "";
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = state.goals.length ? "请选择学习目标" : "请先创建学习目标";
+  select.appendChild(placeholder);
+
+  state.goals.forEach((goal) => {
+    const option = document.createElement("option");
+    option.value = goal.id;
+    option.textContent = goal.name;
+    select.appendChild(option);
+  });
+  select.value = selectedGoalId || "";
 }
 
 function renderAgentObservationList(context) {
@@ -923,7 +968,7 @@ function renderAgentObservationList(context) {
 
   const observations = context.summary?.observations || [];
   if (!observations.length) {
-    list.appendChild(emptyNode("暂无观察", "AgentContext 暂未返回观察摘要。"));
+    list.appendChild(emptyNode("暂无学习提醒", "当前学习状态暂时没有需要特别提醒的内容。"));
     return;
   }
 
@@ -932,7 +977,7 @@ function renderAgentObservationList(context) {
     item.className = "agent-observation-item";
     item.innerHTML = `
       <span aria-hidden="true">!</span>
-      <p>${escapeHtml(text)}</p>
+      <p>${escapeHtml(localizeAgentText(text))}</p>
     `;
     list.appendChild(item);
   });
@@ -944,7 +989,7 @@ function renderAgentTaskPanel(context) {
 
   const taskGroups = context.tasks || [];
   if (!taskGroups.length) {
-    list.appendChild(emptyNode("暂无任务状态", "创建目标并生成计划后，Agent 会读取任务进度。"));
+    list.appendChild(emptyNode("暂无任务状态", "创建目标并生成计划后，智能体会读取任务进度。"));
     return;
   }
 
@@ -972,7 +1017,7 @@ function renderAgentMaterialPanel(context) {
 
   const materials = context.materials || [];
   if (!materials.length) {
-    list.appendChild(emptyNode("暂无资料状态", "添加资料后，Agent 会读取摘要、片段和关联问答。"));
+    list.appendChild(emptyNode("暂无资料状态", "添加资料后，智能体会读取摘要、片段和关联问答。"));
     return;
   }
 
@@ -1064,7 +1109,7 @@ function renderAgentQaPanel(context) {
   list.innerHTML = "";
   const insufficiencies = qa.insufficiencies || [];
   if (!insufficiencies.length) {
-    list.appendChild(emptyNode("暂无资料不足记录", "当 Agent 判断资料无法支撑回答时，会在这里提示补资料。"));
+    list.appendChild(emptyNode("暂无资料不足记录", "当智能体判断资料无法支撑回答时，会在这里提示补充资料。"));
     return;
   }
 
@@ -1096,14 +1141,20 @@ function agentMiniList(items, title) {
 function getAgentActionLabel(action) {
   const labels = {
     answer_only: "继续当前节奏",
+    answer_with_sources: "根据资料回答问题",
+    search_materials: "检索相关资料",
     review_material: "复习或整理资料",
     create_flashcards: "生成复习卡片",
+    create_review_draft: "生成复习草稿",
     create_quiz: "生成测试题",
     reschedule_tasks: "重排任务",
     create_followup_tasks: "生成后续任务",
-    ask_for_more_material: "补充资料"
+    create_task_draft: "生成任务草稿",
+    apply_confirmed_draft: "写入已确认内容",
+    ask_for_more_material: "补充资料",
+    suggest_material_gap: "建议补充资料"
   };
-  return labels[action] || action || "未知动作";
+  return labels[action] || "其他学习操作";
 }
 
 function getAgentRiskLabel(riskLevel) {
@@ -1112,12 +1163,22 @@ function getAgentRiskLabel(riskLevel) {
     medium: "中风险",
     high: "高风险"
   };
-  return labels[riskLevel] || riskLevel || "未分级";
+  return labels[riskLevel] || "未分级";
+}
+
+function getAgentSeverityLabel(severity) {
+  const labels = {
+    low: "一般提醒",
+    medium: "需要关注",
+    high: "优先处理"
+  };
+  return labels[severity] || "需要关注";
 }
 
 function getAgentProblemLabel(type) {
   const labels = {
     missing_goal: "缺少学习目标",
+    proposed_drafts: "草稿等待确认",
     overdue_tasks: "任务进度滞后",
     missing_chunks: "资料缺少片段",
     missing_summary: "资料缺少总结",
@@ -1126,7 +1187,7 @@ function getAgentProblemLabel(type) {
     review_queue: "复习队列待处理",
     missing_tasks: "缺少行动任务"
   };
-  return labels[type] || type || "学习问题";
+  return labels[type] || "学习状态提醒";
 }
 
 function getAgentFeedbackLabel(status) {
@@ -1137,5 +1198,191 @@ function getAgentFeedbackLabel(status) {
     later: "稍后处理",
     applied: "已执行"
   };
-  return labels[status] || status || "已记录";
+  return labels[status] || "已记录";
+}
+
+function getAgentModeLabel(mode) {
+  const labels = {
+    hybrid: "智能模式",
+    "llm-json": "真实模型",
+    "rule-based": "本地规则",
+    mock: "本地模拟"
+  };
+  return labels[mode] || "本地规则";
+}
+
+function getAgentProviderLabel(provider) {
+  const labels = {
+    mock: "本地模拟",
+    "openai-compatible": "真实模型",
+    openai: "真实模型"
+  };
+  return labels[provider] || (provider ? "已配置模型" : "未记录");
+}
+
+function getAgentGuardStatusLabel(status) {
+  const labels = {
+    accepted: "已通过",
+    sanitized: "已修正",
+    fallback: "已使用备用方案"
+  };
+  return labels[status] || "未触发";
+}
+
+function getAgentStopReasonLabel(reason) {
+  const labels = {
+    completed: "任务完成",
+    max_steps: "已达到执行步骤上限",
+    no_progress: "没有新的可执行内容",
+    waiting_confirmation: "等待用户确认",
+    tool_error: "执行工具时出现异常",
+    tool_timeout_read_retry_exhausted: "读取超时，重试后仍未完成",
+    tool_timeout_write_no_retry: "写入超时，已停止避免重复写入",
+    context_readback_error: "写入后读取最新学习状态失败",
+    decision_readback_error: "写入后生成下一步判断失败",
+    cancelled: "用户已取消"
+  };
+  return labels[reason] || (reason ? "任务已停止" : "进行中");
+}
+
+function getAgentToolLabel(toolName) {
+  const labels = {
+    answer_only: "完成当前学习建议",
+    answer_with_sources: "根据资料回答问题",
+    search_materials: "检索相关资料",
+    review_material: "检查学习资料",
+    create_review_draft: "生成复习草稿",
+    create_task_draft: "生成任务草稿",
+    apply_confirmed_draft: "写入已确认内容",
+    suggest_material_gap: "整理资料补充建议"
+  };
+  return labels[toolName] || "其他学习处理";
+}
+
+function getAgentProblemMessage(problem) {
+  const count = Number(String(problem.message || "").match(/\d+/)?.[0] || 0);
+  const messages = {
+    missing_goal: "还没有学习目标，智能体暂时无法制定下一步计划。",
+    proposed_drafts: `有 ${count || 1} 份草稿等待你确认，确认后才会写入正式学习内容。`,
+    overdue_tasks: `有 ${count} 项任务已经逾期，建议先调整任务安排。`,
+    missing_chunks: `有 ${count} 份资料还不能被检索，需要先完成资料整理。`,
+    missing_summary: `有 ${count} 份资料还没有生成总结。`,
+    material_insufficiency: `有 ${count} 个问题缺少足够的资料依据。`,
+    weak_quiz_attempts: `检测到 ${count} 次薄弱测试记录，建议针对错题进行复习。`,
+    review_queue: `有 ${count} 张闪卡等待复习。`,
+    missing_tasks: "已经创建学习目标，但还没有可执行任务。"
+  };
+  return messages[problem.type] || localizeAgentText(problem.message || "当前学习状态需要关注。");
+}
+
+function getAgentActionDescription(action) {
+  const type = action.type || action.actionType || "";
+  const descriptions = {
+    answer_only: "当前没有需要优先处理的问题，可以继续今天的学习安排。",
+    answer_with_sources: "从已有资料中查找依据并回答当前问题。",
+    search_materials: "从当前目标关联的资料中查找相关内容。",
+    review_material: "检查资料是否已经完成总结和检索处理，并进入复习。",
+    create_flashcards: "根据测试薄弱点生成复习草稿，确认后再加入正式闪卡。",
+    create_review_draft: "根据测试薄弱点生成复习草稿，等待你确认。",
+    create_quiz: "根据当前资料生成测试题，用于检查掌握情况。",
+    reschedule_tasks: "把逾期任务调整为更小、更容易完成的学习步骤。",
+    create_followup_tasks: "根据学习目标生成后续行动任务。",
+    create_task_draft: "根据学习目标生成任务草稿，等待你确认。",
+    apply_confirmed_draft: "把你确认过的草稿写入正式任务或复习内容。",
+    ask_for_more_material: "当前资料不足以支撑回答，需要先补充相关资料。",
+    suggest_material_gap: "整理当前缺少的资料方向，方便继续补充。"
+  };
+  return descriptions[type] || localizeAgentText(action.description || action.observation || "按当前建议继续处理。");
+}
+
+function getAgentDecisionReason(decision) {
+  const primaryProblem = (decision.problems || [])[0];
+  if (primaryProblem) {
+    return `当前优先处理“${getAgentProblemLabel(primaryProblem.type)}”。${getAgentProblemMessage(primaryProblem)}`;
+  }
+  if (containsChinese(decision.reason)) {
+    return decision.reason;
+  }
+  return "当前没有高优先级问题，可以继续现有学习安排。";
+}
+
+function getAgentStepReason(step) {
+  const decision = step.decisionSnapshot || {};
+  const executedAction = step.actionSnapshot?.type;
+  if (executedAction && decision.nextAction && executedAction !== decision.nextAction) {
+    return `为避免重复处理，当前步骤改为“${getAgentActionLabel(executedAction)}”。`;
+  }
+  return getAgentDecisionReason(decision);
+}
+
+function getAgentStateSummary(decision) {
+  if (containsChinese(decision.stateSummary)) return decision.stateSummary;
+  const match = String(decision.stateSummary || "").match(
+    /(\d+) goal\(s\), (\d+) open task\(s\), (\d+) material\(s\), (\d+) flashcard\(s\), (\d+) weak quiz attempt\(s\)/
+  );
+  if (match) {
+    return `${match[1]} 个目标，${match[2]} 项未完成任务，${match[3]} 份资料，${match[4]} 张闪卡，${match[5]} 次薄弱测试记录。`;
+  }
+  const summary = state.agentContext?.summary || {};
+  return `${summary.goalCount || 0} 个目标，${summary.taskOpen || 0} 项未完成任务，${summary.materialTotal || 0} 份资料，${summary.flashcardTotal || 0} 张闪卡。`;
+}
+
+function localizeAgentText(value) {
+  const text = String(value || "").trim();
+  if (!text || containsChinese(text)) return text;
+
+  const direct = {
+    "LLM decision provider is unavailable.": "当前未连接真实模型，已自动使用本地规则继续完成。",
+    "Tool risk policy requires user confirmation before execution.": "该操作会写入正式学习记录，执行前必须由你确认。",
+    "Flashcards are waiting for review.": "有闪卡正在等待复习。",
+    "Recent quiz attempts show weak points.": "最近的测试结果显示存在薄弱知识点。",
+    "Some questions were marked as material-insufficient.": "部分问题缺少足够的资料依据。",
+    "Learning context is ready for the next Agent decision.": "当前学习状态已经准备好，可以生成下一步建议。",
+    "The Agent found no further executable action and completed the run.": "当前没有更多需要执行的操作，本次智能任务已完成。"
+  };
+  if (direct[text]) return direct[text];
+
+  let match = text.match(/^(\d+) open task\(s\) are overdue\.$/);
+  if (match) return `有 ${match[1]} 项未完成任务已经逾期。`;
+  match = text.match(/^(\d+) material\(s\) have no chunks yet\.$/);
+  if (match) return `有 ${match[1]} 份资料还没有完成检索处理。`;
+  match = text.match(/^(\d+) material\(s\) have no summary yet\.$/);
+  if (match) return `有 ${match[1]} 份资料还没有生成总结。`;
+  match = text.match(/^(\d+) draft\(s\) await confirmation\.$/);
+  if (match) return `有 ${match[1]} 份草稿等待确认。`;
+  match = text.match(/^Persisted (\d+) (review|task) draft(?:s)?\.$/);
+  if (match) return `已生成 ${match[1]} 份${match[2] === "review" ? "复习" : "任务"}草稿。`;
+  match = text.match(/^Reused (\d+) (review|task) draft(?:s)?\.$/);
+  if (match) return `已找到 ${match[1]} 份现有${match[2] === "review" ? "复习" : "任务"}草稿，没有重复生成。`;
+  match = text.match(/^Persisted (\d+) (review|task) draft(?:s)?; reused (\d+)\.$/);
+  if (match) return `已生成 ${match[1]} 份${match[2] === "review" ? "复习" : "任务"}草稿，并沿用 ${match[3]} 份现有草稿。`;
+  match = text.match(/^(Applied|Reused) (\d+) confirmed draft\(s\) to (\d+) formal records?\.$/);
+  if (match) return `${match[1] === "Reused" ? "已确认现有写入结果" : "已完成正式写入"}：${match[2]} 份草稿对应 ${match[3]} 条正式学习记录。`;
+  match = text.match(/^Inspected (\d+) material\(s\); generated chunks for (\d+) and summaries for (\d+)\.$/);
+  if (match) return `已检查 ${match[1]} 份资料；新增 ${match[2]} 份检索内容和 ${match[3]} 份资料总结。`;
+  match = text.match(/^Generated a grounded answer with (\d+) reference\(s\); confidence is (.+)\.$/);
+  if (match) return `已根据 ${match[1]} 条资料依据生成回答。`;
+  match = text.match(/^Retrieved (\d+) material reference\(s\) for query '.*' using .* retrieval\.$/);
+  if (match) return `已检索到 ${match[1]} 条相关资料依据。`;
+  match = text.match(/^Prepared a source-gap suggestion from (\d+) insufficient answer\(s\)\.$/);
+  if (match) return `已根据 ${match[1]} 条资料不足记录整理补充建议。`;
+  match = text.match(/^Run completed after (\d+) persisted step\(s\)\./);
+  if (match) return `智能任务已完成，共执行 ${match[1]} 个步骤。`;
+  match = text.match(/^Run stopped at the step budget after (\d+) persisted step\(s\)\./);
+  if (match) return `智能任务已达到步骤上限，共执行 ${match[1]} 个步骤。`;
+  match = text.match(/^Run was cancelled after (\d+) persisted step\(s\)\./);
+  if (match) return `智能任务已取消，取消前执行了 ${match[1]} 个步骤。`;
+  match = text.match(/^Run stopped with no new executable action after (\d+) persisted step\(s\)\./);
+  if (match) return `没有发现新的可执行内容，本次智能任务已结束，共执行 ${match[1]} 个步骤。`;
+  if (/^LLM decision provider failed/.test(text)) {
+    return "真实模型连接失败，已自动使用本地规则继续完成。";
+  }
+  if (/^Run failed/.test(text)) {
+    return "智能任务执行失败，请查看技术详情定位原因。";
+  }
+  return "系统已记录一条技术信息，可在下方技术详情中查看。";
+}
+
+function containsChinese(value) {
+  return /[\u3400-\u9fff]/.test(String(value || ""));
 }

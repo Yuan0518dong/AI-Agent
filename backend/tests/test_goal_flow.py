@@ -45,7 +45,8 @@ def test_root_serves_frontend_entrypoint_for_one_command_startup():
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "智能体工作台" in response.text
+    assert "智能学习助手" in response.text
+    assert 'id="agent-goal-select"' in response.text
 
 
 def test_goal_crud_and_partial_update_keeps_existing_fields():
