@@ -4,7 +4,7 @@
 
 ## 状态
 
-本记录描述已经获得的本地、浏览器、真实 Neon、GitHub Actions 和公开 Render 证据。Batch 1 尚未完成最终验收，当前不得创建 Batch 2 分支；尚未完成的 Render 重启持久化、默认分支公开 smoke 和求职季政策复核不得写成已完成。
+本记录描述已经获得的本地、浏览器、真实 Neon、GitHub Actions 和公开 Render 证据。Batch 1 全部需求项已完成最终验收；本记录的独立提交完成后，才可以从它创建 Batch 2 分支。
 
 ## 已验证需求
 
@@ -18,6 +18,8 @@
 - `DEPLOY-04`：README、登录页和部署说明都提示 Render 免费 Web 服务闲置 15 分钟后可能休眠，首次访问可能需要约 1 分钟唤醒。
 - `DB-01`：隔离 Neon 测试分支与生产 Neon 分支均通过 Alembic `20260716_01` 迁移；生产直连已实际读取 `vector` 扩展和 `users` 表，生产池化 URL 也可读取 schema。
 - `DB-02`：GitHub Actions [run 29485625666](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29485625666) 成功；其中 `PostgreSQL pgvector integration` job 在 `pgvector/pgvector:pg16` 服务中执行 Alembic 并通过 `3 passed, 117 deselected`，Reliability job 也通过 Mock 全量门禁、语法与提交范围空白检查。生产代码在 `APP_ENV=production` 下拒绝缺失、非 Neon 或非池化的运行连接；公开服务的 Demo 数据读写已实际经过该配置。
+- `DEPLOY-03`：Render Docker 服务重新部署恢复 `Live` 后，部署前建立的临时 Demo Secure Cookie 仍成功读取同一会话与 1 个目标；验收后已删除临时 Cookie。该结果证明公开运行实例依赖 Neon 持久化数据而不是容器本地文件。
+- `OPS-01`：`PUBLIC_DEMO_URL` 已作为仓库 Variable 配置，工作流已位于默认分支 `main`。手动 [run 29487956918](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29487956918) 成功完成健康检查、同源 Demo、Cookie `/api/auth/me` 和 `/api/goals` 只读链路；同一工作流保留每月 `17 3 1 * *` 调度，不使用高频保活。
 - `OPS-02`：2026-07-16 已完成求职季前平台政策复核，结论记录在本文件的“平台政策复核”部分；后续每次求职季开始前仍须重新执行。
 
 ## 本地证据
@@ -77,6 +79,8 @@ python -m pytest backend/tests -m postgres -q --tb=short
 - 验收记录提交的首次 CI run `29485463169` 失败是一个真实发现：浅克隆使 `git show --check` 将仓库既有历史空白问题当作当前提交检查。后续提交改为 `fetch-depth: 2` 与 `git diff --check HEAD^ HEAD`，最终 run `29485625666` 两个 job 均通过；历史文件未被伪装为本批修复。
 - Render Docker Web 服务公开地址为 [https://ai-agent-v7-yuan0518dong.onrender.com](https://ai-agent-v7-yuan0518dong.onrender.com)。`GET /` 与 `GET /api/health` 均为 `200`；公开 API smoke 真实验证同源 `POST /api/auth/demo`、Cookie `GET /api/auth/me`、`GET /api/goals` 的 1 个隔离目标、未知 Origin 的 `403 origin_forbidden`，以及 `Secure; HttpOnly; SameSite=Lax` Cookie 属性。
 - 公开 URL 的 Edge + Playwright 验收真实点击“一键试用”：Demo Cookie 会话与 1 个目标可读回，`document.cookie` 不含会话名；登出后 `/api/auth/me` 返回 `401 auth_required`；`390px` 和 `1440px` 的文档宽度均不超过视口。页面无异常，除登出后的预期 `401 /api/auth/me` 外无失败 API 响应，console/page error 均为 `0`。
+- 用户确认 Render 手动重新部署已恢复 `Live` 后，使用部署前保存的临时 Demo Cookie 重新请求 `/api/auth/me` 与 `/api/goals`，会话与 1 个目标均成功读回；Cookie 文件随后删除。
+- `Public Demo Smoke` 已随 Batch 1 快进到 `personal/main` 并注册为默认分支工作流。仓库 Variable `PUBLIC_DEMO_URL` 的值为公开 Render Origin；手动 [run 29487956918](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29487956918) 以 `workflow_dispatch` 成功运行，证明该变量、公开 URL、Demo 和只读链路真实可用。月度 cron `17 3 1 * *` 已在同一已验证工作流中生效；首次自然月触发尚未到期，不能伪称已经发生。
 - Render 公开 Demo 当前显式使用 Mock Provider；这证明部署、会话、数据和界面链路，不构成真实模型性能或成本证据。
 
 ## 平台政策复核
@@ -85,21 +89,10 @@ python -m pytest backend/tests -m postgres -q --tb=short
 - [Neon Plans 官方文档](https://neon.com/docs/introduction/plans) 于 2026-07-16 可访问。Free 当前包含 100 CU-hours/项目/月、0.5 GB 存储/项目和 5 GB 公网传输/月；计算或出网超额会暂停到下个计费周期，存储超额会拒绝增加存储的操作，文档明确这些限额不会删除数据。当前用 Neon 作为生产持久化存储仍符合“无固定自动删除期限”的约束。
 - 风险与动作：免费方案/额度不是固定承诺；每次求职季前必须复查上述官方页面。若 Neon 出现固定自动删除期限或现有项目接近额度，应先导出数据，再迁移到满足同等持久化约束的托管 PostgreSQL。
 
-## 剩余部署缺口
+## 持续风险与复核
 
-以下需求保持未勾选：
+- Render Free Web 可能休眠、重启或消耗完当月免费实例时数；公开首页保留冷启动提示，公开 smoke 不会通过高频请求规避平台政策。
+- 在确认 Render 可信代理 CIDR 前保持 `TRUST_PROXY_HEADERS=false`。这避免接受可伪造的转发头，但公共 IP 限流可能按 Render 代理而非真实访客聚合。
+- Render/Neon 免费政策和额度须在每次求职季前重查；`OPS-02` 的本次通过不替代下一次复核。
 
-- `DEPLOY-03`：Dockerfile、`.dockerignore`、Neon 连接分工和 Provider 变量说明已提交，Render Docker 服务也已上线；仍需在 Render 重新部署后用既有 Cookie/数据读回，才能证明运行实例不依赖临时本地状态。
-- `OPS-01`：公开 API 链路已手工验证，但 `public-demo-smoke.yml` 只存在于功能分支；GitHub 默认分支为 `main`，`workflow_dispatch` 与 `schedule` 因此不能实际运行。`PUBLIC_DEMO_URL` 变量应先由仓库管理员配置，随后需将已验收的工作流放入默认分支并手动运行一次。
-
-## 需要的外部授权
-
-继续 Batch 1 最终验收需要用户授权：
-
-```text
-在个人 GitHub 仓库配置 PUBLIC_DEMO_URL
-将已验收的 Public Demo Smoke 工作流合并或单独提交到个人仓库默认分支 main
-在 Render 执行一次重新部署，并允许用临时 Demo Cookie 做重启后的只读回验
-```
-
-Neon 连接串仍不得写入仓库或状态文档。取得上述授权后，应验证 Render 重新部署后 Neon 数据可读回，并从默认分支手动触发公开 Demo smoke。只有这些证据存在时才能勾选剩余 Batch 1 条目、创建本批验收提交并进入 Batch 2。
+Neon 连接串、Cookie 和 Provider Key 均未写入仓库或状态文档。
