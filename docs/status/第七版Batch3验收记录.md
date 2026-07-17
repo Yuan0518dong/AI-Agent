@@ -14,7 +14,7 @@
 - `link` 资料不会调用切分、总结、闪卡或测试接口，前端和服务端都显示“仅保存链接，不解析网页正文”。资料文本在摘要、测试与问答提示中明确为不可信引用，模型不能把其中内容当系统指令或工具调用。
 - 新增 Alembic `20260717_02_ingestion_rag_pgvector`：执行 `CREATE EXTENSION IF NOT EXISTS vector`，增加资料来源/状态/定位字段，保存 `embedding_vector vector(2048)`。Neon pgvector 的 `vector` HNSW 操作符类上限为 2000 维，因此实际索引为 `embedding_vector::halfvec(2048)` 上的 `halfvec_cosine_ops` HNSW；旧 JSON embedding 字段保留给 SQLite 和历史兼容。
 - 真实 embedding Provider 固定请求 `embedding-3` / 2048 维；启动配置或 Provider 响应维度不符时失败。SQLite 的 Mock embedding 继续写 JSON，用于离线测试。
-- 检索分别取 keyword、dense Top 20，以 RRF `k=60` 融合；dense 不可用则退回纯关键词。问答引用包含资料名、页码或标题/段落、原文、检索模式和分数。没有充分引用时由服务端直接返回 `grounded-refusal`，不调用模型编造资料依据。
+- 检索取 keyword Top 20；PostgreSQL dense 先物化 halfvec HNSW Top 100 候选，再按原始 `vector(2048)` cosine 距离重排为 Top 20，随后以 RRF `k=60` 融合；dense 不可用则退回纯关键词。问答引用包含资料名、页码或标题/段落、原文、检索模式和分数。没有充分引用时由服务端直接返回 `grounded-refusal`，不调用模型编造资料依据。
 
 ## 自动化验证
 
@@ -28,14 +28,14 @@ $env:EMBEDDING_ENV_FILE=".missing-v7-gate.env"
 python -m pytest backend/tests -q --tb=short
 ```
 
-结果：`136 passed, 3 skipped in 83.14s`。
+结果：`137 passed, 4 skipped in 79.80s`。
 
 新增 `test_batch3_ingestion_rag.py` 覆盖：
 
 - Markdown 和带文本 PDF 的真实 multipart 上传、完整处理状态、PDF 页码、Markdown 标题层级与段落定位。
 - 5 MB/50 页界限、PDF 签名、MIME、压缩包、路径文件名、加密 PDF 和扫描件/OCR 的拒绝路径。
 - 总结阶段失败后单独重试，不重新上传原文件。
-- Top 20 + RRF 的 hybrid 结果、embedding 失败的关键词降级、引用定位字段和资料不足硬拒答。
+- Top 100 halfvec HNSW 候选、原始 `vector(2048)` 全精度重排 Top 20、RRF hybrid、embedding 失败的关键词降级、引用定位字段和资料不足硬拒答。
 - `vector(2048)`、`halfvec(2048)` cosine HNSW、启动期 embedding 配置/维度契约及 Alembic head。
 
 附加基础门禁：
@@ -79,8 +79,8 @@ npx.cmd @playwright/test test --config=tests/browser/playwright.v7-batch3.config
 
 - 安全加载已忽略的 `backend/.env` 后，确认 `DATABASE_URL` 为 pooled Neon URL、`MIGRATION_DATABASE_URL` 为同一隔离 endpoint 的 direct Neon URL；连接串、密码和 endpoint 标识均未输出、记录或提交。
 - 迁移前 `python -m alembic -c backend/alembic.ini current` 实际返回 `20260716_01`。直连执行 `python -m alembic -c backend/alembic.ini upgrade head` 后，`current` 和 `alembic_version` 均为 `20260717_02`。
-- 实际 SQL 确认 `vector` 扩展存在，`material_chunks.embedding_vector` 为 `vector(2048)`，`idx_material_chunks_embedding_vector_hnsw` 的访问方法为 `hnsw`、操作符类为 `halfvec_cosine_ops`。首次使用 `vector_cosine_ops` 的真实迁移被 Neon pgvector 拒绝，错误为 HNSW 不支持超过 2000 维；已在同一 Batch 3 迁移中修正为 `halfvec(2048)` expression index，并同步使 PostgreSQL dense 查询使用相同排序表达式。完整 source vector 仍为 2048 维，结果分数仍以该 source vector 的 cosine 距离计算。
-- 使用同一隔离分支的 direct URL 临时设置 `POSTGRES_TEST_DATABASE_URL`，并显式设置 `LLM_PROVIDER=mock`、`EMBEDDING_PROVIDER=mock` 运行 PostgreSQL 集成测试。`test_postgres_batch3_pgvector_schema_has_2048_vector_and_cosine_hnsw_index`、会话/原子额度、认证限流/并发预留、资料批量写入四项均分项通过；新增 pgvector 测试还以 `EXPLAIN` 确认应用排序表达式可使用该 HNSW 索引。
+- 实际 SQL 确认 `vector` 扩展存在，`material_chunks.embedding_vector` 为 `vector(2048)`，`idx_material_chunks_embedding_vector_hnsw` 的访问方法为 `hnsw`、操作符类为 `halfvec_cosine_ops`。首次使用 `vector_cosine_ops` 的真实迁移被 Neon pgvector 拒绝，错误为 HNSW 不支持超过 2000 维；已在同一 Batch 3 迁移中修正为 `halfvec(2048)` expression index。PostgreSQL dense 查询先用该索引物化 Top 100 候选，再以完整 2048 维 source vector 的 cosine 距离重排为 Top 20，避免把 halfvec 近似顺序直接当最终顺序。
+- 使用同一隔离分支的 direct URL 临时设置 `POSTGRES_TEST_DATABASE_URL`，并显式设置 `LLM_PROVIDER=mock`、`EMBEDDING_PROVIDER=mock` 运行 PostgreSQL 集成测试。`test_postgres_batch3_pgvector_schema_has_2048_vector_and_cosine_hnsw_index`、会话/原子额度、认证限流/并发预留、资料批量写入四项均分项通过；重排优化后再次定向执行为 `1 passed, 3 deselected`，实际执行服务 SQL，并以 `EXPLAIN` 确认 Top 100 候选阶段使用该 HNSW 索引。
 
 ## 风险与后续边界
 

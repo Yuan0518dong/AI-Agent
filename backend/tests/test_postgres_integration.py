@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from backend.app.main import app
-from backend.app.services import database, llm_provider, store
+from backend.app.services import database, llm_provider, material_store, store
 
 
 pytestmark = pytest.mark.postgres
@@ -97,25 +97,36 @@ def test_postgres_batch3_pgvector_schema_has_2048_vector_and_cosine_hnsw_index()
         assert "halfvec_cosine_ops" in index_definition
         assert "halfvec(2048)" in index_definition
 
-        # The application orders by this expression, so PostgreSQL can use the
-        # same HNSW index without reducing the stored source vector dimension.
+        # Execute the application query, then prove its candidate stage uses
+        # HNSW before the full-precision vector rerank.
+        dense_results = material_store._postgres_dense_search([1.0] + [0.0] * 2047, None)
+        assert len(dense_results) <= 20
         connection.execute(text("SET LOCAL enable_seqscan = off"))
-        plan = "\n".join(
+        explain_plan = "\n".join(
             connection.execute(
                 text(
                     """
                     EXPLAIN (COSTS OFF)
-                    SELECT id
-                    FROM material_chunks
-                    WHERE embedding_vector IS NOT NULL
-                    ORDER BY embedding_vector::halfvec(2048) <=> CAST(:embedding AS halfvec(2048))
+                    WITH candidates AS MATERIALIZED (
+                        SELECT material_chunks.id
+                        FROM material_chunks
+                        JOIN materials ON materials.id = material_chunks.material_id
+                        WHERE embedding_vector IS NOT NULL
+                        ORDER BY embedding_vector::halfvec(2048) <=> CAST(:embedding AS halfvec(2048))
+                        LIMIT 100
+                    )
+                    SELECT material_chunks.id
+                    FROM candidates
+                    JOIN material_chunks ON material_chunks.id = candidates.id
+                    JOIN materials ON materials.id = material_chunks.material_id
+                    ORDER BY material_chunks.embedding_vector <=> CAST(:embedding AS vector)
                     LIMIT 20
                     """
                 ),
                 {"embedding": query_vector},
             ).scalars()
         )
-    assert "idx_material_chunks_embedding_vector_hnsw" in plan
+    assert "idx_material_chunks_embedding_vector_hnsw" in explain_plan
 
 
 def test_postgres_auth_rate_limits_and_usage_reservations_are_atomic(monkeypatch):

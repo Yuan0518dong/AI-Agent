@@ -7,7 +7,12 @@ from pypdf import PdfWriter
 from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
 
 from backend.app.main import app
-from backend.app.services import embedding_provider, material_processing_service, store
+from backend.app.services import (
+    embedding_provider,
+    material_processing_service,
+    material_store,
+    store,
+)
 from backend.tests.auth_helpers import register_session
 
 
@@ -223,3 +228,39 @@ def test_batch3_migration_declares_vector_2048_and_halfvec_cosine_hnsw_index():
     assert "halfvec(2048)" in migration
     assert "halfvec_cosine_ops" in migration
     assert "USING hnsw" in migration
+
+
+def test_postgres_dense_search_oversamples_halfvec_candidates_then_reranks_full_vector(monkeypatch):
+    captured = {}
+
+    class FakeResult:
+        def fetchall(self):
+            return []
+
+    class FakeConnection:
+        def execute(self, statement, parameters=None):
+            captured["statement"] = statement
+            captured["parameters"] = parameters
+            return FakeResult()
+
+    class FakeConnectionContext:
+        def __enter__(self):
+            return FakeConnection()
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(material_store, "_connect", lambda: FakeConnectionContext())
+    embedding = [1.0] + [0.0] * 2047
+
+    assert material_store._postgres_dense_search(embedding, "user-1") == []
+
+    sql = " ".join(captured["statement"].split())
+    assert "WITH candidates AS MATERIALIZED" in sql
+    assert "embedding_vector::halfvec(2048)" in sql
+    assert "LIMIT 100" in sql
+    assert "ORDER BY material_chunks.embedding_vector <=> CAST(? AS vector)" in sql
+    assert sql.endswith("LIMIT 20")
+    assert captured["parameters"][0] == "user-1"
+    assert len(captured["parameters"]) == 4
+    assert len(set(captured["parameters"][1:])) == 1

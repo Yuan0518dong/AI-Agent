@@ -550,18 +550,26 @@ def _postgres_dense_search(query_embedding: list[float], user_id: str | None) ->
     with _connect() as conn:
         where_clause = "WHERE materials.user_id = ? AND material_chunks.embedding_vector IS NOT NULL" if user_id else "WHERE material_chunks.embedding_vector IS NOT NULL"
         vector = _vector_literal(query_embedding)
-        values = (vector, user_id, vector) if user_id else (vector, vector)
+        values = (user_id, vector, vector, vector) if user_id else (vector, vector, vector)
         rows = conn.execute(
             """
+            WITH candidates AS MATERIALIZED (
+                SELECT material_chunks.id
+                FROM material_chunks
+                JOIN materials ON materials.id = material_chunks.material_id
+                {where_clause}
+                ORDER BY material_chunks.embedding_vector::halfvec(2048) <=> CAST(? AS halfvec(2048))
+                LIMIT 100
+            )
             SELECT
                 material_chunks.*,
                 materials.title AS material_title,
                 materials.goal_id AS goal_id,
                 1 - (material_chunks.embedding_vector <=> CAST(? AS vector)) AS dense_score
-            FROM material_chunks
+            FROM candidates
+            JOIN material_chunks ON material_chunks.id = candidates.id
             JOIN materials ON materials.id = material_chunks.material_id
-            {where_clause}
-            ORDER BY material_chunks.embedding_vector::halfvec(2048) <=> CAST(? AS halfvec(2048))
+            ORDER BY material_chunks.embedding_vector <=> CAST(? AS vector)
             LIMIT 20
             """.format(where_clause=where_clause),
             values,
