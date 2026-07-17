@@ -561,7 +561,7 @@ def _postgres_dense_search(query_embedding: list[float], user_id: str | None) ->
             FROM material_chunks
             JOIN materials ON materials.id = material_chunks.material_id
             {where_clause}
-            ORDER BY material_chunks.embedding_vector <=> CAST(? AS vector)
+            ORDER BY material_chunks.embedding_vector::halfvec(2048) <=> CAST(? AS halfvec(2048))
             LIMIT 20
             """.format(where_clause=where_clause),
             values,

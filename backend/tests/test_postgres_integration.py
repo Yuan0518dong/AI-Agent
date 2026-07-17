@@ -69,6 +69,55 @@ def test_postgres_schema_session_hash_and_atomic_usage_counter():
     assert store.reserve_model_usage_limits(reservations, now) is False
 
 
+def test_postgres_batch3_pgvector_schema_has_2048_vector_and_cosine_hnsw_index():
+    engine = database.get_engine()
+    query_vector = "[1," + ",".join("0" for _ in range(2047)) + "]"
+    with engine.begin() as connection:
+        assert connection.execute(
+            text("SELECT extname FROM pg_extension WHERE extname = 'vector'")
+        ).scalar_one() == "vector"
+        column_type = connection.execute(
+            text(
+                """
+                SELECT format_type(attribute.atttypid, attribute.atttypmod)
+                FROM pg_attribute AS attribute
+                JOIN pg_class AS relation ON relation.oid = attribute.attrelid
+                WHERE relation.relname = 'material_chunks'
+                  AND attribute.attname = 'embedding_vector'
+                  AND attribute.attnum > 0
+                  AND NOT attribute.attisdropped
+                """
+            )
+        ).scalar_one()
+        assert column_type == "vector(2048)"
+        index_definition = connection.execute(
+            text("SELECT pg_get_indexdef('idx_material_chunks_embedding_vector_hnsw'::regclass)")
+        ).scalar_one().lower()
+        assert "using hnsw" in index_definition
+        assert "halfvec_cosine_ops" in index_definition
+        assert "halfvec(2048)" in index_definition
+
+        # The application orders by this expression, so PostgreSQL can use the
+        # same HNSW index without reducing the stored source vector dimension.
+        connection.execute(text("SET LOCAL enable_seqscan = off"))
+        plan = "\n".join(
+            connection.execute(
+                text(
+                    """
+                    EXPLAIN (COSTS OFF)
+                    SELECT id
+                    FROM material_chunks
+                    WHERE embedding_vector IS NOT NULL
+                    ORDER BY embedding_vector::halfvec(2048) <=> CAST(:embedding AS halfvec(2048))
+                    LIMIT 20
+                    """
+                ),
+                {"embedding": query_vector},
+            ).scalars()
+        )
+    assert "idx_material_chunks_embedding_vector_hnsw" in plan
+
+
 def test_postgres_auth_rate_limits_and_usage_reservations_are_atomic(monkeypatch):
     suffix = uuid4().hex
     monkeypatch.setenv("RATE_LIMIT_HASH_SALT", f"postgres-integration-{suffix}")

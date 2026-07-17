@@ -214,11 +214,12 @@ def test_keyword_degradation_when_embeddings_are_unavailable(monkeypatch):
     assert response.json()["data"][0]["searchMode"] == "keyword"
 
 
-def test_batch3_migration_declares_vector_2048_and_cosine_hnsw_index():
+def test_batch3_migration_declares_vector_2048_and_halfvec_cosine_hnsw_index():
     migration = Path("backend/migrations/versions/20260717_02_ingestion_rag_pgvector.py").read_text(
         encoding="utf-8"
     )
 
     assert "vector(2048)" in migration
-    assert "vector_cosine_ops" in migration
+    assert "halfvec(2048)" in migration
+    assert "halfvec_cosine_ops" in migration
     assert "USING hnsw" in migration

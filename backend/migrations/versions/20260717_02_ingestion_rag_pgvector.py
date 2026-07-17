@@ -53,10 +53,13 @@ def upgrade() -> None:
     # Keep the old JSON-text column for legacy compatibility. Existing vectors
     # are not dimension-safe, so new 2048-d embeddings are written here only.
     op.execute("ALTER TABLE material_chunks ADD COLUMN embedding_vector vector(2048)")
+    # pgvector's vector HNSW opclasses are limited to 2000 dimensions. Keep the
+    # source embedding at 2048 dimensions and index its half-precision form,
+    # which supports up to 4000 dimensions while retaining cosine retrieval.
     op.execute(
         """
         CREATE INDEX idx_material_chunks_embedding_vector_hnsw
-        ON material_chunks USING hnsw (embedding_vector vector_cosine_ops)
+        ON material_chunks USING hnsw ((embedding_vector::halfvec(2048)) halfvec_cosine_ops)
         WITH (m = 16, ef_construction = 64)
         """
     )
