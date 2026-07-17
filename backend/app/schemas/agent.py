@@ -23,6 +23,10 @@ class AgentReference(BaseModel):
     content: str
     score: float
     searchMode: str = "keyword"
+    retrievalModes: list[str] = Field(default_factory=list)
+    pageNumber: int | None = None
+    headingPath: str = ""
+    paragraphIndex: int | None = None
 
 
 class AgentAskResponse(BaseModel):

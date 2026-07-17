@@ -245,7 +245,7 @@ function referenceChunksNode(references) {
     item.innerHTML = `
       <div class="chunk-meta">
         <span>${escapeHtml(reference.materialTitle)}</span>
-        <span>片段 ${Number(reference.chunkIndex) + 1} / score ${escapeHtml(reference.score)}</span>
+        <span>${escapeHtml(formatReferenceLocation(reference))} · ${escapeHtml(reference.searchMode || "keyword")} · score ${escapeHtml(reference.score)}</span>
       </div>
       <p>${escapeHtml(reference.content)}</p>
     `;
@@ -253,6 +253,13 @@ function referenceChunksNode(references) {
   });
 
   return detail;
+}
+
+function formatReferenceLocation(reference) {
+  if (reference.pageNumber) return `第 ${reference.pageNumber} 页`;
+  if (reference.headingPath) return reference.headingPath;
+  if (Number.isInteger(reference.paragraphIndex)) return `段落 ${reference.paragraphIndex + 1}`;
+  return `片段 ${Number(reference.chunkIndex || 0) + 1}`;
 }
 
 function referenceNode(materialIds) {

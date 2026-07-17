@@ -1846,6 +1846,56 @@ textarea {
   gap: 12px;
 }
 
+.processing-stages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.processing-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 6px;
+  align-items: center;
+  min-height: 42px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.processing-stage-completed {
+  color: #176b43;
+  background: #f2faf5;
+}
+
+.processing-stage-failed {
+  color: #9c3427;
+  background: #fff6f4;
+}
+
+.processing-stage small {
+  grid-column: 1 / -1;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.processing-stage .ghost-button {
+  min-height: 28px;
+  padding: 3px 7px;
+  font-size: 12px;
+}
+
+.material-processing-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .agent-run-panel {
   display: grid;
   gap: 14px;

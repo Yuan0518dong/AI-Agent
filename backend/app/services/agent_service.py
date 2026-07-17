@@ -26,9 +26,16 @@ def answer_question(
             "content": chunk["content"],
             "score": chunk["score"],
             "searchMode": chunk.get("searchMode", "keyword"),
+            "retrievalModes": chunk.get("retrievalModes", [chunk.get("searchMode", "keyword")]),
+            "pageNumber": chunk.get("pageNumber"),
+            "headingPath": chunk.get("headingPath", ""),
+            "paragraphIndex": chunk.get("paragraphIndex"),
         }
         for chunk in matches[:limit]
     ]
+
+    if not references:
+        return _insufficient_answer(question, goal, material_id)
 
     with model_usage_service.user_usage_scope(user_id):
         provider = llm_provider.get_llm_provider()
@@ -59,6 +66,29 @@ def answer_question(
         "requiresConfirmation": generated.requires_confirmation,
         "insufficiencyReason": generated.insufficiency_reason,
         "reviewDrafts": generated.review_drafts,
+    }
+
+
+def _insufficient_answer(question: str, goal: dict | None, material_id: str | None) -> dict:
+    reason = "没有检索到能够支撑该问题的资料引用。"
+    return {
+        "id": None,
+        "materialId": material_id,
+        "goalId": goal["id"] if goal else None,
+        "question": question,
+        "answer": "当前资料不足以直接回答这个问题。我不会把没有引用的常识当成资料依据。",
+        "basis": reason,
+        "suggestion": "请补充直接讨论该问题的资料后再提问。",
+        "sourceTitle": "",
+        "references": [],
+        "isFromMaterial": False,
+        "confidence": "low",
+        "createdAt": None,
+        "mode": "grounded-refusal",
+        "nextAction": "ask_for_more_material",
+        "requiresConfirmation": False,
+        "insufficiencyReason": reason,
+        "reviewDrafts": [],
     }
 
 

@@ -20,7 +20,7 @@ class MaterialCreate(BaseModel):
 class MaterialUpdate(BaseModel):
     goalId: str | None = None
     title: str | None = Field(default=None, min_length=1)
-    type: str | None = Field(default=None, pattern="^(text|link)$")
+    type: str | None = Field(default=None, pattern="^(text|link|pdf|markdown|txt)$")
     content: str | None = None
     url: str | None = None
 

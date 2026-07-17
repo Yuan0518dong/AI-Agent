@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from backend.app.routers import agent, auth, dashboard, goals, materials, progress, tasks
-from backend.app.services import rate_limit_service, store
+from backend.app.services import embedding_provider, rate_limit_service, store
 
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "app"
@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     rate_limit_service.require_runtime_security_configuration()
+    embedding_provider.require_embedding_contract()
+    sqlite_database_path = os.getenv("SQLITE_DATABASE_PATH", "").strip()
+    if sqlite_database_path:
+        store.set_db_path(sqlite_database_path)
     store.init_db()
     yield
 

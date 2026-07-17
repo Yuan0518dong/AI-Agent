@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from backend.app.schemas.materials import (
     FlashcardCreate,
@@ -10,6 +10,8 @@ from backend.app.schemas.materials import (
 from backend.app.services import (
     ai_learning_service,
     material_ai_service,
+    material_extraction_service,
+    material_ingestion_service,
     material_processing_service,
     material_store,
     store,
@@ -45,10 +47,63 @@ def create_material(payload: MaterialCreate, user_id: str | None = Depends(curre
         "type": payload.type,
         "content": payload.content,
         "url": payload.url,
+        "originalFilename": "",
+        "mimeType": "",
+        "pageCount": None,
+        "extractionMetadata": {},
+        "processingStatus": {},
+        "processingError": "",
         "createdAt": now,
         "updatedAt": now,
     }
     return ok(material_store.save_material(material))
+
+
+@router.post("/upload")
+async def upload_material(
+    file: UploadFile = File(...),
+    title: str = Form(default=""),
+    goalId: str | None = Form(default=None),
+    user_id: str | None = Depends(current_user_id),
+):
+    goal_id = _normalize_goal_id(goalId)
+    if goal_id and not store.goal_exists(goal_id, user_id):
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    try:
+        raw_bytes = await file.read(material_extraction_service.MAX_UPLOAD_BYTES + 1)
+        extracted = material_extraction_service.extract_uploaded_material(
+            file.filename,
+            file.content_type,
+            raw_bytes,
+        )
+    except material_extraction_service.UploadValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        await file.close()
+
+    # Do not persist UploadFile or raw_bytes. Only extracted text and locations survive this request.
+    raw_bytes = b""
+    now = store.now_iso()
+    material = {
+        "id": store.make_id("material"),
+        "userId": user_id,
+        "goalId": goal_id,
+        "title": title.strip() or extracted.title,
+        "type": extracted.source_type,
+        "content": extracted.content,
+        "url": "",
+        "originalFilename": extracted.original_filename,
+        "mimeType": extracted.mime_type,
+        "pageCount": extracted.page_count,
+        "extractionMetadata": extracted.extraction_metadata,
+        "processingStatus": material_ingestion_service.initial_processing_status(),
+        "processingError": "",
+        "createdAt": now,
+        "updatedAt": now,
+    }
+    material_store.save_material(material)
+    return ok(material_ingestion_service.process_upload_pipeline(material["id"], user_id))
 
 
 @router.get("/search")
@@ -58,6 +113,21 @@ def search_material_chunks(
     user_id: str | None = Depends(current_user_id),
 ):
     return ok(material_store.search_chunks(query, limit, user_id))
+
+
+@router.post("/{material_id}/processing/{stage}/retry")
+def retry_material_processing_stage(
+    material_id: str,
+    stage: str,
+    user_id: str | None = Depends(current_user_id),
+):
+    if not material_store.get_material(material_id, user_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+    try:
+        material = material_ingestion_service.retry_processing_stage(material_id, stage, user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ok(material)
 
 
 @router.get("/{material_id}")
@@ -113,6 +183,7 @@ def generate_material_chunks(material_id: str, user_id: str | None = Depends(cur
     material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_not_link_only(material)
 
     return ok(material_processing_service.generate_material_chunks(material, user_id))
 
@@ -138,6 +209,7 @@ def summarize_material(material_id: str, user_id: str | None = Depends(current_u
     material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_not_link_only(material)
 
     return ok(material_processing_service.summarize_material(material, user_id))
 
@@ -162,6 +234,7 @@ def list_material_flashcards(material_id: str, user_id: str | None = Depends(cur
 def generate_material_flashcards(material_id: str, user_id: str | None = Depends(current_user_id)):
     if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_not_link_only(material_store.get_material(material_id, user_id))
 
     summary = material_store.get_material_summary(material_id)
     if not summary:
@@ -249,6 +322,7 @@ def generate_material_quiz(
     material = material_store.get_material(material_id, user_id)
     if not material:
         raise HTTPException(status_code=404, detail="Material not found")
+    _ensure_not_link_only(material)
 
     summary = material_store.get_material_summary(material_id)
     if not summary:
@@ -323,3 +397,8 @@ def _validate_material_body(material: dict) -> None:
         raise HTTPException(status_code=422, detail="Text materials require content")
     if material["type"] == "link" and not material["url"].strip():
         raise HTTPException(status_code=422, detail="Link materials require url")
+
+
+def _ensure_not_link_only(material: dict | None) -> None:
+    if material and material.get("type") == "link":
+        raise HTTPException(status_code=409, detail="链接资料仅保存链接，不解析正文。")

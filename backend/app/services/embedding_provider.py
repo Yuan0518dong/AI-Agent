@@ -12,6 +12,10 @@ from fastapi import HTTPException
 from backend.app.services import model_usage_service
 
 
+EMBEDDING_MODEL = "embedding-3"
+EMBEDDING_DIMENSIONS = 2048
+
+
 class EmbeddingProvider(Protocol):
     mode: str
 
@@ -69,7 +73,13 @@ class OpenAICompatibleEmbeddingProvider:
         normalized_text = text.strip()
         if not normalized_text:
             return []
-        result = self._post_embeddings({"model": self.model, "input": normalized_text})
+        result = self._post_embeddings(
+            {
+                "model": self.model,
+                "input": normalized_text,
+                "dimensions": EMBEDDING_DIMENSIONS,
+            }
+        )
         items = result.get("data")
         if not isinstance(items, list) or not items:
             raise ValueError("Embedding response did not include data.")
@@ -78,7 +88,12 @@ class OpenAICompatibleEmbeddingProvider:
             raise ValueError("Embedding response did not include a vector.")
         if not all(isinstance(value, (int, float)) for value in vector):
             raise ValueError("Embedding response vector must contain numbers.")
-        return [float(value) for value in vector]
+        normalized = [float(value) for value in vector]
+        if len(normalized) != EMBEDDING_DIMENSIONS:
+            raise ValueError(
+                f"Embedding dimension mismatch: expected {EMBEDDING_DIMENSIONS}, got {len(normalized)}."
+            )
+        return normalized
 
     def _post_embeddings(self, payload: dict) -> dict:
         model_usage_service.consume_embedding_call()
@@ -118,6 +133,22 @@ def get_embedding_provider() -> EmbeddingProvider:
                 timeout_seconds=timeout_seconds,
             )
     return MockEmbeddingProvider()
+
+
+def require_embedding_contract() -> None:
+    """Fail startup when a configured real provider cannot meet the fixed Batch 3 contract."""
+    _load_env_file()
+    provider_name = os.getenv("EMBEDDING_PROVIDER", "mock").strip().lower()
+    if provider_name not in {"openai-compatible", "openai", "local"}:
+        return
+    model = os.getenv("EMBEDDING_MODEL", "").strip()
+    dimensions = os.getenv("EMBEDDING_DIMENSIONS", str(EMBEDDING_DIMENSIONS)).strip()
+    if model != EMBEDDING_MODEL:
+        raise RuntimeError(f"EMBEDDING_MODEL must be {EMBEDDING_MODEL} for the Batch 3 vector contract.")
+    if dimensions != str(EMBEDDING_DIMENSIONS):
+        raise RuntimeError(
+            f"EMBEDDING_DIMENSIONS must be {EMBEDDING_DIMENSIONS} for the Batch 3 vector contract."
+        )
 
 
 def embed_text(text: str) -> list[float]:

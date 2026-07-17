@@ -9,27 +9,63 @@ from backend.app.services import (
 
 
 def generate_material_chunks(material: dict, user_id: str | None = None) -> list[dict]:
-    source_text = material["content"] or material["url"]
-    chunk_texts = material_store.split_material_content(source_text)
+    chunks = build_material_chunks(material)
+    if not chunks:
+        return material_store.replace_chunks_for_material(material["id"], [])
+    persisted_chunks = material_store.replace_chunks_for_material(material["id"], chunks)
+    try:
+        return embed_material_chunks(material, persisted_chunks, user_id, strict=False)
+    except Exception:
+        return persisted_chunks
+
+
+def build_material_chunks(material: dict) -> list[dict]:
+    located_chunks = material_store.split_material_content_with_locations(material)
     now = store.now_iso()
+    return [
+        {
+            "id": store.make_id("chunk"),
+            "materialId": material["id"],
+            "chunkIndex": index,
+            "content": located["content"],
+            "keywords": material_store.extract_keywords(f"{material['title']} {located['content']}"),
+            "embedding": [],
+            "pageNumber": located.get("pageNumber"),
+            "headingPath": located.get("headingPath", ""),
+            "paragraphIndex": located.get("paragraphIndex"),
+            "createdAt": now,
+            "updatedAt": now,
+        }
+        for index, located in enumerate(located_chunks)
+    ]
+
+
+def embed_material_chunks(
+    material: dict,
+    chunks: list[dict],
+    user_id: str | None = None,
+    *,
+    strict: bool,
+) -> list[dict]:
+    if not chunks:
+        return []
+    now = store.now_iso()
+    provider = embedding_provider.get_embedding_provider()
     with model_usage_service.user_usage_scope(user_id):
         if user_id:
-            rate_limit_service.consume_embedding_chunk_quota(user_id, len(chunk_texts))
+            rate_limit_service.consume_embedding_chunk_quota(user_id, len(chunks))
         with model_usage_service.embedding_usage_scope("chunk", prepaid_chunks=bool(user_id)):
-            chunks = [
-                {
-                    "id": store.make_id("chunk"),
-                    "materialId": material["id"],
-                    "chunkIndex": index,
-                    "content": chunk,
-                    "keywords": material_store.extract_keywords(f"{material['title']} {chunk}"),
-                    "embedding": embedding_provider.embed_text(f"{material['title']} {chunk}"),
-                    "createdAt": now,
-                    "updatedAt": now,
-                }
-                for index, chunk in enumerate(chunk_texts)
-            ]
-    return material_store.replace_chunks_for_material(material["id"], chunks)
+            embedded_chunks = []
+            for chunk in chunks:
+                source = f"{material['title']} {chunk['content']}"
+                try:
+                    embedding = provider.embed(source) if strict else embedding_provider.embed_text(source)
+                except Exception:
+                    if strict:
+                        raise
+                    embedding = []
+                embedded_chunks.append({**chunk, "embedding": embedding, "updatedAt": now})
+    return material_store.update_chunk_embeddings(material["id"], embedded_chunks)
 
 
 def summarize_material(material: dict, user_id: str | None = None) -> dict:

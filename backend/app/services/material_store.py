@@ -41,6 +41,12 @@ def init_db() -> None:
                     type TEXT NOT NULL,
                     content TEXT NOT NULL DEFAULT '',
                     url TEXT NOT NULL DEFAULT '',
+                    original_filename TEXT NOT NULL DEFAULT '',
+                    mime_type TEXT NOT NULL DEFAULT '',
+                    page_count INTEGER,
+                    extraction_metadata TEXT NOT NULL DEFAULT '{}',
+                    processing_status TEXT NOT NULL DEFAULT '{}',
+                    processing_error TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -65,6 +71,9 @@ def init_db() -> None:
                     content TEXT NOT NULL,
                     keywords TEXT NOT NULL,
                     embedding TEXT NOT NULL DEFAULT '[]',
+                    page_number INTEGER,
+                    heading_path TEXT NOT NULL DEFAULT '',
+                    paragraph_index INTEGER,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
@@ -185,9 +194,11 @@ def save_material(material: dict) -> dict:
         conn.execute(
             """
             INSERT INTO materials (
-                id, user_id, goal_id, title, type, content, url, created_at, updated_at
+                id, user_id, goal_id, title, type, content, url, original_filename, mime_type,
+                page_count, extraction_metadata, processing_status, processing_error,
+                created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 user_id = excluded.user_id,
                 goal_id = excluded.goal_id,
@@ -195,6 +206,12 @@ def save_material(material: dict) -> dict:
                 type = excluded.type,
                 content = excluded.content,
                 url = excluded.url,
+                original_filename = excluded.original_filename,
+                mime_type = excluded.mime_type,
+                page_count = excluded.page_count,
+                extraction_metadata = excluded.extraction_metadata,
+                processing_status = excluded.processing_status,
+                processing_error = excluded.processing_error,
                 updated_at = excluded.updated_at
             """,
             (
@@ -205,11 +222,46 @@ def save_material(material: dict) -> dict:
                 material["type"],
                 material["content"],
                 material["url"],
+                material.get("originalFilename", ""),
+                material.get("mimeType", ""),
+                material.get("pageCount"),
+                json.dumps(material.get("extractionMetadata", {}), ensure_ascii=False),
+                json.dumps(material.get("processingStatus", {}), ensure_ascii=False),
+                material.get("processingError", ""),
                 material["createdAt"],
                 material["updatedAt"],
             ),
         )
     return get_material(material["id"]) or material
+
+
+def update_processing_stage(
+    material_id: str,
+    stage: str,
+    status: str,
+    updated_at: str,
+    error: str = "",
+) -> dict | None:
+    material = get_material(material_id)
+    if not material:
+        return None
+    processing_status = dict(material.get("processingStatus") or {})
+    processing_status[stage] = {"status": status, "error": error}
+    with _connect() as conn:
+        conn.execute(
+            """
+            UPDATE materials
+            SET processing_status = ?, processing_error = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                json.dumps(processing_status, ensure_ascii=False),
+                error if status == "failed" else "",
+                updated_at,
+                material_id,
+            ),
+        )
+    return get_material(material_id)
 
 
 def delete_material(material_id: str, user_id: str | None = None) -> bool:
@@ -264,6 +316,73 @@ def split_material_content(
     return chunks
 
 
+def split_material_content_with_locations(material: dict) -> list[dict]:
+    """Produce chunk text with source locations, never interpreting source text as instructions."""
+    metadata = material.get("extractionMetadata") or {}
+    material_type = material.get("type", "text")
+    located_chunks: list[dict] = []
+
+    if material_type == "pdf":
+        for page in metadata.get("pages", []):
+            page_number = page.get("pageNumber")
+            for paragraph_index, chunk in enumerate(split_material_content(str(page.get("text") or ""))):
+                located_chunks.append(
+                    {
+                        "content": chunk,
+                        "pageNumber": page_number,
+                        "headingPath": "",
+                        "paragraphIndex": paragraph_index,
+                    }
+                )
+        return located_chunks
+
+    if material_type == "markdown":
+        headings: list[str] = []
+        paragraph_lines: list[str] = []
+        paragraph_index = 0
+
+        def append_paragraph() -> None:
+            nonlocal paragraph_index
+            text = "\n".join(paragraph_lines).strip()
+            paragraph_lines.clear()
+            if not text:
+                return
+            for chunk in split_material_content(text):
+                located_chunks.append(
+                    {
+                        "content": chunk,
+                        "pageNumber": None,
+                        "headingPath": " > ".join(headings),
+                        "paragraphIndex": paragraph_index,
+                    }
+                )
+            paragraph_index += 1
+
+        for line in (material.get("content") or "").splitlines():
+            heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
+            if heading:
+                append_paragraph()
+                level = len(heading.group(1))
+                headings[level - 1 :] = [heading.group(2).strip()]
+            elif not line.strip():
+                append_paragraph()
+            else:
+                paragraph_lines.append(line)
+        append_paragraph()
+        return located_chunks
+
+    for paragraph_index, chunk in enumerate(split_material_content(material.get("content") or material.get("url") or "")):
+        located_chunks.append(
+            {
+                "content": chunk,
+                "pageNumber": None,
+                "headingPath": "",
+                "paragraphIndex": paragraph_index,
+            }
+        )
+    return located_chunks
+
+
 def replace_chunks_for_material(
     material_id: str,
     chunks: list[dict],
@@ -273,9 +392,10 @@ def replace_chunks_for_material(
         conn.executemany(
             """
             INSERT INTO material_chunks (
-                id, material_id, chunk_index, content, keywords, embedding, created_at, updated_at
+                id, material_id, chunk_index, content, keywords, embedding, page_number,
+                heading_path, paragraph_index, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -285,12 +405,40 @@ def replace_chunks_for_material(
                     chunk["content"],
                     json.dumps(chunk["keywords"], ensure_ascii=False),
                     json.dumps(chunk.get("embedding", [])),
+                    chunk.get("pageNumber"),
+                    chunk.get("headingPath", ""),
+                    chunk.get("paragraphIndex"),
                     chunk["createdAt"],
                     chunk["updatedAt"],
                 )
                 for chunk in chunks
             ],
         )
+    return list_chunks_for_material(material_id)
+
+
+def update_chunk_embeddings(material_id: str, chunks: list[dict]) -> list[dict]:
+    """Persist JSON embeddings for SQLite and pgvector values for valid 2048-d vectors."""
+    with _connect() as conn:
+        for chunk in chunks:
+            embedding = chunk.get("embedding", [])
+            conn.execute(
+                """
+                UPDATE material_chunks
+                SET embedding = ?, updated_at = ?
+                WHERE id = ? AND material_id = ?
+                """,
+                (json.dumps(embedding), chunk["updatedAt"], chunk["id"], material_id),
+            )
+            if database.using_postgres() and len(embedding) == 2048:
+                conn.execute(
+                    """
+                    UPDATE material_chunks
+                    SET embedding_vector = CAST(? AS vector)
+                    WHERE id = ? AND material_id = ?
+                    """,
+                    (_vector_literal(embedding), chunk["id"], material_id),
+                )
     return list_chunks_for_material(material_id)
 
 
@@ -313,10 +461,49 @@ def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> lis
         return []
 
     query_terms = _extract_keywords(normalized_query)
+    rows = _material_chunk_rows(user_id)
+
+    try:
+        with model_usage_service.user_usage_scope(user_id):
+            with model_usage_service.embedding_usage_scope("query"):
+                query_embedding = embedding_provider.get_embedding_provider().embed(normalized_query)
+    except HTTPException:
+        raise
+    except Exception:
+        query_embedding = []
+
+    keyword_scored: list[tuple[float, dict]] = []
+    for row in rows:
+        chunk = _chunk_from_row(row)
+        haystack = " ".join(
+            [
+                row["material_title"],
+                chunk["content"],
+                " ".join(chunk["keywords"]),
+            ]
+        ).lower()
+        score = _score_chunk(normalized_query, query_terms, haystack)
+        chunk["materialTitle"] = row["material_title"]
+        chunk["goalId"] = row["goal_id"]
+        if score > 0:
+            keyword_chunk = {**chunk, "score": score, "searchMode": "keyword"}
+            keyword_scored.append((score, keyword_chunk))
+
+    keyword_scored.sort(key=lambda item: item[0], reverse=True)
+    keyword_results = [chunk for _, chunk in keyword_scored[:20]]
+    dense_results = _dense_search(rows, query_embedding, user_id)
+    if not dense_results:
+        return keyword_results[:limit]
+    if not keyword_results:
+        return dense_results[:limit]
+    return _rrf_merge(keyword_results, dense_results, limit)
+
+
+def _material_chunk_rows(user_id: str | None) -> list[sqlite3.Row | dict]:
     with _connect() as conn:
         where_clause = "WHERE materials.user_id = ?" if user_id else ""
         values = (user_id,) if user_id else ()
-        rows = conn.execute(
+        return conn.execute(
             """
             SELECT
                 material_chunks.*,
@@ -330,53 +517,91 @@ def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> lis
             values,
         ).fetchall()
 
-    try:
-        with model_usage_service.user_usage_scope(user_id):
-            with model_usage_service.embedding_usage_scope("query"):
-                query_embedding = embedding_provider.get_embedding_provider().embed(normalized_query)
-    except HTTPException:
-        raise
-    except Exception:
-        query_embedding = []
+
+def _dense_search(
+    rows: list[sqlite3.Row | dict], query_embedding: list[float], user_id: str | None
+) -> list[dict]:
+    if not query_embedding:
+        return []
+    if database.using_postgres() and len(query_embedding) == 2048:
+        return _postgres_dense_search(query_embedding, user_id)
 
     semantic_scored: list[tuple[float, dict]] = []
-    keyword_scored: list[tuple[int, dict]] = []
+    for row in rows:
+        stored_embedding = json.loads(row["embedding"] or "[]")
+        similarity = _cosine_similarity(query_embedding, stored_embedding)
+        if similarity < 0.35:
+            continue
+        chunk = _chunk_from_row(row)
+        chunk.update(
+            {
+                "materialTitle": row["material_title"],
+                "goalId": row["goal_id"],
+                "score": round(similarity, 6),
+                "searchMode": "semantic",
+            }
+        )
+        semantic_scored.append((similarity, chunk))
+    semantic_scored.sort(key=lambda item: item[0], reverse=True)
+    return [chunk for _, chunk in semantic_scored[:20]]
+
+
+def _postgres_dense_search(query_embedding: list[float], user_id: str | None) -> list[dict]:
+    with _connect() as conn:
+        where_clause = "WHERE materials.user_id = ? AND material_chunks.embedding_vector IS NOT NULL" if user_id else "WHERE material_chunks.embedding_vector IS NOT NULL"
+        vector = _vector_literal(query_embedding)
+        values = (vector, user_id, vector) if user_id else (vector, vector)
+        rows = conn.execute(
+            """
+            SELECT
+                material_chunks.*,
+                materials.title AS material_title,
+                materials.goal_id AS goal_id,
+                1 - (material_chunks.embedding_vector <=> CAST(? AS vector)) AS dense_score
+            FROM material_chunks
+            JOIN materials ON materials.id = material_chunks.material_id
+            {where_clause}
+            ORDER BY material_chunks.embedding_vector <=> CAST(? AS vector)
+            LIMIT 20
+            """.format(where_clause=where_clause),
+            values,
+        ).fetchall()
+
+    results = []
     for row in rows:
         chunk = _chunk_from_row(row)
-        stored_embedding = json.loads(row["embedding"] or "[]")
-        haystack = " ".join(
-            [
-                row["material_title"],
-                chunk["content"],
-                " ".join(chunk["keywords"]),
-            ]
-        ).lower()
-        score = _score_chunk(normalized_query, query_terms, haystack)
-        chunk["materialTitle"] = row["material_title"]
-        chunk["goalId"] = row["goal_id"]
-        if query_embedding and stored_embedding:
-            similarity = _cosine_similarity(query_embedding, stored_embedding)
-            if similarity >= 0.35:
-                semantic_chunk = {**chunk, "score": round(similarity, 6), "searchMode": "semantic"}
-                semantic_scored.append((similarity, semantic_chunk))
-        if score > 0:
-            keyword_chunk = {**chunk, "score": score, "searchMode": "keyword"}
-            keyword_scored.append((score, keyword_chunk))
+        chunk.update(
+            {
+                "materialTitle": row["material_title"],
+                "goalId": row["goal_id"],
+                "score": round(float(row["dense_score"]), 6),
+                "searchMode": "semantic",
+            }
+        )
+        results.append(chunk)
+    return results
 
-    if semantic_scored:
-        semantic_scored.sort(key=lambda item: item[0], reverse=True)
-        results = [chunk for _, chunk in semantic_scored[:limit]]
-        result_ids = {chunk["id"] for chunk in results}
-        keyword_scored.sort(key=lambda item: item[0], reverse=True)
-        for _, chunk in keyword_scored:
-            if len(results) >= limit:
-                break
-            if chunk["id"] not in result_ids:
-                results.append(chunk)
-                result_ids.add(chunk["id"])
-        return results
-    keyword_scored.sort(key=lambda item: item[0], reverse=True)
-    return [chunk for _, chunk in keyword_scored[:limit]]
+
+def _rrf_merge(keyword_results: list[dict], dense_results: list[dict], limit: int) -> list[dict]:
+    fused: dict[str, dict] = {}
+    for mode, results in (("keyword", keyword_results), ("semantic", dense_results)):
+        for rank, result in enumerate(results, start=1):
+            entry = fused.setdefault(
+                result["id"],
+                {"chunk": result, "score": 0.0, "modes": []},
+            )
+            entry["score"] += 1 / (60 + rank)
+            entry["modes"].append(mode)
+
+    merged = []
+    for entry in fused.values():
+        result = {**entry["chunk"]}
+        result["score"] = round(entry["score"], 6)
+        result["searchMode"] = "hybrid"
+        result["retrievalModes"] = entry["modes"]
+        merged.append(result)
+    merged.sort(key=lambda item: item["score"], reverse=True)
+    return merged[:limit]
 
 
 def save_qa_record(record: dict) -> dict:
@@ -689,12 +914,30 @@ def _connect():
 
 def _ensure_columns(conn: sqlite3.Connection) -> None:
     material_columns = _column_names(conn, "materials")
-    if "user_id" not in material_columns:
-        conn.execute("ALTER TABLE materials ADD COLUMN user_id TEXT")
+    material_defaults = {
+        "user_id": "TEXT",
+        "original_filename": "TEXT NOT NULL DEFAULT ''",
+        "mime_type": "TEXT NOT NULL DEFAULT ''",
+        "page_count": "INTEGER",
+        "extraction_metadata": "TEXT NOT NULL DEFAULT '{}'",
+        "processing_status": "TEXT NOT NULL DEFAULT '{}'",
+        "processing_error": "TEXT NOT NULL DEFAULT ''",
+    }
+    for column, definition in material_defaults.items():
+        if column not in material_columns:
+            conn.execute(f"ALTER TABLE materials ADD COLUMN {column} {definition}")
 
     chunk_columns = _column_names(conn, "material_chunks")
     if "embedding" not in chunk_columns:
         conn.execute("ALTER TABLE material_chunks ADD COLUMN embedding TEXT NOT NULL DEFAULT '[]'")
+    chunk_defaults = {
+        "page_number": "INTEGER",
+        "heading_path": "TEXT NOT NULL DEFAULT ''",
+        "paragraph_index": "INTEGER",
+    }
+    for column, definition in chunk_defaults.items():
+        if column not in chunk_columns:
+            conn.execute(f"ALTER TABLE material_chunks ADD COLUMN {column} {definition}")
 
     summary_columns = _column_names(conn, "material_summaries")
     summary_defaults = {
@@ -745,6 +988,12 @@ def _material_from_row(row: sqlite3.Row) -> dict:
         "type": row["type"],
         "content": row["content"],
         "url": row["url"],
+        "originalFilename": row.get("original_filename", "") if isinstance(row, dict) else row["original_filename"],
+        "mimeType": row.get("mime_type", "") if isinstance(row, dict) else row["mime_type"],
+        "pageCount": row.get("page_count") if isinstance(row, dict) else row["page_count"],
+        "extractionMetadata": _json_value(row, "extraction_metadata", {}),
+        "processingStatus": _json_value(row, "processing_status", {}),
+        "processingError": row.get("processing_error", "") if isinstance(row, dict) else row["processing_error"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -812,6 +1061,9 @@ def _chunk_from_row(row: sqlite3.Row) -> dict:
         "chunkIndex": row["chunk_index"],
         "content": row["content"],
         "keywords": json.loads(row["keywords"]),
+        "pageNumber": row.get("page_number") if isinstance(row, dict) else row["page_number"],
+        "headingPath": row.get("heading_path", "") if isinstance(row, dict) else row["heading_path"],
+        "paragraphIndex": row.get("paragraph_index") if isinstance(row, dict) else row["paragraph_index"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -908,6 +1160,20 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     if not left_norm or not right_norm:
         return 0.0
     return sum(a * b for a, b in zip(left, right)) / (left_norm * right_norm)
+
+
+def _json_value(row: sqlite3.Row | dict, key: str, fallback):
+    raw = row.get(key) if isinstance(row, dict) else row[key]
+    if not raw:
+        return fallback
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return fallback
+
+
+def _vector_literal(embedding: list[float]) -> str:
+    return "[" + ",".join(str(float(value)) for value in embedding) + "]"
 
 
 init_db()

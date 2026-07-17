@@ -314,6 +314,13 @@ const materialApi = {
     });
   },
 
+  uploadMaterial(formData) {
+    return request("/materials/upload", {
+      method: "POST",
+      body: formData
+    });
+  },
+
   updateMaterial(materialId, payload) {
     return request(`/materials/${materialId}`, {
       method: "PUT",
@@ -385,6 +392,13 @@ const materialApi = {
   generateChunks(materialId) {
     return request(`/materials/${materialId}/chunks`, {
       method: "POST"
+    });
+  },
+
+  retryProcessingStage(materialId, stage) {
+    return request(`/materials/${materialId}/processing/${encodeURIComponent(stage)}/retry`, {
+      method: "POST",
+      body: "{}"
     });
   },
 

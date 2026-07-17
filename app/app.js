@@ -277,33 +277,56 @@ document.getElementById("material-form").addEventListener("submit", async (event
   const form = event.currentTarget;
   const submitButton = document.getElementById("material-submit-button");
   const data = new FormData(event.currentTarget);
-  const content = data.get("content").trim();
+  const content = String(data.get("content") || "").trim();
   const type = data.get("type");
-  const payload = {
-    goalId: selectedGoalId || "",
-    title: data.get("title").trim(),
-    type,
-    content: type === "text" ? content : "",
-    url: type === "link" ? content : ""
-  };
 
-  setButtonLoading(submitButton, true, "保存中");
+  setButtonLoading(submitButton, true, type === "upload" ? "处理中" : "保存中");
 
   try {
-    const material = editingMaterialId
-      ? await materialApi.updateMaterial(editingMaterialId, payload)
-      : await materialApi.createMaterial(payload);
+    let material;
+    if (type === "upload") {
+      const file = data.get("file");
+      if (!(file instanceof File) || file.size === 0) {
+        throw new Error("请选择 PDF、Markdown 或 TXT 文件");
+      }
+      const uploadData = new FormData();
+      uploadData.set("goalId", selectedGoalId || "");
+      uploadData.set("title", String(data.get("title") || "").trim());
+      uploadData.set("file", file);
+      material = await materialApi.uploadMaterial(uploadData);
+    } else {
+      const payload = {
+        goalId: selectedGoalId || "",
+        title: String(data.get("title") || "").trim(),
+        type,
+        content: type === "text" ? content : "",
+        url: type === "link" ? content : ""
+      };
+      material = editingMaterialId
+        ? await materialApi.updateMaterial(editingMaterialId, payload)
+        : await materialApi.createMaterial(payload);
 
-    await materialApi.summarizeMaterial(material.id);
-    await materialApi.generateFlashcards(material.id);
-    await materialApi.generateQuiz(material.id);
+      if (type !== "link") {
+        await materialApi.summarizeMaterial(material.id);
+        await materialApi.generateFlashcards(material.id);
+        await materialApi.generateQuiz(material.id);
+      }
+    }
     editingMaterialId = "";
     await loadMaterialDataFromApi();
     await loadDashboardDataFromApi();
     await loadAgentContextFromApi();
     render();
     form.reset();
-    showSuccess("资料已保存，并完成摘要、闪卡和测试题");
+    updateMaterialInputMode();
+    if (type === "upload") {
+      const failedStage = Object.entries(material.processingStatus || {}).find(([, state]) => state.status === "failed");
+      showSuccess(failedStage ? `资料已保存，${failedStage[0]} 阶段可单独重试` : "文件已处理，已生成可检索资料");
+    } else if (type === "link") {
+      showSuccess("链接已保存，不解析网页正文");
+    } else {
+      showSuccess("资料已保存，并完成摘要、闪卡和测试题");
+    }
   } catch (error) {
     showError(error);
   } finally {
@@ -429,6 +452,31 @@ document.getElementById("mobile-more-toggle").addEventListener("click", () => {
   menu.hidden = !open;
   toggle.setAttribute("aria-expanded", String(open));
 });
+
+document.getElementById("material-form").elements.type.addEventListener("change", updateMaterialInputMode);
+updateMaterialInputMode();
+
+function updateMaterialInputMode() {
+  const form = document.getElementById("material-form");
+  const type = form.elements.type.value;
+  const contentField = document.getElementById("material-content-field");
+  const fileField = document.getElementById("material-file-field");
+  const linkNote = document.getElementById("material-link-note");
+  const content = form.elements.content;
+  const file = form.elements.file;
+  const isUpload = type === "upload";
+
+  contentField.hidden = isUpload;
+  fileField.hidden = !isUpload;
+  linkNote.hidden = type !== "link";
+  content.required = !isUpload;
+  file.required = isUpload;
+  if (type === "link") {
+    content.placeholder = "粘贴网页链接；本版本只保存链接";
+  } else if (type === "text") {
+    content.placeholder = "粘贴资料正文";
+  }
+}
 
 document.querySelectorAll("[data-onboarding-view]").forEach((button) => {
   button.addEventListener("click", () => {

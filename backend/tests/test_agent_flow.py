@@ -2025,7 +2025,7 @@ def test_agent_ask_returns_fallback_when_no_chunks_match():
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert data["mode"] == "mock"
+    assert data["mode"] == "grounded-refusal"
     assert data["id"].startswith("qa_")
     assert data["materialId"] == material["id"]
     assert data["isFromMaterial"] is False

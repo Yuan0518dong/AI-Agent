@@ -6,6 +6,19 @@ const quizAnswerDrafts = new Map();
 
 function normalizeSummary(material) {
   const timestamp = material.createdAt || new Date().toISOString();
+  if (material.type === "link") {
+    return {
+      materialId: material.id,
+      overview: "仅保存链接，不解析网页正文。",
+      keyPoints: [],
+      difficulties: [],
+      studyOrder: [],
+      actionItems: [],
+      aiMode: "link-only",
+      createdAt: timestamp,
+      updatedAt: material.updatedAt || timestamp
+    };
+  }
   const fallback = summarizeContent(material.content || "", {
     materialId: material.id,
     timestamp
@@ -40,6 +53,7 @@ function renderMaterials() {
     const summary = material.summary;
     const points = summary.keyPoints.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
     const difficulties = summary.difficulties.map((point) => `<li>${escapeHtml(point)}</li>`).join("");
+    const canEdit = ["text", "link"].includes(material.type);
     item.innerHTML = `
       <div class="item-head">
         <div>
@@ -47,7 +61,7 @@ function renderMaterials() {
           <p>${escapeHtml(summary.overview)}</p>
         </div>
         <div class="item-actions">
-          <button class="ghost-button" data-action="edit" title="编辑资料">编辑</button>
+          ${canEdit ? '<button class="ghost-button" data-action="edit" title="编辑资料">编辑</button>' : ""}
           <button class="ghost-button" data-action="delete" title="删除资料">×</button>
         </div>
       </div>
@@ -56,6 +70,7 @@ function renderMaterials() {
         <span class="tag">${summary.keyPoints.length} 个知识点</span>
         <span class="tag">${summary.aiMode}</span>
       </div>
+      ${renderMaterialProcessingStatus(material)}
       <details class="material-detail">
         <summary>查看整理详情</summary>
         <strong>关键知识点</strong>
@@ -64,10 +79,67 @@ function renderMaterials() {
         <ul>${difficulties}</ul>
       </details>
     `;
-    item.querySelector('[data-action="edit"]').addEventListener("click", () => startMaterialEdit(material.id));
+    item.querySelector('[data-action="edit"]')?.addEventListener("click", () => startMaterialEdit(material.id));
     item.querySelector('[data-action="delete"]').addEventListener("click", () => deleteMaterial(material.id));
+    item.querySelectorAll('[data-action="retry-stage"]').forEach((button) => {
+      button.addEventListener("click", () => retryMaterialProcessingStage(material.id, button.dataset.stage, button));
+    });
     list.appendChild(item);
   });
+}
+
+const PROCESSING_STAGE_LABELS = {
+  extraction: "提取",
+  chunking: "切分",
+  embedding: "向量化",
+  summary: "总结",
+  flashcards: "闪卡",
+  quiz: "测试"
+};
+
+function renderMaterialProcessingStatus(material) {
+  if (material.type === "link") {
+    return '<p class="material-processing-note">仅保存链接，不解析网页正文。</p>';
+  }
+  const statuses = material.processingStatus || {};
+  if (!Object.keys(statuses).length) return "";
+  const stages = Object.entries(PROCESSING_STAGE_LABELS).map(([stage, label]) => {
+    const current = statuses[stage] || { status: "pending", error: "" };
+    const isFailed = current.status === "failed";
+    return `
+      <li class="processing-stage processing-stage-${escapeHtml(current.status)}">
+        <span>${label}</span>
+        <span>${getProcessingStatusLabel(current.status)}</span>
+        ${isFailed ? `<button class="ghost-button" data-action="retry-stage" data-stage="${stage}" type="button">重试</button>` : ""}
+        ${isFailed && current.error ? `<small>${escapeHtml(current.error)}</small>` : ""}
+      </li>
+    `;
+  }).join("");
+  return `<ul class="processing-stages" aria-label="资料处理状态">${stages}</ul>`;
+}
+
+function getProcessingStatusLabel(status) {
+  const labels = {
+    pending: "等待",
+    processing: "处理中",
+    completed: "完成",
+    failed: "失败"
+  };
+  return labels[status] || status || "等待";
+}
+
+async function retryMaterialProcessingStage(materialId, stage, button) {
+  setButtonLoading(button, true, "重试中");
+  try {
+    await materialApi.retryProcessingStage(materialId, stage);
+    await loadMaterialDataFromApi();
+    render();
+    showSuccess(`${PROCESSING_STAGE_LABELS[stage] || stage} 阶段已重试`);
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(button, false);
+  }
 }
 
 function renderSummaries() {
@@ -145,7 +217,7 @@ function renderMaterialChunks(chunks) {
         <article class="chunk-item">
           <div class="chunk-meta">
             <span>片段 ${chunk.chunkIndex + 1}</span>
-            <span>${chunk.keywords.map((keyword) => escapeHtml(keyword)).join(" / ")}</span>
+            <span>${escapeHtml(formatChunkLocation(chunk))}</span>
           </div>
           <p>${escapeHtml(chunk.content)}</p>
         </article>
@@ -183,7 +255,7 @@ function renderChunkSearchResults(container) {
         <article class="chunk-item">
           <div class="chunk-meta">
             <span>${escapeHtml(chunk.materialTitle)}</span>
-            <span>score ${chunk.score}</span>
+            <span>${escapeHtml(formatChunkLocation(chunk))} · ${escapeHtml(chunk.searchMode || "keyword")} · score ${chunk.score}</span>
           </div>
           <p>${escapeHtml(chunk.content)}</p>
         </article>
@@ -556,6 +628,13 @@ function prefillQuestionFromMaterial(materialId) {
   showSuccess("已将资料带入左侧成长问答");
 }
 
+function formatChunkLocation(chunk) {
+  if (chunk.pageNumber) return `第 ${chunk.pageNumber} 页`;
+  if (chunk.headingPath) return chunk.headingPath;
+  if (Number.isInteger(chunk.paragraphIndex)) return `段落 ${chunk.paragraphIndex + 1}`;
+  return `片段 ${Number(chunk.chunkIndex || 0) + 1}`;
+}
+
 function prefillMaterialFormFromAgent(log) {
   editingMaterialId = "";
   renderMaterialFormMode();
@@ -903,6 +982,7 @@ function fillMaterialForm(material) {
   form.elements.title.value = material.title || "";
   form.elements.type.value = material.type || "text";
   form.elements.content.value = material.type === "link" ? material.url || material.content || "" : material.content || "";
+  updateMaterialInputMode();
 }
 
 function renderMaterialFormMode() {
@@ -919,6 +999,7 @@ function renderMaterialFormMode() {
     submitButton.textContent = "保存并整理";
     cancelButton.hidden = true;
   }
+  updateMaterialInputMode();
 }
 
 async function deleteMaterial(id) {
@@ -986,7 +1067,10 @@ function getFlashcardStatusLabel(status) {
 function getMaterialTypeLabel(type) {
   const labels = {
     text: "文本",
-    link: "网页链接"
+    link: "网页链接",
+    pdf: "PDF",
+    markdown: "Markdown",
+    txt: "TXT"
   };
   return labels[type] || type || "资料";
 }

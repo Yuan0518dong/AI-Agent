@@ -407,10 +407,12 @@ def test_agent_tool_thread_preserves_provider_usage_scope(monkeypatch):
 
 def test_real_embedding_query_calls_are_metered(monkeypatch):
     monkeypatch.setenv("DEMO_DAILY_EMBEDDING_QUERY_LIMIT", "1")
+    vector = [0.25] * embedding_provider.EMBEDDING_DIMENSIONS
+    payload = ('{"data":[{"embedding":[' + ",".join("0.25" for _ in vector) + "]}]} ").encode()
     monkeypatch.setattr(
         embedding_provider.urllib.request,
         "urlopen",
-        lambda *args, **kwargs: _JsonHttpResponse(b'{"data":[{"embedding":[0.25,0.75]}]}'),
+        lambda *args, **kwargs: _JsonHttpResponse(payload),
     )
     client.cookies.clear()
     demo_response = client.post("/api/auth/demo")
@@ -425,7 +427,7 @@ def test_real_embedding_query_calls_are_metered(monkeypatch):
 
     with model_usage_service.user_usage_scope(demo_user["id"]):
         with model_usage_service.embedding_usage_scope("query"):
-            assert provider.embed("retrieval query") == [0.25, 0.75]
+            assert provider.embed("retrieval query") == vector
         with model_usage_service.embedding_usage_scope("query"):
             with pytest.raises(HTTPException) as exhausted:
                 provider.embed("second query")
