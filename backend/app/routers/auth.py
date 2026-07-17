@@ -2,8 +2,8 @@ import os
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response
 
-from backend.app.schemas.auth import LoginRequest, RegisterRequest
-from backend.app.services import auth_service, demo_service, rate_limit_service, store
+from backend.app.schemas.auth import AccountDeleteRequest, LoginRequest, RegisterRequest
+from backend.app.services import account_data_service, auth_service, demo_service, rate_limit_service, store
 from backend.app.utils.auth import SESSION_COOKIE_NAME, current_user
 from backend.app.utils.responses import ok
 
@@ -65,6 +65,23 @@ def logout(
     auth_service.revoke_session(ai_agent_session)
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return ok({"loggedOut": True})
+
+
+@router.get("/export")
+def export_account_data(user: dict = Depends(current_user)):
+    return ok(account_data_service.export_account_data(user))
+
+
+@router.delete("/account")
+def delete_account(
+    payload: AccountDeleteRequest,
+    response: Response,
+    user: dict = Depends(current_user),
+):
+    if not account_data_service.delete_account_data(user["id"]):
+        raise HTTPException(status_code=404, detail="账号不存在")
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    return ok({"deleted": True})
 
 
 @router.post("/demo")

@@ -6,6 +6,12 @@ const defaultState = {
   materials: [],
   tasks: [],
   progress: [],
+  dashboard: null,
+  loadedViews: {
+    goals: false,
+    materials: false,
+    agent: false
+  },
   materialChunks: {},
   materialQaRecords: {},
   agentContext: null,
@@ -165,16 +171,26 @@ document.getElementById("sidebar-toggle").addEventListener("click", () => {
   updateSidebarToggleLabel();
 });
 
-document.querySelectorAll(".nav-item").forEach((button) => {
-  button.addEventListener("click", () => switchView(button.dataset.view));
+document.querySelectorAll(".nav-item[data-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    void switchView(button.dataset.view);
+  });
 });
 
-document.getElementById("agent-refresh-button").addEventListener("click", async (event) => {
+document.getElementById("agent-refresh-button")?.addEventListener("click", async (event) => {
   await refreshAgentContext(event.currentTarget);
 });
 
-document.getElementById("agent-decide-button").addEventListener("click", async (event) => {
-  await generateAgentDecision(event.currentTarget);
+document.querySelectorAll("[data-agent-preset]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const input = document.getElementById("agent-run-objective");
+    if (!input) return;
+    input.value = button.dataset.agentPreset || "";
+    document.querySelectorAll("[data-agent-preset]").forEach((item) => {
+      item.classList.toggle("active", item === button);
+    });
+    input.focus();
+  });
 });
 
 document.getElementById("agent-run-start").addEventListener("click", async (event) => {
@@ -283,6 +299,7 @@ document.getElementById("material-form").addEventListener("submit", async (event
     await materialApi.generateQuiz(material.id);
     editingMaterialId = "";
     await loadMaterialDataFromApi();
+    await loadDashboardDataFromApi();
     await loadAgentContextFromApi();
     render();
     form.reset();
@@ -400,23 +417,23 @@ document.getElementById("shuffle-cards").addEventListener("click", () => {
 document.getElementById("card-known").addEventListener("click", () => rateCard("known"));
 document.getElementById("card-review").addEventListener("click", () => rateCard("review"));
 
-document.getElementById("export-data").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "student-assistant-data.json";
-  link.click();
-  URL.revokeObjectURL(url);
+document.getElementById("export-data").addEventListener("click", () => void exportAccountData());
+document.getElementById("mobile-export-data").addEventListener("click", () => void exportAccountData());
+document.getElementById("reset-data").addEventListener("click", () => void deleteAccountData());
+document.getElementById("mobile-reset-data").addEventListener("click", () => void deleteAccountData());
+
+document.getElementById("mobile-more-toggle").addEventListener("click", () => {
+  const menu = document.getElementById("mobile-more-menu");
+  const toggle = document.getElementById("mobile-more-toggle");
+  const open = menu.hidden;
+  menu.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
 });
 
-document.getElementById("reset-data").addEventListener("click", () => {
-  const confirmed = window.confirm("确认清空所有本地学习数据吗？");
-  if (!confirmed) return;
-  localStorage.removeItem(getStateStorageKey());
-  Object.assign(state, normalizeState(structuredClone(defaultState)));
-  activeCardIndex = 0;
-  saveAndRender();
+document.querySelectorAll("[data-onboarding-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    void switchView(button.dataset.onboardingView);
+  });
 });
 
 init();
@@ -472,17 +489,25 @@ async function enterApp(user, { restoreLocalState = false } = {}) {
 }
 
 async function loadAppDataFromApi() {
-  await loadGoalDataFromApi();
-  await loadMaterialDataFromApi();
-  await loadAgentContextFromApi();
-  await loadAgentActionLogsFromApi();
-  await loadAgentRunsFromApi();
+  await loadDashboardDataFromApi();
+}
+
+async function loadDashboardDataFromApi() {
+  const dashboard = await dashboardApi.getDashboard(selectedTaskDate);
+  state.dashboard = dashboard;
+  state.tasks = (dashboard.todayTasks || []).map(taskFromApi);
+  saveState();
 }
 
 function renderAuth() {
   const isLoggedIn = Boolean(currentUser);
   document.getElementById("auth-shell").hidden = isLoggedIn;
   document.getElementById("app-shell").hidden = !isLoggedIn;
+  document.querySelector(".mobile-bottom-nav").hidden = !isLoggedIn;
+  if (!isLoggedIn) {
+    document.getElementById("mobile-more-menu").hidden = true;
+    document.getElementById("mobile-more-toggle").setAttribute("aria-expanded", "false");
+  }
   const currentUserElement = document.getElementById("current-user");
   if (currentUserElement) {
     currentUserElement.textContent = isLoggedIn ? currentUser.name || currentUser.email : "";
@@ -502,6 +527,36 @@ function clearAuthenticatedState() {
   currentUser = null;
   localStorage.removeItem(SESSION_HINT_STORAGE_KEY);
   resetLocalAppState();
+}
+
+async function exportAccountData() {
+  try {
+    const exported = await authApi.exportData();
+    const blob = new Blob([JSON.stringify(exported, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ai-agent-account-data.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    showSuccess("账号数据已从服务端导出");
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function deleteAccountData() {
+  const confirmed = window.confirm("删除账号会永久删除目标、资料、问答、任务和运行记录。确认继续吗？");
+  if (!confirmed) return;
+
+  try {
+    await authApi.deleteAccount();
+    clearAuthenticatedState();
+    renderAuth();
+    showSuccess("账号与服务端数据已删除");
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function markSessionHint() {
@@ -608,12 +663,20 @@ async function loadMaterialDataFromApi() {
   if (activeCardIndex >= state.flashcards.length) {
     activeCardIndex = 0;
   }
+  state.loadedViews.materials = true;
   saveState();
 }
 
 function normalizeState(nextState) {
   const materialsByTitle = new Map();
   nextState.materialChunks = nextState.materialChunks || {};
+  nextState.dashboard = nextState.dashboard || null;
+  nextState.loadedViews = {
+    goals: false,
+    materials: false,
+    agent: false,
+    ...(nextState.loadedViews || {})
+  };
   nextState.materialQaRecords = nextState.materialQaRecords || {};
   nextState.agentContext = nextState.agentContext || null;
   nextState.agentDecision = nextState.agentDecision || null;
@@ -724,7 +787,8 @@ function saveAndRender() {
   render();
 }
 
-function switchView(name) {
+async function switchView(name) {
+  if (!views[name]) return;
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === name);
   });
@@ -732,6 +796,30 @@ function switchView(name) {
     view.classList.toggle("active", view.id === `view-${name}`);
   });
   document.getElementById("page-title").textContent = views[name];
+  const moreMenu = document.getElementById("mobile-more-menu");
+  const moreToggle = document.getElementById("mobile-more-toggle");
+  moreMenu.hidden = true;
+  moreToggle.setAttribute("aria-expanded", "false");
+  try {
+    await ensureViewData(name);
+    render();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function ensureViewData(name) {
+  if (["goals", "progress", "agent"].includes(name) && !state.loadedViews.goals) {
+    await loadGoalDataFromApi();
+  }
+  if (["materials", "study", "memory", "progress"].includes(name) && !state.loadedViews.materials) {
+    await loadMaterialDataFromApi();
+  }
+  if (name === "agent" && !state.loadedViews.agent) {
+    await loadAgentRuntimeData(selectedGoalId || "");
+    state.loadedViews.agent = true;
+    saveState();
+  }
 }
 
 function render() {

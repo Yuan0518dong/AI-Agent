@@ -1,6 +1,14 @@
 // progress module extracted from app.js.
 
 function renderMetrics() {
+  const dashboardSummary = state.dashboard?.summary;
+  if (dashboardSummary) {
+    document.getElementById("metric-goals").textContent = dashboardSummary.goalTotal;
+    document.getElementById("metric-tasks").textContent = dashboardSummary.todayTaskTotal;
+    document.getElementById("metric-rate").textContent = `${dashboardSummary.completionRate}%`;
+    document.getElementById("metric-cards").textContent = dashboardSummary.flashcardTotal;
+    return;
+  }
   const total = state.progress.reduce((sum, item) => sum + item.totalTasks, 0);
   const completed = state.progress.reduce((sum, item) => sum + item.completedTasks, 0);
   const rate = total ? Math.round((completed / total) * 100) : 0;

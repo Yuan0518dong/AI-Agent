@@ -10,6 +10,7 @@ async function loadGoalDataFromApi() {
   state.goals = goals.map(goalFromApi);
   state.tasks = todayTasks.map(taskFromApi);
   state.progress = progress.map(progressFromApi);
+  state.loadedViews.goals = true;
 
   if (selectedGoalId && state.goals.some((goal) => goal.id === selectedGoalId)) {
     await loadSelectedGoalFromApi(selectedGoalId);
@@ -18,6 +19,8 @@ async function loadGoalDataFromApi() {
   } else {
     clearSelectedGoal();
   }
+  await loadDashboardDataFromApi();
+  saveState();
 }
 
 async function loadSelectedGoalFromApi(goalId) {
@@ -160,7 +163,10 @@ function taskFromApi(task) {
     title: task.title,
     detail: task.detail,
     date: task.date,
+    priority: task.priority,
     done: task.done,
+    goalName: task.goalName || "",
+    dailyMinutes: Number(task.dailyMinutes || 0),
     completedAt: task.completed_at,
     createdAt: task.created_at,
     updatedAt: task.updated_at
@@ -196,7 +202,16 @@ async function refreshGoalData(successMessage = "") {
 }
 
 function getTaskGoal(task) {
-  return state.goals.find((goal) => goal.id === task.goalId);
+  const goal = state.goals.find((item) => item.id === task.goalId);
+  if (goal) return goal;
+  if (task.goalName || task.dailyMinutes) {
+    return {
+      id: task.goalId,
+      name: task.goalName || "当前目标",
+      dailyMinutes: task.dailyMinutes || 0
+    };
+  }
+  return null;
 }
 
 function getTaskMinutes(task) {
@@ -231,13 +246,23 @@ function getTodayStats() {
 }
 
 function getGoalProgress(goalId) {
-  return state.progress.find((item) => item.goalId === goalId) || null;
+  const loadedProgress = state.progress.find((item) => item.goalId === goalId);
+  if (loadedProgress) return loadedProgress;
+  const dashboardGoal = state.dashboard?.primaryGoal;
+  if (dashboardGoal?.id === goalId && dashboardGoal.progress) {
+    return progressFromApi(dashboardGoal.progress);
+  }
+  return null;
 }
 
 function getPrimaryGoal(stats) {
   const pendingGoalId = stats.pendingTasks.find((task) => task.goalId)?.goalId;
   if (pendingGoalId) {
-    return state.goals.find((goal) => goal.id === pendingGoalId) || null;
+    const pendingGoal = state.goals.find((goal) => goal.id === pendingGoalId);
+    if (pendingGoal) return pendingGoal;
+    if (state.dashboard?.primaryGoal?.id === pendingGoalId) {
+      return goalFromApi(state.dashboard.primaryGoal);
+    }
   }
 
   if (selectedGoalId) {
@@ -250,7 +275,8 @@ function getPrimaryGoal(stats) {
     return state.goals.find((goal) => goal.id === todayGoalId) || null;
   }
 
-  return state.goals[0] || null;
+  if (state.goals[0]) return state.goals[0];
+  return state.dashboard?.primaryGoal ? goalFromApi(state.dashboard.primaryGoal) : null;
 }
 
 function buildTodayAdvice(goal, stats, progress) {
@@ -346,7 +372,8 @@ function renderTodayDashboard() {
     : "0 项";
   renderTodayFocus(stats);
 
-  if (state.goals.length === 0) {
+  const goalTotal = state.dashboard?.summary?.goalTotal ?? state.goals.length;
+  if (goalTotal === 0) {
     document.getElementById("today-headline").textContent = "先创建目标，让系统生成今日行动";
     document.getElementById("today-suggestion").textContent = "目标、资料和任务接入后，今日页会自动汇总学习节奏。";
   } else if (taskTotal === 0) {
@@ -384,6 +411,12 @@ function renderTodayDashboard() {
 
 function renderToday() {
   const list = document.getElementById("today-task-list");
+  const goalTotal = state.dashboard?.summary?.goalTotal ?? state.goals.length;
+  const gettingStarted = document.getElementById("getting-started");
+  const dashboardContent = document.getElementById("dashboard-content");
+  gettingStarted.hidden = goalTotal > 0;
+  dashboardContent.hidden = goalTotal === 0;
+  if (goalTotal === 0) return;
   document.getElementById("today-date-filter").value = selectedTaskDate;
   list.innerHTML = "";
   renderTodayDashboard();

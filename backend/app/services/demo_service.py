@@ -2,7 +2,7 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from backend.app.services import auth_service, store
+from backend.app.services import agent_tool_registry_service, auth_service, store
 
 
 def create_demo_session() -> tuple[dict, str]:
@@ -39,6 +39,16 @@ def create_demo_session() -> tuple[dict, str]:
         "requiresConfirmation": True,
         "reason": "演示任务需要用户确认后写入正式计划。",
     }
+    action_snapshot = agent_tool_registry_service.enrich_action(
+        {
+            "type": "create_followup_tasks",
+            "label": "确认创建后续任务",
+            "description": "确认后先创建一份任务草稿，正式写入仍由后续步骤控制。",
+            "payload": {"goalIds": [goal_id]},
+            "requiresConfirmation": True,
+            "status": "proposed",
+        }
+    )
 
     store.init_db()
     with store.db_connection() as conn:
@@ -195,7 +205,7 @@ def create_demo_session() -> tuple[dict, str]:
                 goal_id,
                 "演示任务需要确认。",
                 json.dumps(decision_snapshot, ensure_ascii=False),
-                json.dumps({"label": "确认创建后续任务"}, ensure_ascii=False),
+                json.dumps(action_snapshot, ensure_ascii=False),
                 now_iso,
                 now_iso,
             ),
@@ -230,7 +240,7 @@ def create_demo_session() -> tuple[dict, str]:
                 run_id,
                 json.dumps(context_snapshot, ensure_ascii=False),
                 json.dumps(decision_snapshot, ensure_ascii=False),
-                json.dumps({"type": "create_followup_tasks"}, ensure_ascii=False),
+                json.dumps(action_snapshot, ensure_ascii=False),
                 action_log_id,
                 now_iso,
                 now_iso,

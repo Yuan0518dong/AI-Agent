@@ -119,6 +119,24 @@ const authApi = {
     return request("/auth/logout", {
       method: "POST"
     });
+  },
+
+  exportData() {
+    return request("/auth/export");
+  },
+
+  deleteAccount() {
+    return request("/auth/account", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmation: "DELETE" })
+    });
+  }
+};
+
+const dashboardApi = {
+  getDashboard(date = "") {
+    const query = date ? `?date=${encodeURIComponent(date)}` : "";
+    return request(`/dashboard${query}`);
   }
 };
 
@@ -258,6 +276,13 @@ const agentApi = {
     return request(`/agent/runs/${runId}/execute`, {
       method: "POST",
       body: JSON.stringify(maxSteps ? { maxSteps } : {})
+    });
+  },
+
+  advanceRun(runId) {
+    return request(`/agent/runs/${runId}/advance`, {
+      method: "POST",
+      body: "{}"
     });
   },
 

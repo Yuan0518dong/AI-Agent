@@ -96,7 +96,7 @@
           <button class="sidebar-toggle" id="sidebar-toggle" type="button" title="折叠侧边栏">‹</button>
         </div>
 
-        <nav class="nav" aria-label="主导航">
+        <nav class="nav desktop-nav" aria-label="主导航">
           <button class="nav-item active" data-view="today"><span>⌂</span>今日</button>
           <button class="nav-item" data-view="goals"><span>＋</span>目标</button>
           <button class="nav-item" data-view="materials"><span>▣</span>资料</button>
@@ -116,12 +116,25 @@
           <div class="top-actions">
             <span class="user-chip" id="current-user"></span>
             <button class="ghost-button" id="logout-button" title="退出登录">退出</button>
-            <button class="ghost-button" id="export-data" title="导出本地数据">⇩</button>
-            <button class="danger-button" id="reset-data" title="清空本地数据">×</button>
+            <button class="ghost-button" id="export-data" title="导出账号数据">⇩</button>
+            <button class="danger-button" id="reset-data" title="删除账号与数据">×</button>
           </div>
         </header>
 
         <section class="view active" id="view-today">
+          <section class="getting-started" id="getting-started" hidden aria-label="开始使用">
+            <div>
+              <p class="eyebrow">开始学习</p>
+              <h2>建立第一条学习路径</h2>
+              <p>从目标、资料或智能任务开始，后续进度会自动汇总到这里。</p>
+            </div>
+            <div class="getting-started-actions">
+              <button class="primary-button" data-onboarding-view="goals" type="button">创建目标</button>
+              <button class="ghost-button" data-onboarding-view="materials" type="button">添加资料</button>
+              <button class="ghost-button" data-onboarding-view="agent" type="button">运行智能任务</button>
+            </div>
+          </section>
+          <div id="dashboard-content">
           <div class="summary-grid">
             <article class="metric">
               <span>目标数</span>
@@ -230,6 +243,7 @@
                 </div>
               </div>
             </section>
+          </div>
           </div>
         </section>
 
@@ -408,43 +422,17 @@
           <section class="agent-workbench" id="agent-workbench" aria-label="智能学习助手">
             <div class="agent-workbench-head">
               <div>
-                <p class="eyebrow">学习状态分析</p>
-                <h2>智能学习助手</h2>
-                <p id="agent-context-updated">未刷新</p>
+                <p class="eyebrow">智能任务</p>
+                <h2>让智能体推进一项明确的学习行动</h2>
               </div>
-              <div class="inline-actions">
-                <span class="panel-count" id="agent-scope-label">全部目标</span>
-                <button class="primary-button" id="agent-decide-button" type="button">分析下一步</button>
-                <button class="ghost-button" id="agent-refresh-button" type="button">刷新状态</button>
-              </div>
-            </div>
-
-            <div class="agent-metric-grid">
-              <article class="agent-metric">
-                <span>目标</span>
-                <strong id="agent-goal-total">0</strong>
-              </article>
-              <article class="agent-metric">
-                <span>未完成任务</span>
-                <strong id="agent-task-open-total">0</strong>
-              </article>
-              <article class="agent-metric">
-                <span>资料</span>
-                <strong id="agent-material-total">0</strong>
-              </article>
-              <article class="agent-metric">
-                <span>闪卡</span>
-                <strong id="agent-review-total">0</strong>
-              </article>
             </div>
 
             <section class="panel agent-run-panel">
               <div class="panel-head">
                 <div>
                   <h2>智能任务</h2>
-                  <p>选择学习目标，告诉智能体你希望完成什么，然后查看执行结果。</p>
+                  <p>选择目标，描述任务，按步骤推进并保留可确认的结果。</p>
                 </div>
-                <span class="panel-count" id="agent-run-count">0 条</span>
               </div>
               <div class="agent-run-create">
                 <label>
@@ -457,17 +445,50 @@
                   <span>你希望智能体做什么</span>
                   <input id="agent-run-objective" maxlength="500" placeholder="例如：整理本周复习计划并生成一项待确认任务" />
                 </label>
-                <label>
-                  <span>最多执行步骤</span>
-                  <input id="agent-run-max-steps" type="number" min="1" max="8" value="3" />
-                </label>
                 <button class="primary-button" id="agent-run-start" type="button">开始执行</button>
               </div>
-              <div class="agent-run-list" id="agent-run-list"></div>
-              <div class="agent-run-detail" id="agent-run-detail"></div>
+              <div class="agent-quick-presets" aria-label="快捷任务">
+                <button class="ghost-button" data-agent-preset="梳理本周复习重点并给出下一步。" type="button">安排本周复习</button>
+                <button class="ghost-button" data-agent-preset="检查当前资料与任务的缺口，给出优先处理项。" type="button">检查学习缺口</button>
+                <button class="ghost-button" data-agent-preset="生成一项需要我确认的后续学习任务。" type="button">生成待确认任务</button>
+              </div>
             </section>
 
-            <div class="workspace agent-layout">
+            <details class="agent-run-details">
+              <summary>运行详情</summary>
+              <div class="agent-run-details-content">
+              <div class="agent-details-toolbar">
+                <span class="panel-count" id="agent-scope-label">全部目标</span>
+                <span id="agent-context-updated">未刷新</span>
+                <button class="ghost-button" id="agent-refresh-button" type="button">刷新状态</button>
+              </div>
+              <div class="agent-metric-grid">
+                <article class="agent-metric">
+                  <span>目标</span>
+                  <strong id="agent-goal-total">0</strong>
+                </article>
+                <article class="agent-metric">
+                  <span>未完成任务</span>
+                  <strong id="agent-task-open-total">0</strong>
+                </article>
+                <article class="agent-metric">
+                  <span>资料</span>
+                  <strong id="agent-material-total">0</strong>
+                </article>
+                <article class="agent-metric">
+                  <span>闪卡</span>
+                  <strong id="agent-review-total">0</strong>
+                </article>
+              </div>
+              <section class="agent-run-history">
+                <div class="panel-head">
+                  <h2>任务记录</h2>
+                  <span class="panel-count" id="agent-run-count">0 条</span>
+                </div>
+                <div class="agent-run-list" id="agent-run-list"></div>
+                <div class="agent-run-detail" id="agent-run-detail"></div>
+              </section>
+              <div class="workspace agent-layout">
               <section class="panel agent-decision-panel">
                 <div class="panel-head">
                   <h2>下一步建议</h2>
@@ -546,6 +567,8 @@
                 <div class="agent-context-list" id="agent-qa-list"></div>
               </section>
             </div>
+              </div>
+            </details>
           </section>
         </section>
 
@@ -593,6 +616,21 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <nav class="mobile-bottom-nav" aria-label="移动主导航" hidden>
+      <button class="nav-item active" data-view="today" type="button"><span>⌂</span>今日</button>
+      <button class="nav-item" data-view="goals" type="button"><span>＋</span>目标</button>
+      <button class="nav-item" data-view="materials" type="button"><span>▣</span>资料</button>
+      <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能任务</button>
+      <button class="mobile-more-toggle" id="mobile-more-toggle" type="button" aria-expanded="false"><span>•••</span>更多</button>
+    </nav>
+    <div class="mobile-more-menu" id="mobile-more-menu" hidden>
+      <button class="nav-item" data-view="study" type="button">问答</button>
+      <button class="nav-item" data-view="memory" type="button">复习</button>
+      <button class="nav-item" data-view="progress" type="button">进度</button>
+      <button class="ghost-button" id="mobile-export-data" type="button">导出数据</button>
+      <button class="danger-button" id="mobile-reset-data" type="button">删除账号</button>
     </div>
 
     <template id="empty-template">

@@ -482,6 +482,104 @@ def test_production_write_requests_require_an_allowed_origin(monkeypatch):
     assert allowed.status_code == 200
 
 
+def test_account_export_uses_server_data_and_account_deletion_revokes_the_session():
+    goal = client.post(
+        "/api/goals",
+        json={
+            "name": "Export goal",
+            "subject": "Data",
+            "level": "basic",
+            "deadline": "2026-08-01",
+            "daily_minutes": 30,
+            "notes": "account export coverage",
+        },
+    ).json()["data"]
+    material = client.post(
+        "/api/materials",
+        json={
+            "goalId": goal["id"],
+            "title": "Export material",
+            "type": "text",
+            "content": "Only server-side data belongs in this export.",
+        },
+    ).json()["data"]
+
+    export_response = client.get("/api/auth/export")
+    assert export_response.status_code == 200
+    exported = export_response.json()["data"]
+    assert exported["account"]["email"] == "auth-default@example.com"
+    assert [item["id"] for item in exported["goals"]] == [goal["id"]]
+    assert [item["id"] for item in exported["materials"]] == [material["id"]]
+    assert "password_hash" not in export_response.text
+    assert "token_hash" not in export_response.text
+    user = store.get_user_by_email("auth-default@example.com")
+    assert user is not None
+    owner_hash = rate_limit_service._hash_identifier(user["id"])
+    assert store.increment_model_usage("llm_user", owner_hash, "2026-07-17", 1, 30, store.now_iso()) == 1
+
+    rejected = client.request("DELETE", "/api/auth/account", json={"confirmation": "remove"})
+    assert rejected.status_code == 422
+    assert client.get("/api/auth/me").status_code == 200
+
+    deleted = client.request("DELETE", "/api/auth/account", json={"confirmation": "DELETE"})
+    assert deleted.status_code == 200
+    assert deleted.json()["data"] == {"deleted": True}
+    assert client.get("/api/auth/me").status_code == 401
+    assert store.get_user_by_email("auth-default@example.com") is None
+    with store.db_connection() as conn:
+        assert conn.execute("SELECT COUNT(*) AS total FROM goals").fetchone()["total"] == 0
+        assert conn.execute("SELECT COUNT(*) AS total FROM materials").fetchone()["total"] == 0
+        assert conn.execute(
+            "SELECT COUNT(*) AS total FROM model_usage_counters WHERE owner_hash = ?",
+            (owner_hash,),
+        ).fetchone()["total"] == 0
+
+
+def test_demo_confirmation_can_advance_its_persisted_waiting_step():
+    client.cookies.clear()
+    demo_response = client.post("/api/auth/demo")
+    assert demo_response.status_code == 200
+    run = client.get("/api/agent/runs").json()["data"][0]
+    detail = client.get(f"/api/agent/runs/{run['id']}").json()["data"]
+    waiting_step = detail["steps"][0]
+    assert waiting_step["status"] == "waiting_confirmation"
+    assert waiting_step["actionSnapshot"]["toolName"] == "create_task_draft"
+
+    assert client.patch(
+        f"/api/agent/action-logs/{waiting_step['actionLogId']}",
+        json={"status": "accepted"},
+    ).status_code == 200
+    advanced = client.post(f"/api/agent/runs/{run['id']}/advance")
+
+    assert advanced.status_code == 200
+    advanced_run = advanced.json()["data"]
+    assert advanced_run["status"] == "decided"
+    assert advanced_run["steps"][0]["status"] == "completed"
+    assert advanced_run["steps"][0]["toolOutput"]["data"]["createdCount"] == 1
+
+
+def test_demo_rejection_and_cancellation_keep_the_run_in_a_safe_state():
+    client.cookies.clear()
+    assert client.post("/api/auth/demo").status_code == 200
+    run = client.get("/api/agent/runs").json()["data"][0]
+    detail = client.get(f"/api/agent/runs/{run['id']}").json()["data"]
+    waiting_step = detail["steps"][0]
+
+    assert client.patch(
+        f"/api/agent/action-logs/{waiting_step['actionLogId']}",
+        json={"status": "rejected"},
+    ).status_code == 200
+    rejected = client.post(f"/api/agent/runs/{run['id']}/advance")
+    assert rejected.status_code == 200
+    rejected_run = rejected.json()["data"]
+    assert rejected_run["status"] == "decided"
+    assert rejected_run["steps"][0]["status"] == "rejected"
+
+    cancelled = client.post(f"/api/agent/runs/{run['id']}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["data"]["status"] == "cancelled"
+
+
 def test_production_rate_limit_security_requires_a_secret_and_trusted_proxy_cidrs(monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.delenv("RATE_LIMIT_HASH_SALT", raising=False)

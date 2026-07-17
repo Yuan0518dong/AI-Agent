@@ -126,6 +126,35 @@ def test_generate_plan_list_tasks_checkin_and_progress():
     assert cancel_response.json()["data"]["completed_at"] is None
 
 
+def test_dashboard_returns_only_first_view_summary_for_the_signed_in_user():
+    goal = create_goal()
+    tasks = client.post(
+        f"/api/goals/{goal['id']}/plans",
+        json={"days": 2, "regenerate": True},
+    ).json()["data"]
+    assert client.post(f"/api/tasks/{tasks[0]['id']}/checkin", json={"done": True}).status_code == 200
+
+    response = client.get("/api/dashboard", params={"date": store.today_iso()})
+
+    assert response.status_code == 200
+    dashboard = response.json()["data"]
+    assert dashboard["date"] == store.today_iso()
+    assert dashboard["summary"] == {
+        "goalTotal": 1,
+        "todayTaskTotal": 1,
+        "todayTaskCompleted": 1,
+        "taskTotal": 2,
+        "taskCompleted": 1,
+        "completionRate": 50,
+        "flashcardTotal": 0,
+    }
+    assert dashboard["primaryGoal"]["id"] == goal["id"]
+    assert len(dashboard["todayTasks"]) == 1
+    assert dashboard["todayTasks"][0]["goalName"] == goal["name"]
+    assert "materials" not in dashboard
+    assert "agentRuns" not in dashboard
+
+
 def test_generate_plan_ignores_unrelated_material_even_if_linked_to_goal():
     goal = create_goal(
         {

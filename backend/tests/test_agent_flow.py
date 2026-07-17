@@ -90,6 +90,54 @@ def create_material(
     return material
 
 
+def test_advance_executes_at_most_one_persisted_step_per_request():
+    goal = create_goal("Incremental runtime goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "decisionMode": "rule-based", "maxSteps": 3},
+    ).json()["data"]
+
+    first = client.post(f"/api/agent/runs/{run['id']}/advance")
+    assert first.status_code == 200
+    first_run = first.json()["data"]
+    assert len(first_run["steps"]) == 1
+    assert first_run["steps"][0]["status"] == "completed"
+    assert first_run["status"] == "decided"
+
+    second = client.post(f"/api/agent/runs/{run['id']}/advance")
+    assert second.status_code == 200
+    waiting_run = second.json()["data"]
+    assert len(waiting_run["steps"]) == 2
+    assert waiting_run["steps"][1]["status"] == "waiting_confirmation"
+    assert waiting_run["status"] == "waiting_confirmation"
+
+    action_log_id = waiting_run["steps"][1]["actionLogId"]
+    assert client.patch(
+        f"/api/agent/action-logs/{action_log_id}",
+        json={"status": "accepted"},
+    ).status_code == 200
+
+    confirmed = client.post(f"/api/agent/runs/{run['id']}/advance")
+    assert confirmed.status_code == 200
+    confirmed_run = confirmed.json()["data"]
+    assert len(confirmed_run["steps"]) == 2
+    assert confirmed_run["steps"][1]["status"] == "completed"
+    assert confirmed_run["status"] == "decided"
+
+
+def test_advance_keeps_execute_available_for_batch_runtime():
+    goal = create_goal("Execute compatibility goal")
+    run = client.post(
+        "/api/agent/runs",
+        json={"goalId": goal["id"], "decisionMode": "rule-based", "maxSteps": 3},
+    ).json()["data"]
+
+    response = client.post(f"/api/agent/runs/{run['id']}/execute", json={})
+
+    assert response.status_code == 200
+    assert len(response.json()["data"]["steps"]) >= 2
+
+
 def test_agent_ask_returns_mock_answer_with_references():
     goal = create_goal()
     material = create_material(

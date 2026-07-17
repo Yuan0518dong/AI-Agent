@@ -19,6 +19,8 @@ def execute_agent_run(
     run_id: str,
     user_id: str | None = None,
     max_steps: int | None = None,
+    *,
+    single_step: bool = False,
 ) -> dict | None:
     run = agent_run_service.get_agent_run(run_id, user_id)
     if not run:
@@ -58,6 +60,13 @@ def execute_agent_run(
         if not readback:
             return agent_run_service.get_agent_run(run_id, user_id)
         readback_context, readback_decision = readback
+
+    # A confirmation is itself the step this interaction was asked to advance.
+    # The next request will use the persisted readback to create a later step.
+    if single_step and waiting_step:
+        if run["status"] == "running":
+            _set_run_state(run, "decided", current_step=len(steps))
+        return agent_run_service.get_agent_run(run_id, user_id)
 
     while len(steps) < step_budget:
         if _is_cancelled(run):
@@ -209,8 +218,29 @@ def execute_agent_run(
             )
             return agent_run_service.get_agent_run(run_id, user_id)
 
+        if single_step:
+            if len(steps) >= step_budget:
+                _set_run_state(run, "max_steps", "max_steps", current_step=len(steps))
+            else:
+                _set_run_state(
+                    run,
+                    "decided",
+                    context=context,
+                    decision=decision,
+                    current_step=step_index,
+                )
+            return agent_run_service.get_agent_run(run_id, user_id)
+
     _set_run_state(run, "max_steps", "max_steps", current_step=len(steps))
     return agent_run_service.get_agent_run(run_id, user_id)
+
+
+def advance_agent_run(
+    run_id: str,
+    user_id: str | None = None,
+) -> dict | None:
+    """Run one interactive increment without changing the run's total budget."""
+    return execute_agent_run(run_id, user_id, single_step=True)
 
 
 def _resume_waiting_step(run: dict, step: dict, user_id: str | None) -> bool:

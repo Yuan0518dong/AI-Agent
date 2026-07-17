@@ -12,7 +12,7 @@ from fastapi.routing import APIRoute, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.app.routers import agent, auth, goals, materials, progress, tasks
+from backend.app.routers import agent, auth, dashboard, goals, materials, progress, tasks
 from backend.app.services import rate_limit_service, store
 
 
@@ -180,6 +180,7 @@ include_api_router(progress.router, prefix="/api/progress", tags=["progress"])
 include_api_router(materials.router, prefix="/api/materials", tags=["materials"])
 include_api_router(agent.router, prefix="/api/agent", tags=["agent"])
 include_api_router(auth.router, prefix="/api/auth", tags=["auth"])
+include_api_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 
 
 @app.get("/")

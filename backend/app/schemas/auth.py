@@ -31,3 +31,14 @@ class LoginRequest(BaseModel):
     @classmethod
     def email_must_be_valid(cls, value: str) -> str:
         return value.strip().lower()
+
+
+class AccountDeleteRequest(BaseModel):
+    confirmation: str = Field(min_length=1, max_length=32)
+
+    @field_validator("confirmation")
+    @classmethod
+    def confirmation_must_match(cls, value: str) -> str:
+        if value.strip() != "DELETE":
+            raise ValueError("Confirmation must be DELETE")
+        return "DELETE"

@@ -227,6 +227,19 @@ def execute_agent_run(
     return ok(agent_run)
 
 
+@router.post("/runs/{run_id}/advance")
+def advance_agent_run(
+    run_id: str,
+    user_id: str | None = Depends(current_user_id),
+):
+    """Advance at most one persisted AgentStep for an interactive run."""
+    agent_run = agent_loop_service.advance_agent_run(run_id, user_id)
+    if not agent_run:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+
+    return ok(agent_run)
+
+
 @router.post("/ask")
 def ask_agent(payload: AgentAskRequest, user_id: str | None = Depends(current_user_id)):
     goal_id = _normalize_goal_id(payload.goalId)

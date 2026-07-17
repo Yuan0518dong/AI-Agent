@@ -65,9 +65,7 @@ async function refreshAgentContext(triggerButton = null, goalId = selectedGoalId
   setButtonLoading(triggerButton, true, "刷新中");
 
   try {
-    await loadAgentContextFromApi(goalId);
-    await loadAgentActionLogsFromApi(goalId);
-    await loadAgentRunsFromApi(goalId);
+    await loadAgentRuntimeData(goalId);
     state.agentDecision = null;
     saveState();
     renderAgentWorkbench();
@@ -76,6 +74,20 @@ async function refreshAgentContext(triggerButton = null, goalId = selectedGoalId
     showError(error);
   } finally {
     setButtonLoading(triggerButton, false);
+  }
+}
+
+async function loadAgentRuntimeData(goalId) {
+  try {
+    await loadAgentContextFromApi(goalId);
+    await loadAgentActionLogsFromApi(goalId);
+    await loadAgentRunsFromApi(goalId);
+  } catch (error) {
+    if (error?.status !== 404 || !goalId) throw error;
+    clearSelectedGoal();
+    await loadAgentContextFromApi("");
+    await loadAgentActionLogsFromApi("");
+    await loadAgentRunsFromApi("");
   }
 }
 
@@ -107,8 +119,8 @@ function renderAgentWorkbench() {
   if (!root) return;
 
   if (!context) {
-    root.innerHTML = "";
-    root.appendChild(emptyNode("暂时无法读取学习状态", "刷新后会展示智能体当前读取到的目标、任务、资料和复习状态。"));
+    renderAgentGoalSelect();
+    renderAgentRunPanel();
     return;
   }
 
@@ -131,22 +143,19 @@ async function startAgentRun(triggerButton = null) {
     return;
   }
   const objectiveInput = document.getElementById("agent-run-objective");
-  const stepInput = document.getElementById("agent-run-max-steps");
-  const maxSteps = Math.min(8, Math.max(1, Number(stepInput?.value || 3)));
-  if (stepInput) stepInput.value = String(maxSteps);
   setButtonLoading(triggerButton, true, "启动中");
   try {
     const run = await agentApi.createRun({
       goalId: selectedGoalId,
       objective: objectiveInput?.value.trim() || "推进当前学习目标的下一步行动。",
       decisionMode: currentDecisionMode,
-      maxSteps
+      maxSteps: 4
     });
     state.selectedAgentRunId = run.id;
-    const executed = await agentApi.executeRun(run.id);
-    await syncAgentRunState(executed);
+    const advanced = await agentApi.advanceRun(run.id);
+    await syncAgentRunState(advanced);
     await refreshAgentContext(null, selectedGoalId);
-    showSuccess("智能任务已开始执行");
+    showSuccess("已完成第一步，可继续按步骤推进");
   } catch (error) {
     showError(error);
   } finally {
@@ -170,9 +179,9 @@ async function selectAgentRun(runId, triggerButton = null) {
 async function resumeAgentRun(runId, triggerButton = null) {
   setButtonLoading(triggerButton, true, "恢复中");
   try {
-    await syncAgentRunState(await agentApi.executeRun(runId));
+    await syncAgentRunState(await agentApi.advanceRun(runId));
     await refreshAgentContext(null, selectedGoalId);
-    showSuccess("智能任务已继续执行");
+    showSuccess("已完成下一步并刷新任务状态");
   } catch (error) {
     showError(error);
   } finally {
@@ -189,9 +198,9 @@ async function respondToAgentConfirmation(run, status, triggerButton = null) {
   setButtonLoading(triggerButton, true, status === "accepted" ? "确认中" : "拒绝中");
   try {
     await agentApi.updateActionLog(waitingStep.actionLogId, { status });
-    await syncAgentRunState(await agentApi.executeRun(run.id));
+    await syncAgentRunState(await agentApi.advanceRun(run.id));
     await refreshAgentContext(null, selectedGoalId);
-    showSuccess(status === "accepted" ? "已确认并继续执行" : "已拒绝写入，任务将继续判断");
+    showSuccess(status === "accepted" ? "已确认当前步骤" : "已拒绝写入，任务将继续判断");
   } catch (error) {
     showError(error);
   } finally {
@@ -203,7 +212,6 @@ async function closeAgentRun(runId, triggerButton = null) {
   setButtonLoading(triggerButton, true, "取消中");
   try {
     await syncAgentRunState(await agentApi.cancelRun(runId));
-    await loadAgentRunsFromApi(selectedGoalId);
     renderAgentWorkbench();
     showSuccess("智能任务已取消");
   } catch (error) {
@@ -512,7 +520,7 @@ function renderAgentDecisionPanel() {
   body.innerHTML = "";
   if (!decision) {
     mode.textContent = "未生成";
-    body.appendChild(emptyNode("暂无学习建议", "点击“分析下一步”后，智能体会根据当前学习状态给出下一步安排。"));
+    body.appendChild(emptyNode("暂无独立建议", "智能任务会在每一步中生成并记录下一步判断。"));
     return;
   }
 
@@ -623,7 +631,7 @@ function agentRunSummaryNode(run) {
     actions.appendChild(agentRunButton("确认写入并继续", "primary-button", (button) => respondToAgentConfirmation(run, "accepted", button)));
     actions.appendChild(agentRunButton("拒绝写入并继续", "ghost-button", (button) => respondToAgentConfirmation(run, "rejected", button)));
   } else if (!["completed", "failed", "max_steps", "cancelled", "closed"].includes(run.status)) {
-    actions.appendChild(agentRunButton("继续执行", "primary-button", (button) => resumeAgentRun(run.id, button)));
+    actions.appendChild(agentRunButton("执行下一步", "primary-button", (button) => resumeAgentRun(run.id, button)));
     actions.appendChild(agentRunButton("取消任务", "ghost-button", (button) => closeAgentRun(run.id, button)));
   }
   if (actions.children.length) wrapper.appendChild(actions);
@@ -707,7 +715,7 @@ function agentRunButton(label, className, onClick) {
 }
 
 function agentRunStatusLabel(status) {
-  const labels = { decided: "已决策", running: "执行中", waiting_confirmation: "等待确认", completed: "已完成", failed: "失败", max_steps: "达到步数上限", cancelled: "已取消", closed: "已停止" };
+  const labels = { decided: "等待下一步", running: "执行中", waiting_confirmation: "等待确认", completed: "已完成", failed: "失败", max_steps: "达到步数上限", cancelled: "已取消", closed: "已停止" };
   return labels[status] || "未知状态";
 }
 
