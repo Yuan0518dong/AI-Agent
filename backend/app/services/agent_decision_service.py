@@ -1,5 +1,6 @@
 from backend.app.services import (
     agent_action_log_service,
+    agent_action_policy_service,
     agent_context_service,
     agent_decision_provider,
     agent_tool_registry_service,
@@ -54,11 +55,19 @@ def decide_next_action_from_context(
     if decision_mode == "rule-based":
         return rule_based_decision
 
+    allowed_action_types = None
+    if objective.strip():
+        allowed_action_types = agent_action_policy_service.allowed_action_types(
+            decision_context,
+            rule_based_decision,
+        )
+
     with model_usage_service.user_usage_scope(user_id):
         return agent_decision_provider.decide_with_llm_json(
             decision_context,
             rule_based_decision,
             decision_mode,
+            allowed_action_types=allowed_action_types,
         )
 
 

@@ -12,7 +12,7 @@ from backend.app.services import (
 
 
 VALID_DECISION_MODES = {"rule-based", "llm-json", "hybrid"}
-PROMPT_VERSION = "batch-c-v1"
+PROMPT_VERSION = "agent-reliability-a2-policy-v1"
 MAX_CONTEXT_CHARS = 12_000
 
 
@@ -20,6 +20,8 @@ def decide_with_llm_json(
     context: dict,
     fallback_decision: dict,
     requested_mode: str,
+    *,
+    allowed_action_types: set[str] | None = None,
 ) -> dict:
     mode = _normalize_mode(requested_mode)
     started_at = time.monotonic()
@@ -34,19 +36,37 @@ def decide_with_llm_json(
             provider,
             started_at,
             context_window,
+            allowed_action_types=allowed_action_types,
         )
 
     try:
-        payload = _build_decision_payload(prompt_context, fallback_decision, provider)
+        payload = _build_decision_payload(
+            prompt_context,
+            fallback_decision,
+            provider,
+            allowed_action_types=allowed_action_types,
+        )
         content = _post_decision_completion(payload, provider)
         try:
-            decision = _decision_from_content(content, fallback_decision, mode, context)
+            decision = _decision_from_content(
+                content,
+                fallback_decision,
+                mode,
+                context,
+                allowed_action_types,
+            )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             if not model_usage_service.llm_format_repair_is_enabled():
                 raise
             repair_attempted = True
             repaired_content = _request_format_repair(content, str(exc), provider)
-            decision = _decision_from_content(repaired_content, fallback_decision, mode, context)
+            decision = _decision_from_content(
+                repaired_content,
+                fallback_decision,
+                mode,
+                context,
+                allowed_action_types,
+            )
         return _attach_provider_metadata(
             decision,
             provider,
@@ -70,6 +90,7 @@ def decide_with_llm_json(
             started_at,
             context_window,
             repair_attempted,
+            allowed_action_types,
         )
 
 
@@ -78,7 +99,13 @@ def _post_decision_completion(payload: dict[str, Any], provider) -> str:
     return result["choices"][0]["message"]["content"]
 
 
-def _build_decision_payload(context: dict, fallback_decision: dict, provider=None) -> dict:
+def _build_decision_payload(
+    context: dict,
+    fallback_decision: dict,
+    provider=None,
+    *,
+    allowed_action_types: set[str] | None = None,
+) -> dict:
     provider = provider or llm_provider.get_llm_provider()
     payload = {
         "model": getattr(provider, "model", ""),
@@ -91,8 +118,9 @@ def _build_decision_payload(context: dict, fallback_decision: dict, provider=Non
                     "Return JSON only. Do not execute writes. "
                     "Required fields are stateSummary, problems, nextAction, reason, "
                     "requiresConfirmation, proposedActions, reflection. "
-                    "nextAction and every proposedActions.type must be a registered action from "
-                    "availableTools. Each payload must use only the matching tool input schema. "
+                    "nextAction and every proposedActions.type must exactly match a type from "
+                    "availableActions. Use toolName only for explanation, never as the action type. "
+                    "Each payload must use only the matching inputSchema. "
                     "Do not invent IDs, SQL, tools, or fields. High-risk task actions must require "
                     "confirmation."
                 ),
@@ -105,7 +133,9 @@ def _build_decision_payload(context: dict, fallback_decision: dict, provider=Non
                         "context": context,
                         "runObjective": (context.get("agentRun") or {}).get("objective", ""),
                         "previousSteps": (context.get("agentRun") or {}).get("stepHistory", []),
-                        "availableTools": agent_tool_registry_service.list_tools(),
+                        "availableActions": agent_tool_registry_service.list_model_actions(
+                            allowed_action_types
+                        ),
                         "fallbackDecision": {
                             "stateSummary": fallback_decision.get("stateSummary", ""),
                             "problems": fallback_decision.get("problems", []),
@@ -153,6 +183,7 @@ def _decision_from_content(
     fallback_decision: dict,
     mode: str,
     context: dict,
+    allowed_action_types: set[str] | None = None,
 ) -> dict:
     data = _parse_model_json(content)
     return agent_decision_guard_service.decision_from_model_data(
@@ -160,6 +191,7 @@ def _decision_from_content(
         fallback_decision,
         mode,
         context=context,
+        allowed_action_types=allowed_action_types,
     )
 
 
@@ -185,9 +217,14 @@ def _fallback_decision(
     started_at: float,
     context_window: dict,
     repair_attempted: bool = False,
+    allowed_action_types: set[str] | None = None,
 ) -> dict:
+    constrained_fallback = _constrain_fallback_decision(
+        fallback_decision,
+        allowed_action_types,
+    )
     decision = {
-        **fallback_decision,
+        **constrained_fallback,
         "mode": "rule-based",
         "requestedMode": requested_mode,
         "fallbackReason": reason,
@@ -204,6 +241,37 @@ def _fallback_decision(
         context_window,
         repair_attempted,
     )
+
+
+def _constrain_fallback_decision(
+    fallback_decision: dict,
+    allowed_action_types: set[str] | None,
+) -> dict:
+    if allowed_action_types is None:
+        return fallback_decision
+
+    actions = [
+        action
+        for action in fallback_decision.get("proposedActions") or []
+        if action.get("type") in allowed_action_types
+    ]
+    if actions:
+        return {
+            **fallback_decision,
+            "nextAction": actions[0]["type"],
+            "proposedActions": actions,
+            "requiresConfirmation": any(action.get("requiresConfirmation") for action in actions),
+        }
+    return {
+        **fallback_decision,
+        "nextAction": "",
+        "proposedActions": [],
+        "requiresConfirmation": False,
+        "reason": (
+            f"{fallback_decision.get('reason', '')} "
+            "The deterministic action policy removed fallback actions that were invalid for this Run state."
+        ).strip(),
+    }
 
 
 def _attach_provider_metadata(

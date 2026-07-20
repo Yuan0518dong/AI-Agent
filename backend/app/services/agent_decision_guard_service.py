@@ -9,18 +9,24 @@ def decision_from_model_data(
     mode: str,
     *,
     context: dict | None = None,
+    allowed_action_types: set[str] | None = None,
 ) -> dict:
     if not isinstance(data, dict):
         raise ValueError("Decision Guard rejected model output: payload must be an object.")
 
     _validate_required_decision_fields(data)
-    next_action = _known_action(data.get("nextAction"), "nextAction")
+    next_action = _known_action(
+        data.get("nextAction"),
+        "nextAction",
+        allowed_action_types,
+    )
     proposed_actions = _normalize_actions(
         data.get("proposedActions"),
         next_action,
         data,
         fallback_decision,
         context,
+        allowed_action_types,
     )
     if not proposed_actions or proposed_actions[0]["type"] != next_action:
         raise ValueError(
@@ -56,6 +62,7 @@ def decision_from_model_data(
                 "json_object",
                 "required_fields",
                 "known_action",
+                "allowed_action",
                 "payload_schema",
                 "owner_scope",
                 "tool_risk",
@@ -114,12 +121,17 @@ def _normalize_actions(
     data: dict[str, Any],
     fallback_decision: dict,
     context: dict | None,
+    allowed_action_types: set[str] | None,
 ) -> list[dict]:
     normalized_actions = []
     for item in actions[:4]:
         if not isinstance(item, dict):
             raise ValueError("Decision Guard rejected model output: proposedActions items must be objects.")
-        action_type = _known_action(item.get("type") or item.get("actionType"), "proposedActions.type")
+        action_type = _known_action(
+            item.get("type") or item.get("actionType"),
+            "proposedActions.type",
+            allowed_action_types,
+        )
         payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
         _validate_payload_scope(action_type, payload, context)
         normalized_actions.append(
@@ -134,10 +146,18 @@ def _normalize_actions(
     return normalized_actions
 
 
-def _known_action(raw_action: Any, field_name: str) -> str:
+def _known_action(
+    raw_action: Any,
+    field_name: str,
+    allowed_action_types: set[str] | None = None,
+) -> str:
     action_type = str(raw_action or "")
     if not agent_tool_registry_service.is_known_action(action_type):
         raise ValueError(f"Decision Guard rejected model output: unknown {field_name} {action_type}.")
+    if allowed_action_types is not None and action_type not in allowed_action_types:
+        raise ValueError(
+            f"Decision Guard rejected model output: {field_name} {action_type} is not allowed in the current state."
+        )
     return action_type
 
 

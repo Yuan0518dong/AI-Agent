@@ -116,8 +116,43 @@ ACTION_TOOL_MAP = {
 }
 
 
+MODEL_ACTION_DESCRIPTIONS = {
+    "review_material": "Process existing materials when chunks or summaries are missing.",
+    "search_materials": "Retrieve scoped material evidence for the current objective.",
+    "answer_with_sources": "Answer a question from scoped material evidence and persist its citations.",
+    "create_flashcards": "Create a review or flashcard draft from weak learning evidence; do not write formally.",
+    "create_quiz": "Create a quiz-oriented review draft; do not write formally.",
+    "reschedule_tasks": "Create a task draft that reschedules existing overdue tasks; do not write formally.",
+    "create_followup_tasks": "Create a new task-plan draft for the current goal; do not write formally.",
+    "apply_confirmed_draft": "Apply existing confirmed draft IDs exactly once; user confirmation is mandatory.",
+    "ask_for_more_material": "Create a missing-material suggestion when current evidence is insufficient.",
+    "answer_only": "Return a learning suggestion without running a write or draft tool.",
+}
+
+
 def list_tools() -> list[dict]:
     return [TOOLS[name] for name in TOOLS]
+
+
+def list_model_actions(allowed_action_types: set[str] | None = None) -> list[dict]:
+    actions = []
+    for action_type, tool_name in ACTION_TOOL_MAP.items():
+        if allowed_action_types is not None and action_type not in allowed_action_types:
+            continue
+        tool = TOOLS[tool_name]
+        actions.append(
+            {
+                "type": action_type,
+                "toolName": tool_name,
+                "description": MODEL_ACTION_DESCRIPTIONS[action_type],
+                "riskLevel": tool["riskLevel"],
+                "requiresConfirmation": tool["requiresConfirmation"],
+                "draftOnly": tool["draftOnly"],
+                "inputSchema": tool["inputSchema"],
+                "outputType": tool["outputType"],
+            }
+        )
+    return actions
 
 
 def is_known_action(action_type: str) -> bool:

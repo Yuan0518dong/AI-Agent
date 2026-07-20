@@ -57,8 +57,8 @@ python backend/analyze_agent_failures.py
 | 方案 | 唯一主要变量 | 预期验证 |
 |---|---|---|
 | A0 | 第七版原始基线 | 保留 0.6333 / 0.5556 与 22 个失败 Run |
-| A1 | 精简工具描述与参数 Schema | 测量语义重叠是否下降 |
-| A2 | 按 Run 状态生成 allowed-tool mask | 测量系统性错误场景是否消失 |
+| A1 | 精简工具描述与参数 Schema | 已实现；尚未真实模型复跑 |
+| A2 | 按 Run 状态生成 allowed-action mask | 已实现；尚未真实模型复跑 |
 | A3 | 确认、拒绝、恢复与终态由确定性策略控制 | 测量确认完整性和终态正确性 |
 | A4 | 相关 Context 裁剪 + A2 + A3 | 测量质量、Token、延迟与回退的综合变化 |
 
@@ -75,4 +75,4 @@ python backend/analyze_agent_failures.py
 
 ## 第一项实现任务
 
-先在 Decision Provider 调用前增加“状态到允许工具集合”的纯函数，并为 20 个 fixture 固定其输出。该函数只缩小工具集合，不直接选择最终工具；这样既保留模型决策空间，也能阻止确认阶段重新创建草稿、反馈记忆阶段重复被拒动作等结构性错误。
+已在 Decision Provider 调用前增加“Context/objective 到允许动作集合”的纯函数，并让 Prompt 与 Guard 使用同一集合；详细实现与验证边界见 `docs/evaluation/真实Agent可靠性A1-A2实现记录.md`。当前只证明结构约束与回归门禁通过，不能在真实 20 × 3 复跑前宣称指标提升。
