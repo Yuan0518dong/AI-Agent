@@ -21,6 +21,7 @@ module.exports = {
   webServer: {
     command: "python -c \"from pathlib import Path; Path('test-results/v7-batch4-browser.db').unlink(missing_ok=True)\" && python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8019",
     cwd: path.resolve(__dirname, "../.."),
+    url: "http://127.0.0.1:8019/api/health",
     reuseExistingServer: !process.env.CI,
     timeout: 90_000,
     env: {
