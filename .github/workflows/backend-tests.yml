@@ -33,6 +33,9 @@ jobs:
       - name: Verify dependency consistency
         run: python -m pip check
 
+      - name: Run Ruff
+        run: python -m ruff check backend
+
       - name: Run backend tests
         env:
           PYTHONPATH: .
@@ -54,10 +57,9 @@ jobs:
 
       - name: Check frontend syntax and diff whitespace
         run: |
-          node --check app/api.js
-          node --check app/app.js
-          node --check app/modules/agent-workbench.js
-          node --check app/modules/utils.js
+          npm ci
+          npm run check
+          python backend/check_sensitive_content.py
           git diff --check HEAD^ HEAD
 
   postgres:
@@ -109,3 +111,38 @@ jobs:
 
       - name: Run PostgreSQL integration tests
         run: python -m pytest backend/tests -m postgres -q --tb=short
+
+  playwright:
+    name: Playwright portfolio E2E
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
+      LLM_PROVIDER: mock
+      EMBEDDING_PROVIDER: mock
+      LLM_ENV_FILE: .missing-ci.env
+      EMBEDDING_ENV_FILE: .missing-ci.env
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Install browser dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Batch 4 browser acceptance
+        run: npm run test:e2e

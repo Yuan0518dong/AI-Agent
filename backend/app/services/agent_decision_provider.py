@@ -7,6 +7,7 @@ from backend.app.services import (
     agent_decision_guard_service,
     agent_tool_registry_service,
     llm_provider,
+    model_usage_service,
 )
 
 
@@ -41,6 +42,8 @@ def decide_with_llm_json(
         try:
             decision = _decision_from_content(content, fallback_decision, mode, context)
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            if not model_usage_service.llm_format_repair_is_enabled():
+                raise
             repair_attempted = True
             repaired_content = _request_format_repair(content, str(exc), provider)
             decision = _decision_from_content(repaired_content, fallback_decision, mode, context)
@@ -77,7 +80,7 @@ def _post_decision_completion(payload: dict[str, Any], provider) -> str:
 
 def _build_decision_payload(context: dict, fallback_decision: dict, provider=None) -> dict:
     provider = provider or llm_provider.get_llm_provider()
-    return {
+    payload = {
         "model": getattr(provider, "model", ""),
         "response_format": {"type": "json_object"},
         "messages": [
@@ -115,6 +118,10 @@ def _build_decision_payload(context: dict, fallback_decision: dict, provider=Non
             },
         ],
     }
+    completion_limit = model_usage_service.current_llm_completion_limit()
+    if completion_limit is not None:
+        payload["max_tokens"] = completion_limit
+    return payload
 
 
 def _request_format_repair(content: str, parse_error: str, provider) -> str:

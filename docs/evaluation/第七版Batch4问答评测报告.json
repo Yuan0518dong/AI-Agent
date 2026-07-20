@@ -1,0 +1,1089 @@
+{
+  "metadata": {
+    "executionMode": "mock-offline",
+    "caseCount": 32,
+    "categoryCounts": {
+      "answerable": 8,
+      "cross_material": 8,
+      "insufficient_material": 8,
+      "conflicting_material": 8
+    },
+    "fixtureFiles": [
+      "backend/evaluation/v7_retrieval_corpus.json",
+      "backend/evaluation/v7_qa_cases.json"
+    ],
+    "fixtureSha256": "2e2959850629ab82cb5dacc7f991cefe8c4630853815c0fe54414310d7f2c353"
+  },
+  "metrics": {
+    "citationAccuracy": 0.75,
+    "groundedness": 0.75,
+    "insufficientPrecision": 1.0,
+    "insufficientRecall": 0.75,
+    "insufficientF1": 0.8571,
+    "p50LatencyMs": 3.996,
+    "p95LatencyMs": 4.458
+  },
+  "failureCaseIds": [
+    "qa01",
+    "qa03",
+    "qa07",
+    "qa10",
+    "qa13",
+    "qa21",
+    "qa23",
+    "qa27"
+  ],
+  "cases": [
+    {
+      "id": "qa01",
+      "category": "answerable",
+      "question": "RRF 如何融合两路检索排序？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_01_rrf",
+        "doc_04_refusal",
+        "doc_03_citations"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_01_rrf",
+          "score": 0.032787,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_04_refusal",
+          "score": 0.016129,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_03_citations",
+          "score": 0.015873,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_01_rrf"
+      ],
+      "latencyMs": 4.47,
+      "passed": false
+    },
+    {
+      "id": "qa02",
+      "category": "answerable",
+      "question": "dense Top 20 的全精度重排如何完成？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_02_pgvector",
+          "score": 0.032787,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "latencyMs": 4.126,
+      "passed": true
+    },
+    {
+      "id": "qa03",
+      "category": "answerable",
+      "question": "PDF 引用应包含什么定位信息？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_03_citations",
+        "doc_05_pdf"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_03_citations",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_05_pdf",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_03_citations"
+      ],
+      "latencyMs": 4.149,
+      "passed": false
+    },
+    {
+      "id": "qa04",
+      "category": "answerable",
+      "question": "资料不足时为什么不能补造引用？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_04_refusal",
+          "score": 6,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "latencyMs": 4.225,
+      "passed": true
+    },
+    {
+      "id": "qa05",
+      "category": "answerable",
+      "question": "上传扫描件会被如何处理？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_05_pdf",
+          "score": 5,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "latencyMs": 4.334,
+      "passed": true
+    },
+    {
+      "id": "qa06",
+      "category": "answerable",
+      "question": "用户接受确认后 Agent Run 如何恢复？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_06_confirmation",
+          "score": 5,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "latencyMs": 4.449,
+      "passed": true
+    },
+    {
+      "id": "qa07",
+      "category": "answerable",
+      "question": "Decision Guard 怎样处理未知工具？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_07_guard",
+        "doc_06_confirmation"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_07_guard",
+          "score": 0.016393,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_06_confirmation",
+          "score": 0.016393,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_07_guard"
+      ],
+      "latencyMs": 3.806,
+      "passed": false
+    },
+    {
+      "id": "qa08",
+      "category": "answerable",
+      "question": "为什么真实评测必须记录 p95 延迟？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_08_latency"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_08_latency",
+          "score": 2,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_08_latency"
+      ],
+      "latencyMs": 3.643,
+      "passed": true
+    },
+    {
+      "id": "qa09",
+      "category": "cross_material",
+      "question": "RRF 融合与 dense 全精度重排分别解决什么问题？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_02_pgvector",
+        "doc_01_rrf"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_02_pgvector",
+          "score": 2,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_01_rrf",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_01_rrf",
+        "doc_02_pgvector"
+      ],
+      "latencyMs": 3.856,
+      "passed": true
+    },
+    {
+      "id": "qa10",
+      "category": "cross_material",
+      "question": "引用定位和 grounded-refusal 如何共同避免无依据回答？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_03_citations",
+        "doc_02_pgvector",
+        "doc_04_refusal",
+        "doc_08_latency"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_03_citations",
+          "score": 0.016393,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_02_pgvector",
+          "score": 0.016393,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_04_refusal",
+          "score": 0.016129,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_08_latency",
+          "score": 0.016129,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_03_citations",
+        "doc_04_refusal"
+      ],
+      "latencyMs": 3.844,
+      "passed": false
+    },
+    {
+      "id": "qa11",
+      "category": "cross_material",
+      "question": "PDF 安全校验和页码引用分别保护什么？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_05_pdf",
+        "doc_03_citations"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_05_pdf",
+          "score": 0.032522,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_03_citations",
+          "score": 0.016393,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_05_pdf",
+        "doc_03_citations"
+      ],
+      "latencyMs": 3.836,
+      "passed": true
+    },
+    {
+      "id": "qa12",
+      "category": "cross_material",
+      "question": "确认恢复和 Guard 如何共同防止未授权写入？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_07_guard"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_07_guard",
+          "score": 6,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_06_confirmation",
+        "doc_07_guard"
+      ],
+      "latencyMs": 3.448,
+      "passed": true
+    },
+    {
+      "id": "qa13",
+      "category": "cross_material",
+      "question": "为什么完整评测既要记录延迟成本又要保留确认恢复指标？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_02_pgvector",
+          "score": 0.3849,
+          "searchMode": "semantic",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_08_latency",
+        "doc_06_confirmation"
+      ],
+      "latencyMs": 4.406,
+      "passed": false
+    },
+    {
+      "id": "qa14",
+      "category": "cross_material",
+      "question": "HNSW 候选召回和 RRF 融合的顺序分别是什么？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_02_pgvector",
+        "doc_01_rrf"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_02_pgvector",
+          "score": 4,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_01_rrf",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_01_rrf",
+        "doc_02_pgvector"
+      ],
+      "latencyMs": 4.458,
+      "passed": true
+    },
+    {
+      "id": "qa15",
+      "category": "cross_material",
+      "question": "资料不足与冲突资料都应如何让读者复核证据？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_04_refusal",
+        "doc_03_citations"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_04_refusal",
+          "score": 5,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_03_citations",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_03_citations",
+        "doc_04_refusal"
+      ],
+      "latencyMs": 5.476,
+      "passed": true
+    },
+    {
+      "id": "qa16",
+      "category": "cross_material",
+      "question": "为什么上传后的原文件不保存但引用仍能定位？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_05_pdf",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_05_pdf",
+        "doc_03_citations"
+      ],
+      "latencyMs": 4.436,
+      "passed": true
+    },
+    {
+      "id": "qa17",
+      "category": "insufficient_material",
+      "question": "量子纠缠的贝尔不等式是什么？",
+      "shouldRefuse": true,
+      "refused": true,
+      "isFromMaterial": false,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [],
+      "citationEvidence": [],
+      "acceptableDocumentIds": [],
+      "latencyMs": 3.908,
+      "passed": true
+    },
+    {
+      "id": "qa18",
+      "category": "insufficient_material",
+      "question": "TCP 三次握手如何避免半连接？",
+      "shouldRefuse": true,
+      "refused": true,
+      "isFromMaterial": false,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [],
+      "citationEvidence": [],
+      "acceptableDocumentIds": [],
+      "latencyMs": 3.996,
+      "passed": true
+    },
+    {
+      "id": "qa19",
+      "category": "insufficient_material",
+      "question": "光合作用的卡尔文循环有哪些步骤？",
+      "shouldRefuse": true,
+      "refused": true,
+      "isFromMaterial": false,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [],
+      "citationEvidence": [],
+      "acceptableDocumentIds": [],
+      "latencyMs": 3.917,
+      "passed": true
+    },
+    {
+      "id": "qa20",
+      "category": "insufficient_material",
+      "question": "唐诗中李白的浪漫主义风格如何形成？",
+      "shouldRefuse": true,
+      "refused": true,
+      "isFromMaterial": false,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [],
+      "citationEvidence": [],
+      "acceptableDocumentIds": [],
+      "latencyMs": 3.99,
+      "passed": true
+    },
+    {
+      "id": "qa21",
+      "category": "insufficient_material",
+      "question": "二分查找的时间复杂度如何证明？",
+      "shouldRefuse": true,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_01_rrf",
+        "doc_04_refusal",
+        "doc_03_citations"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_01_rrf",
+          "score": 0.685994,
+          "searchMode": "semantic",
+          "retrievalModes": [
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_04_refusal",
+          "score": 0.65192,
+          "searchMode": "semantic",
+          "retrievalModes": [
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_03_citations",
+          "score": 0.606043,
+          "searchMode": "semantic",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [],
+      "latencyMs": 4.068,
+      "passed": false
+    },
+    {
+      "id": "qa22",
+      "category": "insufficient_material",
+      "question": "宏观经济中的菲利普斯曲线是什么？",
+      "shouldRefuse": true,
+      "refused": true,
+      "isFromMaterial": false,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [],
+      "citationEvidence": [],
+      "acceptableDocumentIds": [],
+      "latencyMs": 4.316,
+      "passed": true
+    },
+    {
+      "id": "qa23",
+      "category": "insufficient_material",
+      "question": "DNA 复制中的冈崎片段是什么？",
+      "shouldRefuse": true,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_04_refusal",
+        "doc_03_citations"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_04_refusal",
+          "score": 0.633553,
+          "searchMode": "semantic",
+          "retrievalModes": [
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_03_citations",
+          "score": 0.588968,
+          "searchMode": "semantic",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [],
+      "latencyMs": 3.737,
+      "passed": false
+    },
+    {
+      "id": "qa24",
+      "category": "insufficient_material",
+      "question": "如何推导麦克斯韦方程组？",
+      "shouldRefuse": true,
+      "refused": true,
+      "isFromMaterial": false,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [],
+      "citationEvidence": [],
+      "acceptableDocumentIds": [],
+      "latencyMs": 3.735,
+      "passed": true
+    },
+    {
+      "id": "qa25",
+      "category": "conflicting_material",
+      "question": "低负荷与高强度冲刺的复习间隔有什么不同？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_10_sprint",
+        "doc_09_spaced"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_10_sprint",
+          "score": 0.032787,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_09_spaced",
+          "score": 0.032258,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 3.786,
+      "passed": true
+    },
+    {
+      "id": "qa26",
+      "category": "conflicting_material",
+      "question": "每天回顾和隔日集中复盘分别适用于什么条件？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_10_sprint",
+        "doc_09_spaced"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_10_sprint",
+          "score": 0.032787,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_09_spaced",
+          "score": 0.032258,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 3.859,
+      "passed": true
+    },
+    {
+      "id": "qa27",
+      "category": "conflicting_material",
+      "question": "为什么不能把两份复习间隔建议当成同一结论？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": false,
+      "grounded": false,
+      "citedDocumentIds": [
+        "doc_10_sprint",
+        "doc_09_spaced",
+        "doc_04_refusal"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_10_sprint",
+          "score": 0.032787,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_09_spaced",
+          "score": 0.032258,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_04_refusal",
+          "score": 0.015873,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 3.797,
+      "passed": false
+    },
+    {
+      "id": "qa28",
+      "category": "conflicting_material",
+      "question": "时间充足与时间紧张时复习安排如何区分？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_09_spaced",
+          "score": 0.032522,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_10_sprint",
+          "score": 0.032522,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 4.154,
+      "passed": true
+    },
+    {
+      "id": "qa29",
+      "category": "conflicting_material",
+      "question": "稳定习惯和冲刺阶段的复盘频率为何不同？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_09_spaced",
+          "score": 3,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_10_sprint",
+          "score": 3,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 4.037,
+      "passed": true
+    },
+    {
+      "id": "qa30",
+      "category": "conflicting_material",
+      "question": "主动回忆与错题整理在两种复习计划中如何安排？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_09_spaced",
+          "score": 0.032787,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_10_sprint",
+          "score": 0.032258,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 3.854,
+      "passed": true
+    },
+    {
+      "id": "qa31",
+      "category": "conflicting_material",
+      "question": "低负荷每日短时建议和冲刺隔日建议是否冲突？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_10_sprint",
+        "doc_09_spaced"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_10_sprint",
+          "score": 4,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        },
+        {
+          "documentId": "doc_09_spaced",
+          "score": 1,
+          "searchMode": "keyword",
+          "retrievalModes": [
+            "keyword"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 3.825,
+      "passed": true
+    },
+    {
+      "id": "qa32",
+      "category": "conflicting_material",
+      "question": "面对不同学习条件应选择哪种资料中的复习间隔？",
+      "shouldRefuse": false,
+      "refused": false,
+      "isFromMaterial": true,
+      "citationAccurate": true,
+      "grounded": true,
+      "citedDocumentIds": [
+        "doc_10_sprint",
+        "doc_09_spaced"
+      ],
+      "citationEvidence": [
+        {
+          "documentId": "doc_10_sprint",
+          "score": 0.032522,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "keyword",
+            "semantic"
+          ]
+        },
+        {
+          "documentId": "doc_09_spaced",
+          "score": 0.016393,
+          "searchMode": "hybrid",
+          "retrievalModes": [
+            "semantic"
+          ]
+        }
+      ],
+      "acceptableDocumentIds": [
+        "doc_09_spaced",
+        "doc_10_sprint"
+      ],
+      "latencyMs": 4.13,
+      "passed": true
+    }
+  ]
+}

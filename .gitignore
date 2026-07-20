@@ -16,3 +16,4 @@ __pycache__/
 .test_artifacts/
 .dev-logs/
 backend/data/
+**/test-results/

@@ -1,0 +1,1411 @@
+{
+  "metadata": {
+    "executionMode": "mock-offline",
+    "queryCount": 50,
+    "documentCount": 10,
+    "retrievalModes": [
+      "keyword",
+      "dense",
+      "hybrid"
+    ],
+    "fixtureFiles": [
+      "backend/evaluation/v7_retrieval_corpus.json",
+      "backend/evaluation/v7_retrieval_cases.json"
+    ],
+    "fixtureSha256": "09511513af04f74ebdf73faf6c05ade3882f98af7770102e12344c93b32b6e39"
+  },
+  "keyword": {
+    "recallAt3": 0.94,
+    "recallAt5": 0.94,
+    "mrr": 0.9167,
+    "ndcgAt5": 0.9226,
+    "p50LatencyMs": 14.145,
+    "p95LatencyMs": 16.216
+  },
+  "dense": {
+    "recallAt3": 0.28,
+    "recallAt5": 0.28,
+    "mrr": 0.2367,
+    "ndcgAt5": 0.2479,
+    "p50LatencyMs": 14.447,
+    "p95LatencyMs": 17.357
+  },
+  "hybrid": {
+    "recallAt3": 0.94,
+    "recallAt5": 0.94,
+    "mrr": 0.9067,
+    "ndcgAt5": 0.9152,
+    "p50LatencyMs": 14.547,
+    "p95LatencyMs": 16.927
+  },
+  "queries": [
+    {
+      "id": "r01",
+      "query": "混合检索怎样融合关键词和向量结果？",
+      "relevantDocumentIds": [
+        "doc_01_rrf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_01_rrf"
+          ],
+          "latencyMs": 15.464
+        },
+        "dense": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_04_refusal",
+            "doc_03_citations"
+          ],
+          "latencyMs": 17.357
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_04_refusal",
+            "doc_03_citations"
+          ],
+          "latencyMs": 17.228
+        }
+      }
+    },
+    {
+      "id": "r02",
+      "query": "RRF 的排序公式是什么？",
+      "relevantDocumentIds": [
+        "doc_01_rrf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_01_rrf"
+          ],
+          "latencyMs": 15.409
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 16.011
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_01_rrf"
+          ],
+          "latencyMs": 15.947
+        }
+      }
+    },
+    {
+      "id": "r03",
+      "query": "为什么不能直接比较两路原始检索分数？",
+      "relevantDocumentIds": [
+        "doc_01_rrf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_01_rrf"
+          ],
+          "latencyMs": 16.216
+        },
+        "dense": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_04_refusal",
+            "doc_03_citations"
+          ],
+          "latencyMs": 15.255
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_04_refusal",
+            "doc_03_citations"
+          ],
+          "latencyMs": 15.147
+        }
+      }
+    },
+    {
+      "id": "r04",
+      "query": "RRF 中的 60 有什么作用？",
+      "relevantDocumentIds": [
+        "doc_01_rrf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_07_guard"
+          ],
+          "latencyMs": 13.914
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.024
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_07_guard"
+          ],
+          "latencyMs": 14.547
+        }
+      }
+    },
+    {
+      "id": "r05",
+      "query": "关键词和向量候选如何做最终融合？",
+      "relevantDocumentIds": [
+        "doc_01_rrf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_01_rrf"
+          ],
+          "latencyMs": 13.937
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 13.353
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_01_rrf"
+          ],
+          "latencyMs": 14.504
+        }
+      }
+    },
+    {
+      "id": "r06",
+      "query": "pgvector 为什么先召回一百个候选？",
+      "relevantDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 13.35
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 13.849
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 15.056
+        }
+      }
+    },
+    {
+      "id": "r07",
+      "query": "halfvec HNSW 在检索链路中负责什么？",
+      "relevantDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.154
+        },
+        "dense": {
+          "documentIds": [
+            "doc_01_rrf",
+            "doc_03_citations",
+            "doc_04_refusal"
+          ],
+          "latencyMs": 14.287
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_02_pgvector",
+            "doc_01_rrf",
+            "doc_03_citations",
+            "doc_04_refusal"
+          ],
+          "latencyMs": 14.913
+        }
+      }
+    },
+    {
+      "id": "r08",
+      "query": "dense Top 20 是如何得到的？",
+      "relevantDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 13.475
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.2
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 15.322
+        }
+      }
+    },
+    {
+      "id": "r09",
+      "query": "为什么最终排序要使用原始 vector(2048)？",
+      "relevantDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.04
+        },
+        "dense": {
+          "documentIds": [
+            "doc_08_latency"
+          ],
+          "latencyMs": 13.917
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_02_pgvector",
+            "doc_08_latency"
+          ],
+          "latencyMs": 14.768
+        }
+      }
+    },
+    {
+      "id": "r10",
+      "query": "余弦距离重排发生在 HNSW 之后吗？",
+      "relevantDocumentIds": [
+        "doc_02_pgvector"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.798
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.663
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 15.007
+        }
+      }
+    },
+    {
+      "id": "r11",
+      "query": "问答引用需要展示哪些字段？",
+      "relevantDocumentIds": [
+        "doc_03_citations"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_03_citations"
+          ],
+          "latencyMs": 14.145
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.258
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_03_citations"
+          ],
+          "latencyMs": 14.234
+        }
+      }
+    },
+    {
+      "id": "r12",
+      "query": "PDF 引用怎样定位页码？",
+      "relevantDocumentIds": [
+        "doc_03_citations"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.156
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 13.688
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 13.873
+        }
+      }
+    },
+    {
+      "id": "r13",
+      "query": "Markdown 资料引用怎样定位段落？",
+      "relevantDocumentIds": [
+        "doc_03_citations"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.279
+        },
+        "dense": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_04_refusal"
+          ],
+          "latencyMs": 14.805
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_05_pdf",
+            "doc_04_refusal"
+          ],
+          "latencyMs": 15.326
+        }
+      }
+    },
+    {
+      "id": "r14",
+      "query": "为什么答案要返回原文片段和检索模式？",
+      "relevantDocumentIds": [
+        "doc_03_citations"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_03_citations"
+          ],
+          "latencyMs": 15.418
+        },
+        "dense": {
+          "documentIds": [
+            "doc_04_refusal",
+            "doc_03_citations",
+            "doc_01_rrf"
+          ],
+          "latencyMs": 14.447
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_04_refusal",
+            "doc_01_rrf"
+          ],
+          "latencyMs": 14.809
+        }
+      }
+    },
+    {
+      "id": "r15",
+      "query": "引用分数用于什么复核目的？",
+      "relevantDocumentIds": [
+        "doc_03_citations"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [],
+          "latencyMs": 13.486
+        },
+        "dense": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 13.723
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 13.792
+        }
+      }
+    },
+    {
+      "id": "r16",
+      "query": "什么时候应该返回 grounded-refusal？",
+      "relevantDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 13.652
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.238
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 13.904
+        }
+      }
+    },
+    {
+      "id": "r17",
+      "query": "资料不足时系统可以编造常识答案吗？",
+      "relevantDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 13.486
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 13.944
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 13.982
+        }
+      }
+    },
+    {
+      "id": "r18",
+      "query": "没有证据片段时问答服务如何处理？",
+      "relevantDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 15.832
+        },
+        "dense": {
+          "documentIds": [
+            "doc_03_citations",
+            "doc_04_refusal"
+          ],
+          "latencyMs": 15.144
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_04_refusal",
+            "doc_03_citations"
+          ],
+          "latencyMs": 15.205
+        }
+      }
+    },
+    {
+      "id": "r19",
+      "query": "为什么资料不足时不调用模型补造引用？",
+      "relevantDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 14.059
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.976
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 15.222
+        }
+      }
+    },
+    {
+      "id": "r20",
+      "query": "grounded refusal 要向用户说明什么？",
+      "relevantDocumentIds": [
+        "doc_04_refusal"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 14.034
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 16.506
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_04_refusal"
+          ],
+          "latencyMs": 15.344
+        }
+      }
+    },
+    {
+      "id": "r21",
+      "query": "上传 PDF 有哪些文件类型限制？",
+      "relevantDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_05_pdf",
+            "doc_03_citations"
+          ],
+          "latencyMs": 13.749
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.467
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_05_pdf",
+            "doc_03_citations"
+          ],
+          "latencyMs": 13.85
+        }
+      }
+    },
+    {
+      "id": "r22",
+      "query": "PDF 文件大小和页数上限是多少？",
+      "relevantDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_05_pdf",
+            "doc_03_citations"
+          ],
+          "latencyMs": 14.018
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.503
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_05_pdf",
+            "doc_03_citations"
+          ],
+          "latencyMs": 15.048
+        }
+      }
+    },
+    {
+      "id": "r23",
+      "query": "为什么拒绝加密 PDF 和压缩包？",
+      "relevantDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_05_pdf",
+            "doc_03_citations"
+          ],
+          "latencyMs": 13.913
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 13.785
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_05_pdf",
+            "doc_03_citations"
+          ],
+          "latencyMs": 14.533
+        }
+      }
+    },
+    {
+      "id": "r24",
+      "query": "扫描件没有文字时系统提示什么？",
+      "relevantDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.868
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.12
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.543
+        }
+      }
+    },
+    {
+      "id": "r25",
+      "query": "上传后的原始文件会长期保存吗？",
+      "relevantDocumentIds": [
+        "doc_05_pdf"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [],
+          "latencyMs": 13.848
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.309
+        },
+        "hybrid": {
+          "documentIds": [],
+          "latencyMs": 14.097
+        }
+      }
+    },
+    {
+      "id": "r26",
+      "query": "Agent 高风险写入为什么要等待确认？",
+      "relevantDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_07_guard"
+          ],
+          "latencyMs": 14.167
+        },
+        "dense": {
+          "documentIds": [
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.39
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_05_pdf",
+            "doc_07_guard"
+          ],
+          "latencyMs": 15.403
+        }
+      }
+    },
+    {
+      "id": "r27",
+      "query": "用户接受草稿后如何恢复原 Run？",
+      "relevantDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_06_confirmation"
+          ],
+          "latencyMs": 15.241
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.289
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_06_confirmation"
+          ],
+          "latencyMs": 14.636
+        }
+      }
+    },
+    {
+      "id": "r28",
+      "query": "拒绝确认会不会写入正式任务？",
+      "relevantDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_06_confirmation"
+          ],
+          "latencyMs": 15.595
+        },
+        "dense": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_07_guard"
+          ],
+          "latencyMs": 14.875
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_07_guard"
+          ],
+          "latencyMs": 13.849
+        }
+      }
+    },
+    {
+      "id": "r29",
+      "query": "取消 Agent Run 后还能继续推进吗？",
+      "relevantDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_06_confirmation"
+          ],
+          "latencyMs": 14.707
+        },
+        "dense": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 15.01
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.152
+        }
+      }
+    },
+    {
+      "id": "r30",
+      "query": "waiting_confirmation 的持久化意义是什么？",
+      "relevantDocumentIds": [
+        "doc_06_confirmation"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 13.986
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.407
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_06_confirmation",
+            "doc_02_pgvector",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 14.231
+        }
+      }
+    },
+    {
+      "id": "r31",
+      "query": "Decision Guard 会校验哪些模型输出？",
+      "relevantDocumentIds": [
+        "doc_07_guard"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 14.364
+        },
+        "dense": {
+          "documentIds": [
+            "doc_05_pdf"
+          ],
+          "latencyMs": 15.52
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_07_guard",
+            "doc_05_pdf"
+          ],
+          "latencyMs": 13.978
+        }
+      }
+    },
+    {
+      "id": "r32",
+      "query": "遇到未知工具时 Guard 如何处理？",
+      "relevantDocumentIds": [
+        "doc_07_guard"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 14.675
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.205
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 22.188
+        }
+      }
+    },
+    {
+      "id": "r33",
+      "query": "越权资料 ID 会触发什么保护？",
+      "relevantDocumentIds": [
+        "doc_07_guard"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 18.339
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.14
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 15.995
+        }
+      }
+    },
+    {
+      "id": "r34",
+      "query": "高风险动作漏标确认会怎样？",
+      "relevantDocumentIds": [
+        "doc_07_guard"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_07_guard",
+            "doc_06_confirmation"
+          ],
+          "latencyMs": 14.638
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.013
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_07_guard",
+            "doc_06_confirmation"
+          ],
+          "latencyMs": 14.625
+        }
+      }
+    },
+    {
+      "id": "r35",
+      "query": "rule-based 回退如何避免未授权写入？",
+      "relevantDocumentIds": [
+        "doc_07_guard"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 14.858
+        },
+        "dense": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 15.522
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_07_guard"
+          ],
+          "latencyMs": 15.604
+        }
+      }
+    },
+    {
+      "id": "r36",
+      "query": "评测报告为什么要同时给 p50 和 p95？",
+      "relevantDocumentIds": [
+        "doc_08_latency"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_08_latency"
+          ],
+          "latencyMs": 16.174
+        },
+        "dense": {
+          "documentIds": [
+            "doc_08_latency"
+          ],
+          "latencyMs": 15.767
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_08_latency"
+          ],
+          "latencyMs": 16.33
+        }
+      }
+    },
+    {
+      "id": "r37",
+      "query": "真实模型调用需要记录哪些 token？",
+      "relevantDocumentIds": [
+        "doc_08_latency"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [],
+          "latencyMs": 14.858
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 15.483
+        },
+        "hybrid": {
+          "documentIds": [],
+          "latencyMs": 14.691
+        }
+      }
+    },
+    {
+      "id": "r38",
+      "query": "成本估算应该包含什么信息？",
+      "relevantDocumentIds": [
+        "doc_08_latency"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_08_latency"
+          ],
+          "latencyMs": 14.116
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 13.608
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_08_latency",
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 12.653
+        }
+      }
+    },
+    {
+      "id": "r39",
+      "query": "一次 smoke 能代表完整模型成功率吗？",
+      "relevantDocumentIds": [
+        "doc_08_latency"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_08_latency",
+            "doc_09_spaced",
+            "doc_10_sprint"
+          ],
+          "latencyMs": 14.123
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.144
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_08_latency",
+            "doc_09_spaced",
+            "doc_10_sprint"
+          ],
+          "latencyMs": 12.344
+        }
+      }
+    },
+    {
+      "id": "r40",
+      "query": "端到端延迟在评测中如何统计？",
+      "relevantDocumentIds": [
+        "doc_08_latency"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_08_latency"
+          ],
+          "latencyMs": 13.21
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.235
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_08_latency",
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.515
+        }
+      }
+    },
+    {
+      "id": "r41",
+      "query": "低负荷学习者的复习间隔建议是什么？",
+      "relevantDocumentIds": [
+        "doc_09_spaced"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 13.627
+        },
+        "dense": {
+          "documentIds": [
+            "doc_09_spaced",
+            "doc_10_sprint"
+          ],
+          "latencyMs": 13.413
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 13.262
+        }
+      }
+    },
+    {
+      "id": "r42",
+      "query": "每天短时回顾适合什么目标？",
+      "relevantDocumentIds": [
+        "doc_09_spaced"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_09_spaced",
+            "doc_10_sprint"
+          ],
+          "latencyMs": 13.021
+        },
+        "dense": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_07_guard",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.915
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced",
+            "doc_07_guard"
+          ],
+          "latencyMs": 13.648
+        }
+      }
+    },
+    {
+      "id": "r43",
+      "query": "主动回忆怎样检查遗忘点？",
+      "relevantDocumentIds": [
+        "doc_09_spaced"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_09_spaced"
+          ],
+          "latencyMs": 13.487
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 14.085
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_09_spaced",
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 13.595
+        }
+      }
+    },
+    {
+      "id": "r44",
+      "query": "低负荷资料为什么不能用于冲刺安排？",
+      "relevantDocumentIds": [
+        "doc_09_spaced"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_08_latency",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.757
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.005
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_08_latency",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 13.846
+        }
+      }
+    },
+    {
+      "id": "r45",
+      "query": "稳定习惯的复习方式如何设计？",
+      "relevantDocumentIds": [
+        "doc_09_spaced"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_09_spaced",
+            "doc_10_sprint"
+          ],
+          "latencyMs": 13.334
+        },
+        "dense": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.378
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_09_spaced",
+            "doc_10_sprint"
+          ],
+          "latencyMs": 14.294
+        }
+      }
+    },
+    {
+      "id": "r46",
+      "query": "高强度冲刺建议多久集中复盘一次？",
+      "relevantDocumentIds": [
+        "doc_10_sprint"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 13.371
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 14.003
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.747
+        }
+      }
+    },
+    {
+      "id": "r47",
+      "query": "冲刺复盘之间应该完成哪些练习？",
+      "relevantDocumentIds": [
+        "doc_10_sprint"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint"
+          ],
+          "latencyMs": 17.813
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 18.283
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 16.927
+        }
+      }
+    },
+    {
+      "id": "r48",
+      "query": "隔日集中复盘面向什么学习场景？",
+      "relevantDocumentIds": [
+        "doc_10_sprint"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint"
+          ],
+          "latencyMs": 14.288
+        },
+        "dense": {
+          "documentIds": [
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.516
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.579
+        }
+      }
+    },
+    {
+      "id": "r49",
+      "query": "高强度资料与低负荷资料的间隔为何不同？",
+      "relevantDocumentIds": [
+        "doc_10_sprint"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 13.948
+        },
+        "dense": {
+          "documentIds": [],
+          "latencyMs": 13.677
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_09_spaced"
+          ],
+          "latencyMs": 14.048
+        }
+      }
+    },
+    {
+      "id": "r50",
+      "query": "时间紧张时如何安排错题整理和复盘？",
+      "relevantDocumentIds": [
+        "doc_10_sprint"
+      ],
+      "results": {
+        "keyword": {
+          "documentIds": [
+            "doc_10_sprint"
+          ],
+          "latencyMs": 14.26
+        },
+        "dense": {
+          "documentIds": [
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 17.851
+        },
+        "hybrid": {
+          "documentIds": [
+            "doc_10_sprint",
+            "doc_02_pgvector"
+          ],
+          "latencyMs": 13.972
+        }
+      }
+    }
+  ]
+}

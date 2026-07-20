@@ -531,6 +531,7 @@ async function enterApp(user, { restoreLocalState = false } = {}) {
   }
   selectedGoalId = state.selectedGoalId || "";
   activeCardIndex = 0;
+  setActiveView("today");
   renderAuth();
   await loadAppDataFromApi();
   render();
@@ -837,6 +838,16 @@ function saveAndRender() {
 
 async function switchView(name) {
   if (!views[name]) return;
+  setActiveView(name);
+  try {
+    await ensureViewData(name);
+    render();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function setActiveView(name) {
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === name);
   });
@@ -848,12 +859,6 @@ async function switchView(name) {
   const moreToggle = document.getElementById("mobile-more-toggle");
   moreMenu.hidden = true;
   moreToggle.setAttribute("aria-expanded", "false");
-  try {
-    await ensureViewData(name);
-    render();
-  } catch (error) {
-    showError(error);
-  }
 }
 
 async function ensureViewData(name) {

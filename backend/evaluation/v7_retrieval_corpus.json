@@ -1,0 +1,52 @@
+[
+  {
+    "id": "doc_01_rrf",
+    "title": "混合检索与 RRF 排序",
+    "content": "混合检索并行使用关键词检索和向量检索。先保留两路候选的名次，再使用 RRF 的 1/(60+rank) 累加分数融合排序。RRF 不直接比较两路原始分数，而是降低任一路排序偏差。"
+  },
+  {
+    "id": "doc_02_pgvector",
+    "title": "pgvector 候选召回与重排",
+    "content": "PostgreSQL 中先通过 halfvec(2048) HNSW 索引召回 Top 100 候选，再用原始 vector(2048) 的 cosine 距离重排为 dense Top 20。halfvec 只用于近似候选召回，不能替代最终全精度排序。"
+  },
+  {
+    "id": "doc_03_citations",
+    "title": "问答引用定位规范",
+    "content": "每条问答引用必须携带资料标题、原文片段、检索模式和分数；PDF 还应携带页码，Markdown 还应携带标题层级或段落编号。引用让读者可以回到原始资料复核答案。"
+  },
+  {
+    "id": "doc_04_refusal",
+    "title": "资料不足与 grounded refusal",
+    "content": "当检索没有找到足以支撑问题的资料片段时，服务端返回 grounded-refusal。系统必须说明资料不足，不能把通用常识伪装为当前资料结论，也不调用模型补造引用。"
+  },
+  {
+    "id": "doc_05_pdf",
+    "title": "PDF 摄取安全边界",
+    "content": "上传只接受 PDF、Markdown 和 TXT。PDF 必须校验文件签名、MIME、五 MB 大小和五十页上限；加密 PDF、压缩包、路径型文件名和没有可提取文字的扫描件会被拒绝。原文件提取后不持久化。"
+  },
+  {
+    "id": "doc_06_confirmation",
+    "title": "Agent 确认与恢复",
+    "content": "高风险写入先进入 waiting_confirmation。用户接受后，原 Agent Run 从同一持久化步骤恢复；用户拒绝时不写正式任务或闪卡，Run 继续安全判断。取消会把 Run 置为 cancelled，之后不再推进。"
+  },
+  {
+    "id": "doc_07_guard",
+    "title": "Decision Guard 规则",
+    "content": "Decision Guard 校验模型输出中的 actionType、工具 payload 和目标范围。未知工具或越权资料 ID 会回退到 rule-based；高风险动作漏标确认时 Guard 强制 requiresConfirmation，避免未授权写入。"
+  },
+  {
+    "id": "doc_08_latency",
+    "title": "评测延迟与成本记录",
+    "content": "每次评测分别记录端到端延迟、prompt token、completion token 和成本估算。报告同时给出 p50 与 p95，不能用一次 smoke 替代多场景、多次运行的成功率或成本结论。"
+  },
+  {
+    "id": "doc_09_spaced",
+    "title": "低负荷间隔复习建议",
+    "content": "低负荷复习计划建议每天短时回顾一次，并用主动回忆检查遗忘点。该建议适用于时间充足且希望形成稳定习惯的学习者；它与高强度冲刺资料的隔日安排不能混为同一结论。"
+  },
+  {
+    "id": "doc_10_sprint",
+    "title": "高强度冲刺复习建议",
+    "content": "高强度冲刺阶段建议隔日安排一次集中复盘，并在两次复盘之间完成测验和错题整理。该建议面向时间紧张的冲刺场景；它与低负荷资料的每日短时回顾形成条件不同的复习间隔建议。"
+  }
+]

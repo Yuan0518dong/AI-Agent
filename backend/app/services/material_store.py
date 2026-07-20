@@ -460,7 +460,7 @@ def search_chunks(query: str, limit: int = 5, user_id: str | None = None) -> lis
     if not normalized_query:
         return []
 
-    query_terms = _extract_keywords(normalized_query)
+    query_terms = _extract_keywords(normalized_query, drop_question_stopwords=True)
     rows = _material_chunk_rows(user_id)
 
     try:
@@ -1117,15 +1117,30 @@ def _with_overlap(previous: str, next_text: str, overlap_chars: int) -> str:
     return f"{overlap} {next_text}".strip() if overlap else next_text
 
 
-def _extract_keywords(text: str, max_keywords: int = 20) -> list[str]:
+_QUESTION_STOPWORDS = {
+    "如何", "什么", "哪些", "为什么", "怎么", "怎样", "多少", "是否", "的是", "可以",
+    "当前", "资料", "问题", "内容", "一个", "这个", "那些", "其中", "以及", "还是",
+    "进行", "通过", "有关", "相关", "不同", "分别", "需要", "应该", "会被", "时间",
+}
+
+
+def _extract_keywords(
+    text: str,
+    max_keywords: int = 20,
+    *,
+    drop_question_stopwords: bool = False,
+) -> list[str]:
     normalized = text.lower()
     tokens = re.findall(r"[a-zA-Z0-9_]+|[\u4e00-\u9fff]{2,}", normalized)
     keywords: list[str] = []
     for token in tokens:
-        _append_keyword(keywords, token)
+        if not (drop_question_stopwords and token in _QUESTION_STOPWORDS):
+            _append_keyword(keywords, token)
         if _is_cjk_text(token):
-            for keyword in _cjk_ngrams(token):
-                _append_keyword(keywords, keyword)
+            min_ngram_size = 3 if drop_question_stopwords else 2
+            for keyword in _cjk_ngrams(token, min_size=min_ngram_size):
+                if not (drop_question_stopwords and keyword in _QUESTION_STOPWORDS):
+                    _append_keyword(keywords, keyword)
         if len(keywords) >= max_keywords:
             break
     return keywords

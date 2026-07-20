@@ -1,0 +1,44 @@
+{
+  "status": "approval_required",
+  "provider": "DeepSeek via configured OpenAI-compatible provider",
+  "noRequestSent": true,
+  "agentScenarioCount": 20,
+  "runsPerScenario": 3,
+  "agentFullRuns": 60,
+  "agentDecisionRequests": {
+    "minimum": 60,
+    "maximum": 126,
+    "baseStepBound": 120,
+    "acceptedConfirmationReadbacks": 6
+  },
+  "qaModelRequests": 0,
+  "scope": {
+    "included": "20 fixed Agent scenarios x 3 real DeepSeek runs, including accepted-confirmation readbacks.",
+    "excluded": "The fixed QA set remains an offline deterministic evaluation; it does not make paid calls in this Batch 4 runner.",
+    "formatRepair": "Disabled only inside the bounded real evaluation so malformed JSON falls back safely without an unbudgeted retry.",
+    "runCreation": "Run creation uses a rule-based initial snapshot; each persisted execution decision uses the real provider, avoiding a discarded paid creation decision."
+  },
+  "totalProviderRequests": {
+    "minimum": 60,
+    "maximum": 126
+  },
+  "tokenEstimate": {
+    "promptReservationTokensPerRequest": 12000,
+    "completionTokensPerRequest": 350,
+    "promptReservationUpperBound": 1512000,
+    "upperBoundCompletionTokens": 44100,
+    "promptReservationMethod": "Each real request is rejected before send when its UTF-8 payload exceeds 12,000 bytes; one byte per token is used as a conservative reservation bound."
+  },
+  "estimatedCostUsd": 0.224028,
+  "estimatedCostWith20PercentBufferUsd": 0.268834,
+  "costFormula": "promptReservationUpperBound / 1,000,000 * inputUsdPerMillion + upperBoundCompletionTokens / 1,000,000 * outputUsdPerMillion",
+  "pricingSnapshot": {
+    "source": "https://api-docs.deepseek.com/quick_start/pricing",
+    "checkedAt": "2026-07-20",
+    "modelFamily": "DeepSeek V4 Flash non-thinking pricing snapshot",
+    "inputCacheAssumption": "cache miss",
+    "inputUsdPerMillion": 0.14,
+    "outputUsdPerMillion": 0.28
+  },
+  "authorizationNeeded": "Approve at most 126 provider requests and a USD 0.27 ceiling before the real-model runner is enabled."
+}

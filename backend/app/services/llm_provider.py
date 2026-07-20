@@ -109,8 +109,11 @@ class OpenAICompatibleLLMProvider:
             return self.fallback_provider.generate_answer(context)
 
     def _post_chat_completion(self, payload: dict[str, Any]) -> dict[str, Any]:
-        model_usage_service.consume_llm_call()
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        model_usage_service.consume_llm_call(
+            request_utf8_bytes=len(body),
+            max_completion_tokens=_positive_int(payload.get("max_tokens")),
+        )
         request = urllib.request.Request(
             url=f"{self.base_url}/chat/completions",
             data=body,
@@ -121,7 +124,9 @@ class OpenAICompatibleLLMProvider:
             },
         )
         with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
+            result = json.loads(response.read().decode("utf-8"))
+        model_usage_service.record_llm_response_usage(result)
+        return result
 
 
 def get_llm_provider() -> LLMProvider:
@@ -195,6 +200,14 @@ def _read_timeout_seconds() -> float:
     if timeout_seconds <= 0:
         return 20
     return timeout_seconds
+
+
+def _positive_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
 
 def _build_basis(references: list[dict]) -> str:
