@@ -432,11 +432,42 @@ def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
     assert decision["nextAction"] == "review_material"
     assert decision["reflection"] == ""
     assert decision["providerMetadata"]["provider"] == "openai-compatible"
-    assert decision["providerMetadata"]["promptVersion"] == "agent-reliability-a2-policy-v1"
+    assert decision["providerMetadata"]["promptVersion"] == "agent-reliability-a3-compact-v1"
     assert decision["decisionGuard"]["status"] == "accepted"
     assert decision["decisionGuard"]["interventions"] == []
     assert decision["proposedActions"][0]["toolName"] == "review_material"
     assert decision["proposedActions"][0]["riskLevel"] == "low"
+
+
+def test_a3_single_allowed_search_action_bypasses_the_llm_provider(monkeypatch):
+    goal = create_goal("A3 deterministic search")
+    create_material(
+        goal["id"],
+        "Grounded evidence",
+        "Retrieval evidence should remain scoped to the current learning goal.",
+    )
+    monkeypatch.setattr(
+        agent_decision_provider,
+        "decide_with_llm_json",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("single-action policy must bypass LLM")),
+    )
+
+    run_response = client.post(
+        "/api/agent/runs",
+        json={
+            "goalId": goal["id"],
+            "objective": "Find grounded revision evidence.",
+            "decisionMode": "hybrid",
+            "maxSteps": 1,
+        },
+    )
+    assert run_response.status_code == 200
+    assert run_response.json()["data"]["decisionSnapshot"]["decisionPolicy"]["status"] == "deterministic"
+
+    executed = client.post(f"/api/agent/runs/{run_response.json()['data']['id']}/execute", json={}).json()["data"]
+
+    assert executed["steps"][0]["toolName"] == "search_materials"
+    assert executed["steps"][0]["decisionSnapshot"]["decisionPolicy"]["reason"] == "single_allowed_action"
 
 
 def test_agent_decision_guard_allows_llm_draft_creation_without_confirmation(monkeypatch):

@@ -12,7 +12,7 @@ from backend.app.services import (
 
 
 VALID_DECISION_MODES = {"rule-based", "llm-json", "hybrid"}
-PROMPT_VERSION = "agent-reliability-a2-policy-v1"
+PROMPT_VERSION = "agent-reliability-a3-compact-v1"
 MAX_CONTEXT_CHARS = 12_000
 
 
@@ -116,11 +116,11 @@ def _build_decision_payload(
                 "content": (
                     "You are a controllable learning Agent decision layer. "
                     "Return JSON only. Do not execute writes. "
-                    "Required fields are stateSummary, problems, nextAction, reason, "
-                    "requiresConfirmation, proposedActions, reflection. "
+                    "Return only nextAction, reason, and proposedActions. "
+                    "Each proposed action only needs type and payload; label and description are optional. "
                     "nextAction and every proposedActions.type must exactly match a type from "
                     "availableActions. Use toolName only for explanation, never as the action type. "
-                    "Each payload must use only the matching inputSchema. "
+                    "Each payload must use only the matching inputSchema. Do not repeat context summaries. "
                     "Do not invent IDs, SQL, tools, or fields. High-risk task actions must require "
                     "confirmation."
                 ),

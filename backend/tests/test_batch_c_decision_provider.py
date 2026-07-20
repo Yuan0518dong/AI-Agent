@@ -84,6 +84,17 @@ def _model_decision(action_type: str = "review_material", payload: dict | None =
     )
 
 
+def _compact_model_decision(action_type: str = "review_material", payload: dict | None = None) -> str:
+    return json.dumps(
+        {
+            "nextAction": action_type,
+            "reason": "Use the only relevant action.",
+            "proposedActions": [{"type": action_type, "payload": payload or {}}],
+        },
+        ensure_ascii=False,
+    )
+
+
 def test_batch_c_prompt_contains_context_objective_actions_and_previous_steps(monkeypatch):
     captured_payloads = []
 
@@ -112,7 +123,7 @@ def test_batch_c_prompt_contains_context_objective_actions_and_previous_steps(mo
     assert decision["providerMetadata"] == {
         "provider": "openai-compatible",
         "model": "decision-test",
-        "promptVersion": "agent-reliability-a2-policy-v1",
+        "promptVersion": "agent-reliability-a3-compact-v1",
         "durationMs": decision["providerMetadata"]["durationMs"],
         "formatRepairAttempted": False,
         "contextWindow": {
@@ -160,6 +171,25 @@ def test_action_policy_limits_prompt_and_guard_to_the_same_action_types(monkeypa
     assert "not allowed in the current state" in decision["fallbackReason"]
     assert decision["nextAction"] == ""
     assert decision["proposedActions"] == []
+
+
+def test_compact_model_decision_is_completed_from_the_server_fallback(monkeypatch):
+    class Provider:
+        mode = "openai-compatible"
+        model = "decision-test"
+
+        def _post_chat_completion(self, payload):
+            return {"choices": [{"message": {"content": _compact_model_decision()}}]}
+
+    monkeypatch.setattr(agent_decision_provider.llm_provider, "get_llm_provider", lambda: Provider())
+
+    decision = agent_decision_provider.decide_with_llm_json(_context(), _fallback(), "hybrid")
+
+    assert decision["mode"] == "hybrid"
+    assert decision["stateSummary"] == _fallback()["stateSummary"]
+    assert decision["problems"] == _fallback()["problems"]
+    assert decision["nextAction"] == "review_material"
+    assert decision["proposedActions"][0]["label"] == "review_material"
 
 
 def test_batch_c_retries_one_format_repair_before_accepting_decision(monkeypatch):

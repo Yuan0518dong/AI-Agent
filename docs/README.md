@@ -22,6 +22,7 @@ docs/status/当前状态.md
 docs/planning/第七版作品集化与公开演示需求文档.md
 docs/planning/AI-Agent简历与面试讲解稿.md
 docs/evaluation/真实Agent决策失败分类与可靠性实验基线.md
+docs/evaluation/真实Agent可靠性A3候选设计与离线验收.md
 ```
 
 第七版已经完成作品集化、公开部署、资料摄取、pgvector 混合检索、固定评测和浏览器验收。下一阶段聚焦真实 Agent 决策可靠性，不继续横向堆叠功能。

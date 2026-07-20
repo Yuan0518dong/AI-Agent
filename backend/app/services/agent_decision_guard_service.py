@@ -94,13 +94,9 @@ def fallback_guard(reason: str, *, repair_attempted: bool = False) -> dict:
 
 def _validate_required_decision_fields(data: dict[str, Any]) -> None:
     required_fields = {
-        "stateSummary": str,
-        "problems": list,
         "nextAction": str,
         "reason": str,
-        "requiresConfirmation": bool,
         "proposedActions": list,
-        "reflection": str,
     }
     missing_or_invalid = [
         field
@@ -111,6 +107,23 @@ def _validate_required_decision_fields(data: dict[str, Any]) -> None:
         raise ValueError(
             "Decision Guard rejected model output: missing or invalid required fields: "
             + ", ".join(missing_or_invalid)
+            + "."
+        )
+    optional_fields = {
+        "stateSummary": str,
+        "problems": list,
+        "requiresConfirmation": bool,
+        "reflection": str,
+    }
+    invalid_optional = [
+        field
+        for field, expected_type in optional_fields.items()
+        if field in data and not isinstance(data[field], expected_type)
+    ]
+    if invalid_optional:
+        raise ValueError(
+            "Decision Guard rejected model output: invalid optional fields: "
+            + ", ".join(invalid_optional)
             + "."
         )
 
@@ -137,7 +150,7 @@ def _normalize_actions(
         normalized_actions.append(
             _model_action(
                 action_type,
-                str(item.get("description") or item.get("reason") or ""),
+                str(item.get("description") or item.get("reason") or data.get("reason") or ""),
                 payload,
                 bool(item.get("requiresConfirmation", False)),
                 str(item.get("label") or action_type),

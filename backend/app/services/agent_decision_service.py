@@ -61,6 +61,14 @@ def decide_next_action_from_context(
             decision_context,
             rule_based_decision,
         )
+        policy_decision = agent_action_policy_service.build_deterministic_decision(
+            decision_context,
+            rule_based_decision,
+            allowed_action_types,
+            decision_mode,
+        )
+        if policy_decision is not None:
+            return policy_decision
 
     with model_usage_service.user_usage_scope(user_id):
         return agent_decision_provider.decide_with_llm_json(
