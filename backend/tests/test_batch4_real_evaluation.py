@@ -68,6 +68,20 @@ def test_missing_provider_usage_is_not_misreported_as_zero_tokens():
     assert events == [("response", {})]
 
 
+def test_fallback_count_includes_a_terminal_decision_without_a_persisted_step():
+    fallback = {"fallbackReason": "policy fallback", "nextAction": "", "proposedActions": []}
+
+    assert evaluate_batch4_real._count_persisted_fallback_decisions(
+        {"steps": [], "decisionSnapshot": fallback}
+    ) == 1
+    assert evaluate_batch4_real._count_persisted_fallback_decisions(
+        {
+            "steps": [{"decisionSnapshot": fallback}],
+            "decisionSnapshot": fallback,
+        }
+    ) == 1
+
+
 def test_real_agent_report_keeps_only_aggregate_evidence():
     report = evaluate_batch4_real.evaluation_service.build_batch4_real_agent_report(
         [
