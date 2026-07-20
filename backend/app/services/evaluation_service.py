@@ -258,6 +258,12 @@ def build_batch4_real_agent_report(
             "fallbackDecisionCount": sum(
                 int(item.get("fallbackDecisionCount") or 0) for item in case_results
             ),
+            "deterministicDecisionCount": sum(
+                int(item.get("deterministicDecisionCount") or 0) for item in case_results
+            ),
+            "runsWithDeterministicDecision": sum(
+                1 for item in case_results if int(item.get("deterministicDecisionCount") or 0) > 0
+            ),
         },
         "failureRunIds": [item["runId"] for item in case_results if not item.get("passed")],
         "cases": case_results,
