@@ -67,5 +67,6 @@ npm run record:batch4-demo
 
 - [个人贡献说明](docs/portfolio/个人贡献说明.md)
 - [简历材料](docs/portfolio/简历材料.md)
+- [第七版简历与面试讲解稿](docs/planning/AI-Agent简历与面试讲解稿.md)
 - [Batch 4 离线评测报告](docs/evaluation/第七版Batch4离线评测报告.md)
 - [Batch 4 验收记录](docs/status/第七版Batch4验收记录.md)
