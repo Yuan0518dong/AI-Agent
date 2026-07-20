@@ -75,4 +75,19 @@ A3 仍需使用原 20 × 3 固定集，与 A0、A2 三列并排报告：
 - 使用修复后的 fallback 统计，同时计入不同于 Step snapshot 的终态 decision。
 - 保留请求、Token、成本、p50/p95 和全部失败 Run。
 
-真实复跑前仍需新的明确费用授权；A3 分支在达到指标和完成披露前不合并、不部署到 Render。
+## 真实复跑结果
+
+用户授权最多126次请求、最高`$0.27`后，A3完成相同20×3真实DeepSeek复跑：
+
+```text
+系统工具选择成功率：0.8833
+确认完整性：0.7778
+恢复成功率：1.0
+失败Run：7
+Provider请求：67
+prompt/completion Token：109995/7400
+估算成本：$0.017471
+Runtime确定性Decision：41，覆盖32个Run
+```
+
+工具选择达到`>=0.80`，确认仍未达到`>=0.85`。A3分支继续不合并、不部署到Render；完整三版本对比见`docs/evaluation/agent-reliability-a3/A0-A2-A3真实评测对比.md`。
