@@ -1,104 +1,65 @@
 # 文档索引
 
-本目录只保留当前开发和作品集展示需要的入口文档。历史计划、日报、阶段验收和早期草案已归档到 `docs/archive/`，需要追溯项目演进时再查看。
+本目录区分对外作品集、当前状态、评测证据、工程契约和历史归档。GitHub 访客优先从根目录 `README.md` 开始；继续开发时先读取当前状态和第七版需求文档。
 
-## 当前必读
+## 对外作品集
+
+```text
+README.md
+docs/portfolio/个人贡献说明.md
+docs/portfolio/架构与评测边界.md
+docs/portfolio/简历材料.md
+docs/portfolio/90秒演示脚本.md
+docs/videos/v7-batch4-90s-demo.webm
+```
+
+这些材料分别说明项目定位、个人贡献边界、架构与评测口径、简历 Bullet 和演示流程。公开 Demo 与录屏使用 Mock Provider，真实模型结论只引用独立评测报告。
+
+## 当前开发入口
 
 ```text
 docs/status/当前状态.md
-docs/planning/个人项目简历化与第四版智能体方案.md
+docs/planning/第七版作品集化与公开演示需求文档.md
 docs/planning/AI-Agent简历与面试讲解稿.md
-docs/planning/第六版完整垂直学习智能体路线图.md
-README.md
 ```
 
-用途：
+第七版已经完成作品集化、公开部署、资料摄取、pgvector 混合检索、固定评测和浏览器验收。下一阶段聚焦真实 Agent 决策可靠性，不继续横向堆叠功能。
+
+## 评测与验收
 
 ```text
-当前状态：记录最新阶段、分支、验证结果和下一步。
-第四版方案：记录个人项目定位、简历表达边界和完整学习 Agent 路线。
-简历与面试讲解稿：记录架构图文字版、简历 bullet、1 分钟介绍和追问回答。
-第六版路线图：第六版唯一需求基线，包含完成定义、数据模型、状态机、工具/API 契约、评测格式、前端交互和逐 Batch 验收标准。
-README：面向 GitHub 访客和面试官，说明项目价值、启动方式和当前能力。
+docs/evaluation/第七版Batch4检索评测报告.json
+docs/evaluation/第七版Batch4问答评测报告.json
+docs/evaluation/第七版Batch4AgentMock评测报告.json
+docs/evaluation/第七版Batch4Agent真实模型评测报告.md
+docs/evaluation/第七版Batch4Agent真实模型评测报告.json
+docs/status/第七版Batch1本地验收记录.md
+docs/status/第七版Batch2验收记录.md
+docs/status/第七版Batch3验收记录.md
+docs/status/第七版Batch4验收记录.md
 ```
 
-## 当前计划
-
-```text
-docs/planning/个人项目简历化与第四版智能体方案.md
-docs/planning/AI-Agent简历与面试讲解稿.md
-docs/planning/第三版项目计划书.md
-docs/planning/第六版完整垂直学习智能体路线图.md
-```
-
-说明：
-
-```text
-个人项目简历化与第四版智能体方案：当前主线。
-第三版项目计划书：上一阶段可控学习智能体 MVP 的计划记录，仍作为第四版前置背景。
-```
-
-## 当前验收
-
-```text
-docs/status/第三版资料学习智能体验收样例.md
-docs/status/第六版BatchE验收报告.md
-docs/status/第六版BatchE演示脚本.md
-docs/status/第六版BatchF验收报告.md
-```
-
-说明：
-
-```text
-记录资料内回答、复习建议、资料不足三类真实模型验收样例。
-第六版 Batch E 验收报告：记录 AgentStep 前端可观察化、确认恢复、真实模型成功、Guard 拦截和失败回退证据。
-第六版 Batch E 演示脚本：提供 3–5 分钟讲解顺序与一键初始化演示数据入口。
-第六版 Batch F 验收报告：记录取消/互斥、timeout/retry、日志脱敏、锁定依赖、CI、单命令启动与录屏证据。
-```
+固定离线、Mock、真实 Provider 和公开 Demo 是四类不同证据，不能互相替代。当前真实模型工具选择与确认完整性仍是下一阶段要改进的基线。
 
 ## 工程说明
 
 ```text
+docs/api/第六版Agent运行时契约与架构.md
 docs/api/LLM-provider设计说明.md
 docs/api/RAG-chunks接口说明.md
-docs/api/第六版Agent运行时契约与架构.md
 docs/modules/目标模块前后端接口对照.md
 docs/modules/资料模块前后端接口对照.md
 ```
 
-说明：
-
-```text
-LLM Provider：mock / OpenAI-compatible Provider 配置和行为。
-RAG chunks：资料片段生成、检索和接口说明。
-第六版 Agent Runtime：最终 Run API、Tool timeout/retry、取消/互斥、事务恢复、隐私边界和架构图。
-目标模块接口对照：目标、任务、打卡、进度链路。
-资料模块接口对照：资料、摘要、chunks、问答、复盘、闪卡链路。
-```
+第六版运行时契约仍是当前 Agent 状态机、工具、确认恢复和安全边界的基础；第七版在其上增加部署、摄取、pgvector、评测和作品集交付。
 
 ## 历史归档
 
-```text
-docs/archive/README.md
-```
-
-归档内容包括：
-
-```text
-第一版 / 第二版计划
-旧协作分工
-每日工作安排
-旧阶段验收记录
-早期 API 草案
-旧测试清单和截图
-```
+早期计划、日报、协作草案和旧验收记录统一从 `docs/archive/README.md` 进入。它们用于追溯项目演进，不再指导当前开发。
 
 ## 维护规则
 
-```text
-1. 当前主线只更新 docs/status/当前状态.md 和第四版方案文档。
-2. README 面向外部展示，避免堆过程细节。
-3. 历史证据不删除，统一移入 docs/archive/。
-4. 新增第四版工程设计时，优先放在 docs/planning/ 或 docs/api/，不要再散落 daily/status。
-5. 如果文档不再指导当前开发，就移入 archive。
-```
+1. 根 README 面向访客，只保留定位、Demo、架构、指标、启动方式与限制。
+2. 当前事实写入 `docs/status/当前状态.md`，实验结果写入 `docs/evaluation/`。
+3. 真实模型失败样例和旧基线不得因优化而删除或改写。
+4. 不再指导当前工作的文档移入 `docs/archive/`，避免多个“当前计划”并存。
