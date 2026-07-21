@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from backend.app.services import (
     ai_learning_service,
+    flashcard_review_service,
     material_ai_service,
     material_processing_service,
     material_store,
@@ -79,23 +80,23 @@ def _execute_stage(material: dict, stage: str, user_id: str | None) -> None:
             raise ValueError("请先完成资料总结。")
         now = store.now_iso()
         flashcards = [
-            {
-                "id": store.make_id("flashcard"),
-                "materialId": material["id"],
-                "front": card["front"],
-                "back": card["back"],
-                "status": "new",
-                "createdAt": now,
-                "updatedAt": now,
-            }
+            flashcard_review_service.new_scheduled_flashcard(
+                material_id=material["id"],
+                front=card["front"],
+                back=card["back"],
+                flashcard_id=store.make_id("flashcard"),
+                now=now,
+            )
             for card in material_ai_service.generate_flashcards(summary)
         ]
-        material_store.replace_flashcards_for_material(material["id"], flashcards)
+        flashcard_review_service.replace_flashcards_for_material(material["id"], flashcards)
         return
     if stage == "quiz":
         summary = material_store.get_material_summary(material["id"])
         if not summary:
             raise ValueError("请先完成资料总结。")
+        if material_store.has_quiz_attempts_for_material(material["id"]):
+            raise material_store.QuizHistoryExistsError("quiz_history_exists")
         generated = ai_learning_service.generate_quiz_questions(
             material, max(1, len(summary["keyPoints"])), user_id
         )

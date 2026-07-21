@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from fsrs import Card
 from sqlalchemy import text
 
 from backend.app.main import app
@@ -315,3 +316,114 @@ def test_postgres_material_batch_writes_work_through_sqlalchemy_compatibility_la
         quiz_response = client.post(f"/api/materials/{material_id}/quiz", params={"count": 1})
         assert quiz_response.status_code == 200
         assert quiz_response.json()["data"]
+
+
+def test_postgres_fsrs_schedule_and_quiz_history_protection():
+    engine = database.get_engine()
+    with engine.connect() as connection:
+        columns = {
+            row[0]
+            for row in connection.execute(
+                text(
+                    """
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'flashcards'
+                    """
+                )
+            )
+        }
+        assert {"fsrs_card", "due_at", "last_reviewed_at", "review_count", "last_rating"} <= columns
+        assert connection.execute(
+            text("SELECT to_regclass('public.idx_flashcards_due_at')")
+        ).scalar_one() == "idx_flashcards_due_at"
+
+    with TestClient(app) as client:
+        email = f"loop-postgres-{uuid4().hex}@example.test"
+        registered = client.post(
+            "/api/auth/register",
+            json={"name": "Postgres Loop", "email": email, "password": "secret123"},
+        )
+        assert registered.status_code == 200
+        goal = client.post(
+            "/api/goals",
+            json={
+                "name": "PostgreSQL review loop",
+                "subject": "Databases",
+                "level": "basic",
+                "deadline": "2026-12-31",
+                "daily_minutes": 30,
+                "notes": "Exercise FSRS persistence.",
+            },
+        ).json()["data"]
+        material = client.post(
+            "/api/materials",
+            json={
+                "goalId": goal["id"],
+                "title": "FSRS storage notes",
+                "type": "text",
+                "content": "A scheduled card uses one transaction for its source and projection.",
+                "url": "",
+            },
+        ).json()["data"]
+        flashcard = client.post(
+            f"/api/materials/{material['id']}/flashcards/custom",
+            json={"front": "What is stored?", "back": "FSRS JSON and a due projection."},
+        ).json()["data"]
+        assert flashcard["dueAt"] == Card.from_json(flashcard["fsrsCard"]).due.isoformat()
+
+        review = client.post(
+            f"/api/materials/{material['id']}/flashcards/{flashcard['id']}/reviews",
+            json={"rating": "good"},
+        )
+        assert review.status_code == 200
+        assert review.json()["data"]["reviewCount"] == 1
+        assert review.json()["data"]["lastRating"] == "good"
+
+        with engine.connect() as connection:
+            persisted = connection.execute(
+                text(
+                    """
+                    SELECT status, fsrs_card, due_at, last_reviewed_at, review_count, last_rating
+                    FROM flashcards WHERE id = :flashcard_id
+                    """
+                ),
+                {"flashcard_id": flashcard["id"]},
+            ).mappings().one()
+        assert persisted["status"] == "known"
+        assert persisted["review_count"] == 1
+        assert persisted["last_rating"] == "good"
+        assert persisted["last_reviewed_at"]
+        assert persisted["due_at"] == Card.from_json(persisted["fsrs_card"]).due.isoformat()
+
+        question = {
+            "id": store.make_id("quiz"),
+            "materialId": material["id"],
+            "question": "What protects the weak-point history?",
+            "type": "short-answer",
+            "options": [],
+            "answer": "Do not replace attempted questions.",
+            "explanation": "Attempts define unresolved weak points.",
+            "createdAt": store.now_iso(),
+            "updatedAt": store.now_iso(),
+        }
+        material_store.replace_quiz_questions_for_material(material["id"], [question])
+        material_store.save_quiz_attempt(
+            {
+                "id": store.make_id("attempt"),
+                "quizId": question["id"],
+                "materialId": material["id"],
+                "userAnswer": "Replace it",
+                "isCorrect": False,
+                "score": 20,
+                "feedback": "Wrong answer.",
+                "suggestion": "Keep the original questions.",
+                "mode": "mock",
+                "createdAt": store.now_iso(),
+            }
+        )
+        assert material_store.has_quiz_attempts_for_material(material["id"]) is True
+        with pytest.raises(material_store.QuizHistoryExistsError, match="quiz_history_exists"):
+            material_store.replace_quiz_questions_for_material(material["id"], [question])
+        weak_points = client.get("/api/review/weak-points", params={"goalId": goal["id"]})
+        assert weak_points.status_code == 200
+        assert weak_points.json()["data"][0]["resolved"] is False

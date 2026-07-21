@@ -2,7 +2,12 @@ import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from backend.app.services import agent_tool_registry_service, auth_service, store
+from backend.app.services import (
+    agent_tool_registry_service,
+    auth_service,
+    flashcard_review_service,
+    store,
+)
 
 
 def create_demo_session() -> tuple[dict, str]:
@@ -168,12 +173,15 @@ def create_demo_session() -> tuple[dict, str]:
             ("Agent Runtime 的受控闭环是什么？", "观察、决策、工具执行、回读，并对高风险写入要求确认。"),
             ("为什么高风险写入需要确认？", "避免智能体直接修改正式学习记录。"),
         ):
-            conn.execute(
-                """
-                INSERT INTO flashcards (id, material_id, front, back, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'new', ?, ?)
-                """,
-                (store.make_id("flashcard"), material_id, front, back, now_iso, now_iso),
+            flashcard_review_service.insert_scheduled_flashcard(
+                conn,
+                flashcard_review_service.new_scheduled_flashcard(
+                    material_id=material_id,
+                    front=front,
+                    back=back,
+                    flashcard_id=store.make_id("flashcard"),
+                    now=now,
+                ),
             )
         conn.execute(
             """

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 
 from backend.app.schemas.materials import (
     FlashcardCreate,
+    FlashcardReviewCreate,
     FlashcardStatusUpdate,
     MaterialCreate,
     MaterialUpdate,
@@ -9,6 +10,7 @@ from backend.app.schemas.materials import (
 )
 from backend.app.services import (
     ai_learning_service,
+    flashcard_review_service,
     material_ai_service,
     material_extraction_service,
     material_ingestion_service,
@@ -227,7 +229,9 @@ def list_material_flashcards(material_id: str, user_id: str | None = Depends(cur
     if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
-    return ok(material_store.list_flashcards_for_material(material_id))
+    return ok(
+        [_present_flashcard(card) for card in material_store.list_flashcards_for_material(material_id)]
+    )
 
 
 @router.post("/{material_id}/flashcards")
@@ -242,18 +246,21 @@ def generate_material_flashcards(material_id: str, user_id: str | None = Depends
 
     now = store.now_iso()
     flashcards = [
-        {
-            "id": store.make_id("flashcard"),
-            "materialId": material_id,
-            "front": card["front"],
-            "back": card["back"],
-            "status": "new",
-            "createdAt": now,
-            "updatedAt": now,
-        }
+        flashcard_review_service.new_scheduled_flashcard(
+            material_id=material_id,
+            front=card["front"],
+            back=card["back"],
+            flashcard_id=store.make_id("flashcard"),
+            now=now,
+        )
         for card in material_ai_service.generate_flashcards(summary)
     ]
-    return ok(material_store.replace_flashcards_for_material(material_id, flashcards))
+    return ok(
+        [
+            _present_flashcard(card)
+            for card in flashcard_review_service.replace_flashcards_for_material(material_id, flashcards)
+        ]
+    )
 
 
 @router.post("/{material_id}/flashcards/custom")
@@ -270,17 +277,12 @@ def create_material_flashcard(
     if not front or not back:
         raise HTTPException(status_code=422, detail="Flashcard front and back are required")
 
-    now = store.now_iso()
-    flashcard = {
-        "id": store.make_id("flashcard"),
-        "materialId": material_id,
-        "front": front,
-        "back": back,
-        "status": "new",
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    return ok(material_store.create_flashcard_for_material(flashcard))
+    flashcard = flashcard_review_service.new_scheduled_flashcard(
+        material_id=material_id,
+        front=front,
+        back=back,
+    )
+    return ok(_present_flashcard(flashcard_review_service.create_flashcard_for_material(flashcard)))
 
 
 @router.patch("/{material_id}/flashcards/{flashcard_id}")
@@ -293,16 +295,37 @@ def update_material_flashcard_status(
     if not material_store.get_material(material_id, user_id):
         raise HTTPException(status_code=404, detail="Material not found")
 
-    flashcard = material_store.update_flashcard_status(
-        material_id,
-        flashcard_id,
-        payload.status,
-        store.now_iso(),
-    )
+    try:
+        flashcard = flashcard_review_service.apply_legacy_status(
+            material_id,
+            flashcard_id,
+            payload.status,
+        )
+    except flashcard_review_service.FlashcardStatusResetError as exc:
+        raise HTTPException(status_code=409, detail="flashcard_review_history_exists") from exc
     if not flashcard:
         raise HTTPException(status_code=404, detail="Flashcard not found")
 
-    return ok(flashcard)
+    return ok(_present_flashcard(flashcard))
+
+
+@router.post("/{material_id}/flashcards/{flashcard_id}/reviews")
+def review_material_flashcard(
+    material_id: str,
+    flashcard_id: str,
+    payload: FlashcardReviewCreate,
+    user_id: str | None = Depends(current_user_id),
+):
+    if not material_store.get_material(material_id, user_id):
+        raise HTTPException(status_code=404, detail="Material not found")
+    flashcard = flashcard_review_service.review_flashcard(
+        material_id,
+        flashcard_id,
+        payload.rating,
+    )
+    if not flashcard:
+        raise HTTPException(status_code=404, detail="Flashcard not found")
+    return ok(flashcard_review_service.review_response(flashcard))
 
 
 @router.get("/{material_id}/quiz")
@@ -327,6 +350,8 @@ def generate_material_quiz(
     summary = material_store.get_material_summary(material_id)
     if not summary:
         raise HTTPException(status_code=409, detail="Material summary required")
+    if material_store.has_quiz_attempts_for_material(material_id):
+        raise HTTPException(status_code=409, detail="quiz_history_exists")
 
     question_count = count or max(1, len(summary["keyPoints"]))
     generated = ai_learning_service.generate_quiz_questions(material, question_count, user_id)
@@ -345,7 +370,10 @@ def generate_material_quiz(
         }
         for question in generated["questions"]
     ]
-    return ok(material_store.replace_quiz_questions_for_material(material_id, questions))
+    try:
+        return ok(material_store.replace_quiz_questions_for_material(material_id, questions))
+    except material_store.QuizHistoryExistsError as exc:
+        raise HTTPException(status_code=409, detail="quiz_history_exists") from exc
 
 
 @router.get("/{material_id}/quiz/attempts")
@@ -402,3 +430,7 @@ def _validate_material_body(material: dict) -> None:
 def _ensure_not_link_only(material: dict | None) -> None:
     if material and material.get("type") == "link":
         raise HTTPException(status_code=409, detail="链接资料仅保存链接，不解析正文。")
+
+
+def _present_flashcard(flashcard: dict) -> dict:
+    return flashcard_review_service.present_flashcard(flashcard)

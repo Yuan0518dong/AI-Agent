@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.testclient import TestClient
+from fsrs import Card
 import pytest
 
 from backend.app.main import app
@@ -1117,6 +1118,11 @@ def test_agent_loop_applies_review_draft_as_flashcard():
     assert applied_draft["status"] == "applied"
     flashcards = client.get(f"/api/materials/{material['id']}/flashcards").json()["data"]
     assert [card["id"] for card in flashcards] == applied_draft["appliedEntityIds"]
+    applied_flashcard = flashcards[0]
+    assert applied_flashcard["status"] == "new"
+    assert applied_flashcard["reviewCount"] == 0
+    assert applied_flashcard["lastRating"] is None
+    assert applied_flashcard["dueAt"] == Card.from_json(applied_flashcard["fsrsCard"]).due.isoformat()
 
 
 def test_confirmed_draft_apply_rolls_back_formal_writes_on_payload_error():

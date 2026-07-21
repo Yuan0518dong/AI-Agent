@@ -8,7 +8,7 @@ def export_account_data(user: dict) -> dict:
     user_id = user["id"]
     return {
         "exportedAt": store.now_iso(),
-        "formatVersion": 1,
+        "formatVersion": 2,
         "account": {
             "name": user["name"],
             "email": user["email"],
@@ -142,6 +142,7 @@ def _serialize_row(row) -> dict:
         "decision_snapshot",
         "embedding",
         "feedback_summary",
+        "fsrs_card",
         "key_points",
         "keywords",
         "options",
