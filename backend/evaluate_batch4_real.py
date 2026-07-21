@@ -195,6 +195,7 @@ def run_real_agent_evaluation(
             "promptReservation": "Each request was capped at 12,000 UTF-8 bytes before send; one byte per token was reserved conservatively.",
             "runCreation": "A rule-based initial snapshot avoids a discarded paid creation decision; execution uses real llm-json decisions.",
             "fallbackCountMethod": "Count persisted Step decisions plus a distinct terminal Run decision when it is not represented by a Step.",
+            "deterministicDecisionMethod": "Count decisions whose decisionPolicy.status is deterministic, deduplicating the terminal Run snapshot against Step snapshots.",
         }
     )
     _write_report(report_dir, report)
@@ -376,6 +377,10 @@ def _run_scenario_repeat(
     duration_ms = round((time.monotonic() - started) * 1000)
     steps = final_run.get("steps") or []
     tools = [step.get("toolName", "") for step in steps if step.get("toolName")]
+    deterministic_decisions = _persisted_decisions_matching(
+        final_run,
+        lambda decision: (decision.get("decisionPolicy") or {}).get("status") == "deterministic",
+    )
     expected = scenario["expected"]
     tool_selection_passed = (
         set(expected["requiredTools"]).issubset(tools)
@@ -415,24 +420,36 @@ def _run_scenario_repeat(
         "toolSequence": tools,
         "durationMs": duration_ms,
         "fallbackDecisionCount": _count_persisted_fallback_decisions(final_run),
+        "deterministicDecisionCount": len(deterministic_decisions),
+        "deterministicActionTypes": [
+            decision.get("nextAction", "")
+            for decision in deterministic_decisions
+            if decision.get("nextAction")
+        ],
         **ledger.delta(before),
     }
 
 
 def _count_persisted_fallback_decisions(final_run: dict) -> int:
-    step_decisions = [
+    return len(
+        _persisted_decisions_matching(
+            final_run,
+            lambda decision: bool(decision.get("fallbackReason")),
+        )
+    )
+
+
+def _persisted_decisions_matching(final_run: dict, predicate) -> list[dict]:
+    decisions = [
         step.get("decisionSnapshot") or {}
         for step in final_run.get("steps") or []
     ]
-    count = sum(bool(decision.get("fallbackReason")) for decision in step_decisions)
+    fingerprints = {_decision_fingerprint(decision) for decision in decisions}
     terminal_decision = final_run.get("decisionSnapshot") or {}
-    if (
-        terminal_decision.get("fallbackReason")
-        and _decision_fingerprint(terminal_decision)
-        not in {_decision_fingerprint(decision) for decision in step_decisions}
-    ):
-        count += 1
-    return count
+    terminal_fingerprint = _decision_fingerprint(terminal_decision)
+    if terminal_decision and terminal_fingerprint not in fingerprints:
+        decisions.append(terminal_decision)
+    return [decision for decision in decisions if predicate(decision)]
 
 
 def _decision_fingerprint(decision: dict) -> str:
@@ -734,6 +751,8 @@ def _write_report(report_dir: Path, report: dict) -> None:
         f"| prompt / completion Token | {metrics['promptTokens']} / {metrics['completionTokens']} |",
         f"| Token 估算成本 USD | {cost_value} |",
         f"| 安全回退决策次数 | {metrics['fallbackDecisionCount']} |",
+        f"| Runtime 确定性决策次数 | {metrics['deterministicDecisionCount']} |",
+        f"| 包含 Runtime 确定性决策的 Run | {metrics['runsWithDeterministicDecision']} |",
         f"| 发送前保守预留 prompt / completion Token | {metrics['reservedPromptTokens']} / {metrics['reservedCompletionTokens']} |",
         f"| 发送前保守预留成本 USD | {metrics['reservedCostUsd']} |",
         "",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from backend.app.services import agent_tool_registry_service
+from backend.app.services import agent_review_scope_service
 
 
 EVIDENCE_TERMS = {
@@ -29,6 +30,23 @@ REVIEW_TERMS = {
     "错题",
     "薄弱",
     "回顾",
+}
+REVIEW_DRAFT_TERMS = {
+    "create a review draft",
+    "confirmed review draft",
+    "apply a review draft",
+    "创建复习草稿",
+    "生成复习草稿",
+    "确认复习草稿",
+    "应用复习草稿",
+}
+ASSESSMENT_TERMS = {
+    "redo quiz",
+    "retake quiz",
+    "check mastery",
+    "重做测试",
+    "重新测试",
+    "检查掌握程度",
 }
 TASK_TERMS = {
     "task",
@@ -86,6 +104,13 @@ def allowed_action_types(context: dict, fallback_decision: dict) -> set[str]:
         return {"answer_only"}
 
     summary = context.get("summary") or {}
+    review_material_ids = agent_review_scope_service.resolve_review_material_ids(context)
+    review_draft_requested = _contains_any(objective, REVIEW_DRAFT_TERMS)
+    has_weak_attempts = bool((context.get("quiz") or {}).get("weakAttempts"))
+    if _contains_any(objective, ASSESSMENT_TERMS):
+        return {"answer_only"}
+    if review_draft_requested or has_weak_attempts:
+        return {"create_review_draft"} if review_material_ids else {"ask_for_more_material"}
     if summary.get("materialsWithoutChunks", 0):
         return {"review_material", "ask_for_more_material", "answer_only"}
     if _contains_any(objective, NO_PROGRESS_TERMS):
@@ -97,14 +122,14 @@ def allowed_action_types(context: dict, fallback_decision: dict) -> set[str]:
     if _contains_any(objective, MATERIAL_PROCESSING_TERMS):
         return {"review_material", "answer_only"}
     if _contains_any(objective, REVIEW_TERMS):
-        return {"create_flashcards", "create_quiz", "answer_only"} - rejected_actions
+        return {"review_material", "answer_only"} - rejected_actions
     if _contains_any(objective, TASK_TERMS):
         return {"create_followup_tasks", "reschedule_tasks", "answer_only"} - rejected_actions
 
     if summary.get("qaInsufficiencyCount", 0):
         return {"search_materials", "ask_for_more_material", "answer_only"}
     if summary.get("quizWeakAttemptCount", 0) or (context.get("review") or {}).get("review", 0):
-        return {"create_flashcards", "create_quiz", "review_material", "answer_only"} - rejected_actions
+        return {"review_material", "answer_only"} - rejected_actions
     if summary.get("taskTotal", 0) == 0 and summary.get("goalCount", 0) > 0:
         return {"create_followup_tasks", "answer_only"} - rejected_actions
 
@@ -114,15 +139,93 @@ def allowed_action_types(context: dict, fallback_decision: dict) -> set[str]:
     return allowed - rejected_actions or {"answer_only"}
 
 
+def build_deterministic_decision(
+    context: dict,
+    fallback_decision: dict,
+    allowed_action_types: set[str],
+    requested_mode: str,
+) -> dict | None:
+    """Short-circuit the model when the policy leaves exactly one executable action."""
+
+    if len(allowed_action_types) != 1:
+        return None
+    action_type = next(iter(allowed_action_types))
+    action = _deterministic_action(context, action_type)
+    if action is None:
+        return None
+    return {
+        **fallback_decision,
+        "mode": "rule-based",
+        "requestedMode": requested_mode,
+        "fallbackReason": "",
+        "nextAction": action_type,
+        "reason": "The Runtime policy selected the only valid action for the current Run state.",
+        "requiresConfirmation": action["requiresConfirmation"],
+        "proposedActions": [action],
+        "reflection": "",
+        "decisionPolicy": {
+            "status": "deterministic",
+            "reason": "single_allowed_action",
+            "allowedActionTypes": [action_type],
+        },
+    }
+
+
+def _deterministic_action(context: dict, action_type: str) -> dict | None:
+    objective = str((context.get("agentRun") or {}).get("objective") or "").strip()
+    if action_type == "search_materials":
+        payload = {"query": objective or "current learning objective", "limit": 5}
+    elif action_type == "answer_only":
+        payload = {}
+    elif action_type == "apply_confirmed_draft":
+        draft_ids = [
+            draft["id"]
+            for draft in (context.get("drafts") or {}).get("proposed") or []
+            if draft.get("id")
+        ]
+        if not draft_ids:
+            return None
+        payload = {"draftIds": draft_ids}
+    elif action_type == "review_material":
+        material_ids = [
+            material["id"]
+            for material in context.get("materials") or []
+            if material.get("id") and (material.get("chunkCount", 0) == 0 or not material.get("hasSummary"))
+        ]
+        if not material_ids:
+            return None
+        payload = {"materialIds": material_ids}
+    elif action_type == "ask_for_more_material":
+        payload = {"insufficiencyCount": int((context.get("summary") or {}).get("qaInsufficiencyCount", 0))}
+    elif action_type == "create_review_draft":
+        material_ids = agent_review_scope_service.resolve_review_material_ids(context)
+        if not material_ids:
+            return None
+        payload = {"materialIds": material_ids}
+    else:
+        return None
+
+    return agent_tool_registry_service.enrich_action(
+        {
+            "type": action_type,
+            "label": f"Runtime policy: {action_type}",
+            "description": "Selected deterministically because no other action is valid in the current Run state.",
+            "payload": payload,
+            "requiresConfirmation": False,
+            "status": "proposed",
+        }
+    )
+
+
 def _expanded_memory_actions(items: list[dict]) -> set[str]:
     expanded: set[str] = set()
     for item in items:
         action_or_tool = str(item.get("actionType") or "")
         if action_or_tool in agent_tool_registry_service.ACTION_TOOL_MAP:
-            expanded.add(action_or_tool)
+            expanded.add(agent_tool_registry_service.canonical_action_type(action_or_tool))
         if action_or_tool in agent_tool_registry_service.TOOLS:
             expanded.update(
-                action_type
+                agent_tool_registry_service.canonical_action_type(action_type)
                 for action_type, tool_name in agent_tool_registry_service.ACTION_TOOL_MAP.items()
                 if tool_name == action_or_tool
             )

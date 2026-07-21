@@ -12,7 +12,7 @@ from backend.app.services import (
 
 
 VALID_DECISION_MODES = {"rule-based", "llm-json", "hybrid"}
-PROMPT_VERSION = "agent-reliability-a2-policy-v1"
+PROMPT_VERSION = "agent-reliability-a3-compact-v1"
 MAX_CONTEXT_CHARS = 12_000
 
 
@@ -91,6 +91,7 @@ def decide_with_llm_json(
             context_window,
             repair_attempted,
             allowed_action_types,
+            guard_error_category=getattr(exc, "category", None),
         )
 
 
@@ -116,11 +117,11 @@ def _build_decision_payload(
                 "content": (
                     "You are a controllable learning Agent decision layer. "
                     "Return JSON only. Do not execute writes. "
-                    "Required fields are stateSummary, problems, nextAction, reason, "
-                    "requiresConfirmation, proposedActions, reflection. "
+                    "Return only nextAction, reason, and proposedActions. "
+                    "Each proposed action only needs type and payload; label and description are optional. "
                     "nextAction and every proposedActions.type must exactly match a type from "
                     "availableActions. Use toolName only for explanation, never as the action type. "
-                    "Each payload must use only the matching inputSchema. "
+                    "Each payload must use only the matching inputSchema. Do not repeat context summaries. "
                     "Do not invent IDs, SQL, tools, or fields. High-risk task actions must require "
                     "confirmation."
                 ),
@@ -218,6 +219,7 @@ def _fallback_decision(
     context_window: dict,
     repair_attempted: bool = False,
     allowed_action_types: set[str] | None = None,
+    guard_error_category: str | None = None,
 ) -> dict:
     constrained_fallback = _constrain_fallback_decision(
         fallback_decision,
@@ -231,6 +233,7 @@ def _fallback_decision(
         "decisionGuard": agent_decision_guard_service.fallback_guard(
             reason,
             repair_attempted=repair_attempted,
+            error_category=guard_error_category,
         ),
         "reflection": "",
     }
@@ -355,6 +358,8 @@ def _prepare_prompt_context(context: dict) -> tuple[dict, dict]:
 def _fallback_reason(exc: Exception) -> str:
     if isinstance(exc, (TimeoutError, urllib.error.URLError, OSError)):
         return f"LLM decision provider failed ({exc.__class__.__name__})."
+    if isinstance(exc, agent_decision_guard_service.DecisionGuardError):
+        return f"Decision Guard rejected model output: {exc.category}."
     return str(exc).strip() or "LLM decision fell back to rule-based."
 
 

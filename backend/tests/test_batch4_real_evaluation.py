@@ -82,6 +82,28 @@ def test_fallback_count_includes_a_terminal_decision_without_a_persisted_step():
     ) == 1
 
 
+def test_persisted_decision_count_includes_deterministic_terminal_decision_once():
+    deterministic = {
+        "nextAction": "search_materials",
+        "decisionPolicy": {"status": "deterministic"},
+    }
+
+    decisions = evaluate_batch4_real._persisted_decisions_matching(
+        {"steps": [], "decisionSnapshot": deterministic},
+        lambda decision: (decision.get("decisionPolicy") or {}).get("status") == "deterministic",
+    )
+    duplicate = evaluate_batch4_real._persisted_decisions_matching(
+        {
+            "steps": [{"decisionSnapshot": deterministic}],
+            "decisionSnapshot": deterministic,
+        },
+        lambda decision: (decision.get("decisionPolicy") or {}).get("status") == "deterministic",
+    )
+
+    assert decisions == [deterministic]
+    assert duplicate == [deterministic]
+
+
 def test_real_agent_report_keeps_only_aggregate_evidence():
     report = evaluate_batch4_real.evaluation_service.build_batch4_real_agent_report(
         [
@@ -125,5 +147,7 @@ def test_real_agent_report_keeps_only_aggregate_evidence():
     assert report["metrics"]["confirmationCompleteness"] == 1.0
     assert report["metrics"]["recoverySuccessRate"] == 1.0
     assert report["metrics"]["fallbackDecisionCount"] == 0
+    assert report["metrics"]["deterministicDecisionCount"] == 0
+    assert report["metrics"]["runsWithDeterministicDecision"] == 0
     assert "credentials" in report["metadata"]["credentialPolicy"].lower()
     assert "modelResponse" not in report["cases"][0]

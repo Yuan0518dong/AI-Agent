@@ -4,6 +4,7 @@ from backend.app.services import (
     agent_context_service,
     agent_decision_provider,
     agent_tool_registry_service,
+    agent_review_scope_service,
     model_usage_service,
     store,
 )
@@ -61,6 +62,14 @@ def decide_next_action_from_context(
             decision_context,
             rule_based_decision,
         )
+        policy_decision = agent_action_policy_service.build_deterministic_decision(
+            decision_context,
+            rule_based_decision,
+            allowed_action_types,
+            decision_mode,
+        )
+        if policy_decision is not None:
+            return policy_decision
 
     with model_usage_service.user_usage_scope(user_id):
         return agent_decision_provider.decide_with_llm_json(
@@ -275,15 +284,27 @@ def _proposed_actions(context: dict, problems: list[dict]) -> list[dict]:
         )
 
     if "weak_quiz_attempts" in problem_types:
-        actions.append(
-            _action(
-                "create_flashcards",
-                "Turn weak quiz points into review cards",
-                "Use the weak quiz attempts as the basis for follow-up review drafts or flashcards.",
-                {"weakAttemptCount": context["quiz"].get("weakAttemptCount", 0)},
-                False,
+        material_ids = agent_review_scope_service.resolve_review_material_ids(context)
+        if material_ids:
+            actions.append(
+                _action(
+                    "create_review_draft",
+                    "Turn weak quiz points into review cards",
+                    "Use the weak quiz attempts as the basis for scoped flashcard review drafts.",
+                    {"materialIds": material_ids},
+                    False,
+                )
             )
-        )
+        else:
+            actions.append(
+                _action(
+                    "ask_for_more_material",
+                    "Add source material before creating review cards",
+                    "No current-goal material can safely support a review draft.",
+                    {"insufficiencyCount": context["qa"].get("insufficiencyCount", 0)},
+                    False,
+                )
+            )
 
     if "material_insufficiency" in problem_types:
         actions.append(
@@ -379,7 +400,10 @@ def _compact_action_log(action_log: dict) -> dict:
 
 def _apply_feedback_memory(actions: list[dict], feedback_memory: dict) -> list[dict]:
     pending_by_type = _index_memory_items(feedback_memory["pendingAccepted"])
-    rejected_types = {item["actionType"] for item in feedback_memory["recentlyRejected"]}
+    rejected_types = {
+        agent_tool_registry_service.canonical_action_type(item["actionType"])
+        for item in feedback_memory["recentlyRejected"]
+    }
     deferred_by_type = _index_memory_items(feedback_memory["deferred"])
 
     remembered_actions = []
@@ -422,7 +446,10 @@ def _apply_feedback_memory(actions: list[dict], feedback_memory: dict) -> list[d
 
 
 def _index_memory_items(items: list[dict]) -> dict:
-    return {item["actionType"]: item for item in items}
+    return {
+        agent_tool_registry_service.canonical_action_type(item["actionType"]): item
+        for item in items
+    }
 
 
 def _remembered_action(action: dict, memory_item: dict, status: str) -> dict:

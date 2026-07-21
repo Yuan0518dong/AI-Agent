@@ -9,6 +9,7 @@ def _context(
     steps: list[dict] | None = None,
 ) -> dict:
     return {
+        "scope": {"goalId": "goal_1"},
         "summary": {
             "goalCount": 1,
             "taskTotal": 0,
@@ -19,6 +20,8 @@ def _context(
             **(summary or {}),
         },
         "review": {"review": 0, "new": 0},
+        "materials": [{"id": "material_1", "goalId": "goal_1"}],
+        "quiz": {"weakAttempts": []},
         "drafts": drafts or {"proposedCount": 0, "proposed": []},
         "agentRun": {"objective": objective, "stepHistory": steps or []},
     }
@@ -104,3 +107,55 @@ def test_policy_routes_invalid_draft_rollback_to_the_apply_action():
     )
 
     assert allowed == {"apply_confirmed_draft"}
+
+
+def test_policy_short_circuits_a_single_search_action_without_model_output():
+    context = _context("Find grounded revision evidence.")
+    fallback = {
+        **_fallback(),
+        "generatedAt": "2026-07-20T00:00:00Z",
+        "mode": "rule-based",
+        "requestedMode": "rule-based",
+        "fallbackReason": "",
+        "scope": {"goalId": "goal_1"},
+        "stateSummary": "1 goal",
+        "problems": [],
+        "nextAction": "create_followup_tasks",
+        "reason": "fallback",
+        "requiresConfirmation": False,
+        "proposedActions": [],
+        "reflection": "",
+    }
+
+    decision = agent_action_policy_service.build_deterministic_decision(
+        context,
+        fallback,
+        {"search_materials"},
+        "hybrid",
+    )
+
+    assert decision["mode"] == "rule-based"
+    assert decision["requestedMode"] == "hybrid"
+    assert decision["nextAction"] == "search_materials"
+    assert decision["proposedActions"][0]["payload"]["query"] == "Find grounded revision evidence."
+    assert decision["decisionPolicy"]["status"] == "deterministic"
+
+
+def test_policy_does_not_synthesize_an_apply_action_without_drafts():
+    decision = agent_action_policy_service.build_deterministic_decision(
+        _context("Roll back an invalid draft batch."),
+        {"feedbackMemory": {}},
+        {"apply_confirmed_draft"},
+        "hybrid",
+    )
+
+    assert decision is None
+
+
+def test_review_draft_objective_does_not_offer_answer_only_before_draft_creation():
+    allowed = agent_action_policy_service.allowed_action_types(
+        _context("Resume and apply a confirmed review draft once."),
+        _fallback(),
+    )
+
+    assert allowed == {"create_review_draft"}

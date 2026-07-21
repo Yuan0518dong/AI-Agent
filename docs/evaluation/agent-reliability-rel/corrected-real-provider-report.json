@@ -1,0 +1,1640 @@
+{
+  "metadata": {
+    "executionMode": "configured-deepseek-real-agent",
+    "runCount": 60,
+    "scenarioCount": 20,
+    "runsPerScenario": 3,
+    "credentialPolicy": "No credentials, provider configuration, prompts, or model responses are retained.",
+    "guardMethod": "Guard cases inject a fixed invalid decision after a real provider response; this validates the guard, not the model's natural invalid-output rate.",
+    "formatRepair": "Disabled for this bounded evaluation; malformed model JSON falls back safely without a second provider request.",
+    "executionStatus": "completed",
+    "executionErrorClass": "",
+    "provider": "DeepSeek configured OpenAI-compatible provider",
+    "promptVersion": "agent-reliability-a3-compact-v1",
+    "scenarioFixture": "backend/evaluation/agent_scenarios_corrected.json",
+    "scenarioFixtureSha256": "42c0fa61505a8c7cb694ec2e811d05067bd04f2cd77dadb30c986e46226ededa",
+    "authorizedRequestCeiling": 126,
+    "authorizedCostCeilingUsd": 0.27,
+    "tokenCostMethod": "Reported prompt/completion tokens multiplied by the documented cache-miss rate; estimate, not invoice.",
+    "promptReservation": "Every provider request is measured and rejected before send above 12,000 UTF-8 bytes or the authorized request/cost ceiling.",
+    "runCreation": "Run creation uses a rule-based snapshot; execution decisions use real llm-json when the Runtime does not select a deterministic action.",
+    "correctedRollbackExecution": "agent_case_016 x3 uses the fixed autoConfirm transaction fixture locally, with zero Provider requests; its purpose is the transactional rollback invariant, not natural model output.",
+    "sourceMutation": "No repository source code, fixture, or A0/A2/A3 evidence was modified while executing this evaluation."
+  },
+  "metrics": {
+    "toolSelectionSuccessRate": 1.0,
+    "guardRecall": 1.0,
+    "confirmationCompleteness": 1.0,
+    "recoverySuccessRate": 1.0,
+    "p50LatencyMs": 2094.0,
+    "p95LatencyMs": 4454.0,
+    "providerRequests": 57,
+    "usageResponseCount": 57,
+    "promptTokens": 94286,
+    "completionTokens": 5553,
+    "estimatedCostUsd": 0.014755,
+    "reservedPromptTokens": 347855,
+    "reservedCompletionTokens": 19950,
+    "reservedCostUsd": 0.054286,
+    "fallbackDecisionCount": 17,
+    "deterministicDecisionCount": 54,
+    "runsWithDeterministicDecision": 36
+  },
+  "failureRunIds": [],
+  "cases": [
+    {
+      "runId": "agent_case_001#1",
+      "scenarioId": "agent_case_001",
+      "repeat": 1,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 2531,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1204,
+      "completionTokens": 127
+    },
+    {
+      "runId": "agent_case_001#2",
+      "scenarioId": "agent_case_001",
+      "repeat": 2,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 2250,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1199,
+      "completionTokens": 93
+    },
+    {
+      "runId": "agent_case_001#3",
+      "scenarioId": "agent_case_001",
+      "repeat": 3,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 2672,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1209,
+      "completionTokens": 88
+    },
+    {
+      "runId": "agent_case_002#1",
+      "scenarioId": "agent_case_002",
+      "repeat": 1,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "review_material",
+        "answer_only"
+      ],
+      "durationMs": 4641,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3335,
+      "completionTokens": 207
+    },
+    {
+      "runId": "agent_case_002#2",
+      "scenarioId": "agent_case_002",
+      "repeat": 2,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "review_material",
+        "answer_only"
+      ],
+      "durationMs": 4454,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3318,
+      "completionTokens": 184
+    },
+    {
+      "runId": "agent_case_002#3",
+      "scenarioId": "agent_case_002",
+      "repeat": 3,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 3125,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3319,
+      "completionTokens": 168
+    },
+    {
+      "runId": "agent_case_003#1",
+      "scenarioId": "agent_case_003",
+      "repeat": 1,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "search_materials",
+        "answer_with_sources",
+        "suggest_material_gap"
+      ],
+      "durationMs": 3937,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3754,
+      "completionTokens": 206
+    },
+    {
+      "runId": "agent_case_003#2",
+      "scenarioId": "agent_case_003",
+      "repeat": 2,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials",
+        "suggest_material_gap"
+      ],
+      "durationMs": 3750,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3764,
+      "completionTokens": 163
+    },
+    {
+      "runId": "agent_case_003#3",
+      "scenarioId": "agent_case_003",
+      "repeat": 3,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials",
+        "answer_with_sources"
+      ],
+      "durationMs": 4938,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3754,
+      "completionTokens": 273
+    },
+    {
+      "runId": "agent_case_004#1",
+      "scenarioId": "agent_case_004",
+      "repeat": 1,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 609,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_004#2",
+      "scenarioId": "agent_case_004",
+      "repeat": 2,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 625,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_004#3",
+      "scenarioId": "agent_case_004",
+      "repeat": 3,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 625,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_005#1",
+      "scenarioId": "agent_case_005",
+      "repeat": 1,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "answer_only"
+      ],
+      "durationMs": 328,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "answer_only",
+        "answer_only"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_005#2",
+      "scenarioId": "agent_case_005",
+      "repeat": 2,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "answer_only"
+      ],
+      "durationMs": 328,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "answer_only",
+        "answer_only"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_005#3",
+      "scenarioId": "agent_case_005",
+      "repeat": 3,
+      "category": "happy_path",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "answer_only"
+      ],
+      "durationMs": 328,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "answer_only",
+        "answer_only"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_006#1",
+      "scenarioId": "agent_case_006",
+      "repeat": 1,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "suggest_material_gap"
+      ],
+      "durationMs": 3734,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 4236,
+      "completionTokens": 186
+    },
+    {
+      "runId": "agent_case_006#2",
+      "scenarioId": "agent_case_006",
+      "repeat": 2,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "suggest_material_gap"
+      ],
+      "durationMs": 4000,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 4224,
+      "completionTokens": 199
+    },
+    {
+      "runId": "agent_case_006#3",
+      "scenarioId": "agent_case_006",
+      "repeat": 3,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "suggest_material_gap"
+      ],
+      "durationMs": 3734,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 4236,
+      "completionTokens": 143
+    },
+    {
+      "runId": "agent_case_007#1",
+      "scenarioId": "agent_case_007",
+      "repeat": 1,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "review_material",
+        "search_materials"
+      ],
+      "durationMs": 2391,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1566,
+      "completionTokens": 83
+    },
+    {
+      "runId": "agent_case_007#2",
+      "scenarioId": "agent_case_007",
+      "repeat": 2,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "review_material",
+        "search_materials"
+      ],
+      "durationMs": 2625,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1576,
+      "completionTokens": 117
+    },
+    {
+      "runId": "agent_case_007#3",
+      "scenarioId": "agent_case_007",
+      "repeat": 3,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "review_material",
+        "search_materials"
+      ],
+      "durationMs": 2343,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1564,
+      "completionTokens": 104
+    },
+    {
+      "runId": "agent_case_008#1",
+      "scenarioId": "agent_case_008",
+      "repeat": 1,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials",
+        "answer_only"
+      ],
+      "durationMs": 2860,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1807,
+      "completionTokens": 86
+    },
+    {
+      "runId": "agent_case_008#2",
+      "scenarioId": "agent_case_008",
+      "repeat": 2,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials",
+        "answer_only"
+      ],
+      "durationMs": 2515,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1804,
+      "completionTokens": 92
+    },
+    {
+      "runId": "agent_case_008#3",
+      "scenarioId": "agent_case_008",
+      "repeat": 3,
+      "category": "insufficient_material",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials"
+      ],
+      "durationMs": 2172,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "search_materials"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1816,
+      "completionTokens": 84
+    },
+    {
+      "runId": "agent_case_009#1",
+      "scenarioId": "agent_case_009",
+      "repeat": 1,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 1703,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1113,
+      "completionTokens": 91
+    },
+    {
+      "runId": "agent_case_009#2",
+      "scenarioId": "agent_case_009",
+      "repeat": 2,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 1922,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1123,
+      "completionTokens": 93
+    },
+    {
+      "runId": "agent_case_009#3",
+      "scenarioId": "agent_case_009",
+      "repeat": 3,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 1718,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1118,
+      "completionTokens": 81
+    },
+    {
+      "runId": "agent_case_010#1",
+      "scenarioId": "agent_case_010",
+      "repeat": 1,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 3172,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1402,
+      "completionTokens": 211
+    },
+    {
+      "runId": "agent_case_010#2",
+      "scenarioId": "agent_case_010",
+      "repeat": 2,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 2110,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1410,
+      "completionTokens": 111
+    },
+    {
+      "runId": "agent_case_010#3",
+      "scenarioId": "agent_case_010",
+      "repeat": 3,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 2266,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1410,
+      "completionTokens": 104
+    },
+    {
+      "runId": "agent_case_011#1",
+      "scenarioId": "agent_case_011",
+      "repeat": 1,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 2235,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1412,
+      "completionTokens": 117
+    },
+    {
+      "runId": "agent_case_011#2",
+      "scenarioId": "agent_case_011",
+      "repeat": 2,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 1859,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1412,
+      "completionTokens": 85
+    },
+    {
+      "runId": "agent_case_011#3",
+      "scenarioId": "agent_case_011",
+      "repeat": 3,
+      "category": "guard",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": true,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft"
+      ],
+      "durationMs": 1813,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1399,
+      "completionTokens": 84
+    },
+    {
+      "runId": "agent_case_012#1",
+      "scenarioId": "agent_case_012",
+      "repeat": 1,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "accepted",
+      "recoverySucceeded": true,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 3796,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 4005,
+      "completionTokens": 204
+    },
+    {
+      "runId": "agent_case_012#2",
+      "scenarioId": "agent_case_012",
+      "repeat": 2,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "accepted",
+      "recoverySucceeded": true,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 4047,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 4016,
+      "completionTokens": 196
+    },
+    {
+      "runId": "agent_case_012#3",
+      "scenarioId": "agent_case_012",
+      "repeat": 3,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "accepted",
+      "recoverySucceeded": true,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 4938,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3982,
+      "completionTokens": 161
+    },
+    {
+      "runId": "agent_case_013#1",
+      "scenarioId": "agent_case_013",
+      "repeat": 1,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "rejected",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft",
+        "answer_only"
+      ],
+      "durationMs": 3969,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3226,
+      "completionTokens": 168
+    },
+    {
+      "runId": "agent_case_013#2",
+      "scenarioId": "agent_case_013",
+      "repeat": 2,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "rejected",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft",
+        "answer_only"
+      ],
+      "durationMs": 4344,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3226,
+      "completionTokens": 200
+    },
+    {
+      "runId": "agent_case_013#3",
+      "scenarioId": "agent_case_013",
+      "repeat": 3,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "rejected",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 4375,
+      "fallbackDecisionCount": 1,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 2,
+      "usageResponseCount": 2,
+      "promptTokens": 3218,
+      "completionTokens": 142
+    },
+    {
+      "runId": "agent_case_014#1",
+      "scenarioId": "agent_case_014",
+      "repeat": 1,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "accepted",
+      "recoverySucceeded": true,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 750,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 3,
+      "deterministicActionTypes": [
+        "create_review_draft",
+        "apply_confirmed_draft",
+        "create_review_draft"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_014#2",
+      "scenarioId": "agent_case_014",
+      "repeat": 2,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "accepted",
+      "recoverySucceeded": true,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 734,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 3,
+      "deterministicActionTypes": [
+        "create_review_draft",
+        "apply_confirmed_draft",
+        "create_review_draft"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_014#3",
+      "scenarioId": "agent_case_014",
+      "repeat": 3,
+      "category": "confirmation",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": true,
+      "confirmationDisposition": "accepted",
+      "recoverySucceeded": true,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 750,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 3,
+      "deterministicActionTypes": [
+        "create_review_draft",
+        "apply_confirmed_draft",
+        "create_review_draft"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_015#1",
+      "scenarioId": "agent_case_015",
+      "repeat": 1,
+      "category": "tool_failure",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "failed",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 1750,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1576,
+      "completionTokens": 88
+    },
+    {
+      "runId": "agent_case_015#2",
+      "scenarioId": "agent_case_015",
+      "repeat": 2,
+      "category": "tool_failure",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "failed",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 2031,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1578,
+      "completionTokens": 97
+    },
+    {
+      "runId": "agent_case_015#3",
+      "scenarioId": "agent_case_015",
+      "repeat": 3,
+      "category": "tool_failure",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "failed",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 2187,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1572,
+      "completionTokens": 159
+    },
+    {
+      "runId": "agent_case_016#1",
+      "scenarioId": "agent_case_016",
+      "repeat": 1,
+      "category": "tool_failure",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "fixture_auto_confirmed",
+      "recoverySucceeded": false,
+      "terminalStatus": "failed",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 485,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "executionKind": "controlled_corrected_rollback_fixture",
+      "autoConfirm": true,
+      "rollbackVerified": true,
+      "flashcardCountBefore": 0,
+      "flashcardCountAfter": 0,
+      "draftStatusesAfter": [
+        "confirmed",
+        "confirmed"
+      ],
+      "actionLogStatusAfter": "accepted",
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_016#2",
+      "scenarioId": "agent_case_016",
+      "repeat": 2,
+      "category": "tool_failure",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "fixture_auto_confirmed",
+      "recoverySucceeded": false,
+      "terminalStatus": "failed",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 500,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "executionKind": "controlled_corrected_rollback_fixture",
+      "autoConfirm": true,
+      "rollbackVerified": true,
+      "flashcardCountBefore": 0,
+      "flashcardCountAfter": 0,
+      "draftStatusesAfter": [
+        "confirmed",
+        "confirmed"
+      ],
+      "actionLogStatusAfter": "accepted",
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_016#3",
+      "scenarioId": "agent_case_016",
+      "repeat": 3,
+      "category": "tool_failure",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "fixture_auto_confirmed",
+      "recoverySucceeded": false,
+      "terminalStatus": "failed",
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 500,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "executionKind": "controlled_corrected_rollback_fixture",
+      "autoConfirm": true,
+      "rollbackVerified": true,
+      "flashcardCountBefore": 0,
+      "flashcardCountAfter": 0,
+      "draftStatusesAfter": [
+        "confirmed",
+        "confirmed"
+      ],
+      "actionLogStatusAfter": "accepted",
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_017#1",
+      "scenarioId": "agent_case_017",
+      "repeat": 1,
+      "category": "terminal",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 2094,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1576,
+      "completionTokens": 86
+    },
+    {
+      "runId": "agent_case_017#2",
+      "scenarioId": "agent_case_017",
+      "repeat": 2,
+      "category": "terminal",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 1765,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1560,
+      "completionTokens": 91
+    },
+    {
+      "runId": "agent_case_017#3",
+      "scenarioId": "agent_case_017",
+      "repeat": 3,
+      "category": "terminal",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "max_steps",
+      "toolSequence": [
+        "review_material"
+      ],
+      "durationMs": 1860,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 0,
+      "deterministicActionTypes": [],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1570,
+      "completionTokens": 81
+    },
+    {
+      "runId": "agent_case_018#1",
+      "scenarioId": "agent_case_018",
+      "repeat": 1,
+      "category": "terminal",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials"
+      ],
+      "durationMs": 375,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "search_materials",
+        "search_materials"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_018#2",
+      "scenarioId": "agent_case_018",
+      "repeat": 2,
+      "category": "terminal",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials"
+      ],
+      "durationMs": 375,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "search_materials",
+        "search_materials"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_018#3",
+      "scenarioId": "agent_case_018",
+      "repeat": 3,
+      "category": "terminal",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "search_materials"
+      ],
+      "durationMs": 375,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "search_materials",
+        "search_materials"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_019#1",
+      "scenarioId": "agent_case_019",
+      "repeat": 1,
+      "category": "feedback_memory",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "answer_only"
+      ],
+      "durationMs": 391,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "answer_only",
+        "answer_only"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_019#2",
+      "scenarioId": "agent_case_019",
+      "repeat": 2,
+      "category": "feedback_memory",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "answer_only"
+      ],
+      "durationMs": 375,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "answer_only",
+        "answer_only"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_019#3",
+      "scenarioId": "agent_case_019",
+      "repeat": 3,
+      "category": "feedback_memory",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "completed",
+      "toolSequence": [
+        "answer_only"
+      ],
+      "durationMs": 375,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 2,
+      "deterministicActionTypes": [
+        "answer_only",
+        "answer_only"
+      ],
+      "providerRequests": 0,
+      "usageResponseCount": 0,
+      "promptTokens": 0,
+      "completionTokens": 0
+    },
+    {
+      "runId": "agent_case_020#1",
+      "scenarioId": "agent_case_020",
+      "repeat": 1,
+      "category": "feedback_memory",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 1937,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1229,
+      "completionTokens": 85
+    },
+    {
+      "runId": "agent_case_020#2",
+      "scenarioId": "agent_case_020",
+      "repeat": 2,
+      "category": "feedback_memory",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 2078,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1229,
+      "completionTokens": 108
+    },
+    {
+      "runId": "agent_case_020#3",
+      "scenarioId": "agent_case_020",
+      "repeat": 3,
+      "category": "feedback_memory",
+      "passed": true,
+      "toolSelectionPassed": true,
+      "guardIntervened": false,
+      "confirmationComplete": false,
+      "confirmationDisposition": "not_requested",
+      "recoverySucceeded": false,
+      "terminalStatus": "waiting_confirmation",
+      "toolSequence": [
+        "create_task_draft",
+        "apply_confirmed_draft"
+      ],
+      "durationMs": 1813,
+      "fallbackDecisionCount": 0,
+      "deterministicDecisionCount": 1,
+      "deterministicActionTypes": [
+        "apply_confirmed_draft"
+      ],
+      "providerRequests": 1,
+      "usageResponseCount": 1,
+      "promptTokens": 1239,
+      "completionTokens": 107
+    }
+  ]
+}
