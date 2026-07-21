@@ -3,6 +3,7 @@
 日期：2026-07-21
 分支：`feature/learning-loop`
 基线：`d12f00c`（`personal/main`，PR #4 合并提交）
+实现提交：`4637833`
 
 ## 范围与停止边界
 
