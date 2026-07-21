@@ -16,6 +16,8 @@
 - `fsrs==6.3.1`（MIT），固定 `desired_retention=0.9`、`maximum_interval=365`、`enable_fuzzing=false` 和 UTC。
 - `fsrs_card` 为 JSON 文本事实来源；`due_at` 为索引投影。创建、四档评级与旧状态兼容均在同一事务写入 `status/fsrs_card/due_at/review_count/last_rating`，并验证 `dueAt == Card.from_json(fsrsCard).due`。
 - 读取和评级还会校验 `reviewCount/status/lastRating/lastReviewedAt/Card.last_review` 的内部一致性；矛盾状态返回 `409 flashcard_schedule_invalid`，不会以“修复”为名覆盖历史。
+- 评级更新以旧 `fsrs_card + review_count` 为条件执行；并发过期写入返回 `409 flashcard_review_conflict`，不会把两次评级折叠成一个看似成功的结果。
+- 到期队列默认限制 100 条、允许 `1..500`，并按 `due_at/id` 稳定排序，避免无界响应和同到期时间下的顺序抖动。
 - SQLite 旧卡与 PostgreSQL 迁移中的旧卡均统一为立即到期、`new`、`review_count=0`，不从旧 status 推断虚构复习历史。
 - 资料批量生成、手工创建、Agent review draft 正式确认、Demo 和旧状态 API 均经统一调度服务；账户导出保留调度字段。`retrievability` 仅在读取响应中计算，不落库。
 - 损坏 `fsrs_card` 返回 `409 flashcard_schedule_invalid`，不重置或覆盖原状态；`known -> Good`、`review -> Again`，已复习卡请求 `new` 返回 `409 flashcard_review_history_exists`。
@@ -26,13 +28,13 @@
 
 | 验证 | 结果 |
 | --- | --- |
-| LOOP 专项 + Agent 确认写入回归 | 通过：`12 passed` |
+| LOOP 专项 + Agent 确认写入回归 | 通过：`14 passed` |
 | 资料流程回归 | 通过：`5 passed` |
-| 全量 Mock `python -m pytest backend/tests -q --tb=short` | 通过：`194 passed, 5 skipped` |
-| PostgreSQL/pgvector | 通过：隔离容器完成 `upgrade -> downgrade 20260717_02 -> upgrade 20260721_03`，`backend/tests/test_postgres_integration.py` 为 `5 passed` |
+| 全量 Mock `python -m pytest backend/tests -q --tb=short` | 通过：`196 passed, 6 skipped` |
+| PostgreSQL/pgvector | 通过：隔离容器完成 `upgrade -> downgrade -1 -> upgrade 20260721_03`，含真实并发评级测试的 `backend/tests/test_postgres_integration.py` 为 `6 passed` |
 | 前端语法与 Playwright | 通过：`npm.cmd run check`；Batch 4 桌面/390px/axe 为 `1 passed` |
 | Ruff、compileall、pip check、敏感扫描、`git diff --check` | 通过 |
 
 本机原 `backend/.env` 指向的 PostgreSQL 测试连接被服务端拒绝认证，且 5432 已由其他工作区容器占用；为避免触碰该数据库，验证改用独立、临时的 pgvector 容器和独立端口。连接信息未写入仓库。本机 CI 同样使用独立 pgvector 服务，因此该替代保持测试拓扑一致。
 
-所有静态、安全和 diff 门禁已在提交前复跑通过。
+CI workflow 已加入最新 PostgreSQL 迁移的 `downgrade -1 -> upgrade head` 探针。所有静态、安全和 diff 门禁已在提交前复跑通过。

@@ -120,6 +120,19 @@ async def handle_flashcard_schedule_error(
     )
 
 
+@app.exception_handler(flashcard_review_service.FlashcardReviewConflictError)
+async def handle_flashcard_review_conflict(
+    request: Request,
+    exc: flashcard_review_service.FlashcardReviewConflictError,
+):
+    return _error_response(
+        request,
+        status_code=409,
+        error_type="flashcard_review_conflict",
+        message=str(exc),
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def handle_validation_exception(request: Request, exc: RequestValidationError):
     field_errors = {

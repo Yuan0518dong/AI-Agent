@@ -37,6 +37,10 @@ class FlashcardStatusResetError(ValueError):
     """A legacy status update attempted to erase completed review history."""
 
 
+class FlashcardReviewConflictError(ValueError):
+    """A concurrent review changed the schedule before this write committed."""
+
+
 def new_scheduled_flashcard(
     *,
     material_id: str,
@@ -171,12 +175,13 @@ def review_flashcard(material_id: str, flashcard_id: str, rating: str) -> dict |
             "updatedAt": _iso_utc(reviewed_at),
         }
         _load_schedule(updated)
-        conn.execute(
+        cursor = conn.execute(
             """
             UPDATE flashcards
             SET status = ?, fsrs_card = ?, due_at = ?, last_reviewed_at = ?,
                 review_count = ?, last_rating = ?, updated_at = ?
             WHERE id = ? AND material_id = ?
+              AND fsrs_card = ? AND review_count = ?
             """,
             (
                 updated["status"],
@@ -188,8 +193,12 @@ def review_flashcard(material_id: str, flashcard_id: str, rating: str) -> dict |
                 updated["updatedAt"],
                 flashcard_id,
                 material_id,
+                flashcard["fsrsCard"],
+                flashcard["reviewCount"],
             ),
         )
+        if cursor.rowcount != 1:
+            raise FlashcardReviewConflictError("flashcard_review_conflict")
     return updated
 
 
@@ -217,7 +226,13 @@ def apply_legacy_status(material_id: str, flashcard_id: str, status: str) -> dic
     return flashcard
 
 
-def list_due_flashcards(goal_id: str | None, user_id: str | None) -> list[dict]:
+def list_due_flashcards(
+    goal_id: str | None,
+    user_id: str | None,
+    limit: int = 100,
+) -> list[dict]:
+    if not 1 <= limit <= 500:
+        raise ValueError("Review queue limit must be between 1 and 500.")
     due_before = _iso_utc(datetime.now(timezone.utc))
     clauses = ["flashcards.due_at <= ?"]
     parameters: list[Any] = [due_before]
@@ -229,6 +244,7 @@ def list_due_flashcards(goal_id: str | None, user_id: str | None) -> list[dict]:
     else:
         clauses.append("materials.user_id = ?")
         parameters.append(user_id)
+    parameters.append(limit)
 
     with store.db_connection() as conn:
         rows = conn.execute(
@@ -238,6 +254,7 @@ def list_due_flashcards(goal_id: str | None, user_id: str | None) -> list[dict]:
             JOIN materials ON materials.id = flashcards.material_id
             WHERE {' AND '.join(clauses)}
             ORDER BY flashcards.due_at ASC, flashcards.id ASC
+            LIMIT ?
             """,
             parameters,
         ).fetchall()

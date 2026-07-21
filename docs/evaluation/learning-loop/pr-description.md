@@ -8,7 +8,7 @@
 
 - 新增 `fsrs==6.3.1` 与统一 `Flashcard Review Service`；全部闪卡创建入口产生完整 UTC 调度状态。
 - 新增 PostgreSQL Alembic `20260721_03` 及 SQLite 兼容迁移：`fsrs_card`、`due_at`、`last_reviewed_at`、`review_count`、`last_rating`、到期索引。
-- 新增 `GET /api/review/queue`、`GET /api/review/weak-points` 和 `POST /api/materials/{material_id}/flashcards/{flashcard_id}/reviews`。
+- 新增 `GET /api/review/queue`、`GET /api/review/weak-points` 和 `POST /api/materials/{material_id}/flashcards/{flashcard_id}/reviews`；队列支持有界 `limit=1..500` 和稳定排序。
 - 保持历史 PATCH 状态接口：`known -> Good`、`review -> Again`；只允许未复习卡幂等保持 `new`。
 - 按 `quizId` 从 attempts 派生弱项，阻止含历史的 quiz 重新生成；Agent Context 读取到期卡和未解决弱项，但 review draft 仍须确认。
 
@@ -16,6 +16,7 @@
 
 - `fsrs_card` 是调度事实来源，`due_at` 必须等于其 `Card.due`；相关字段在一个事务中成功或回滚。
 - `reviewCount/status/lastRating/lastReviewedAt/Card.last_review` 也必须互相一致；矛盾记录返回 `409 flashcard_schedule_invalid`，不静默修复。
+- 评级使用旧 `fsrs_card + review_count` 条件更新；并发过期写入返回 `409 flashcard_review_conflict`，避免丢失更新。
 - 损坏 FSRS JSON 返回 `409 flashcard_schedule_invalid`，不静默重置历史。
 - 旧卡不依据旧 status 伪造历史，统一转为立即到期、未复习。
 - 不增加弱项表、不提供破坏性 reset，不删除已有 quiz attempts。
@@ -23,8 +24,8 @@
 
 ## 验证
 
-- 全量 Mock：`194 passed, 5 skipped`
-- 隔离 PostgreSQL/pgvector：`5 passed`，已验证 `20260721_03`
+- 全量 Mock：`196 passed, 6 skipped`
+- 隔离 PostgreSQL/pgvector：`6 passed`，已验证 `upgrade -> downgrade -1 -> upgrade 20260721_03` 与真实并发评级
 - Playwright（桌面、390px、axe）：`1 passed`
 - 本轮没有真实 Provider 请求、Token 或成本。
 

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from fsrs import Card
 
 from backend.app.main import app
-from backend.app.services import material_store, store
+from backend.app.services import flashcard_review_service, material_store, store
 from backend.tests.auth_helpers import copy_session_cookie, register_session
 
 
@@ -249,6 +249,49 @@ def test_due_queue_is_goal_and_user_scoped_and_export_preserves_schedule():
         assert all_other.json()["data"] == []
     finally:
         other_client.close()
+
+
+def test_due_queue_has_bounded_limit_and_stable_tie_breaking():
+    goal = create_goal()
+    material = create_material(goal["id"])
+    scheduled_at = store.now_iso()
+    for flashcard_id in ("flashcard_b", "flashcard_a"):
+        flashcard_review_service.create_flashcard_for_material(
+            flashcard_review_service.new_scheduled_flashcard(
+                material_id=material["id"],
+                front=f"Question {flashcard_id}",
+                back="Answer",
+                flashcard_id=flashcard_id,
+                now=scheduled_at,
+            )
+        )
+
+    limited = client.get(
+        "/api/review/queue",
+        params={"goalId": goal["id"], "limit": 1},
+    )
+    assert limited.status_code == 200
+    assert [card["id"] for card in limited.json()["data"]] == ["flashcard_a"]
+    assert client.get("/api/review/queue", params={"limit": 0}).status_code == 422
+    assert client.get("/api/review/queue", params={"limit": 501}).status_code == 422
+
+
+def test_concurrent_review_conflict_has_explicit_409(monkeypatch):
+    goal = create_goal()
+    material = create_material(goal["id"])
+    flashcard = create_flashcard(material["id"])
+
+    def raise_conflict(*_args, **_kwargs):
+        raise flashcard_review_service.FlashcardReviewConflictError("flashcard_review_conflict")
+
+    monkeypatch.setattr(flashcard_review_service, "review_flashcard", raise_conflict)
+    response = client.post(
+        f"/api/materials/{material['id']}/flashcards/{flashcard['id']}/reviews",
+        json={"rating": "good"},
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["type"] == "flashcard_review_conflict"
+    assert response.json()["error"]["message"] == "flashcard_review_conflict"
 
 
 def test_weak_points_are_derived_and_quiz_history_cannot_be_replaced():

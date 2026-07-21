@@ -11,10 +11,11 @@ router = APIRouter()
 @router.get("/queue")
 def list_review_queue(
     goalId: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
     user_id: str | None = Depends(current_user_id),
 ):
     goal_id = _scoped_goal_id(goalId, user_id)
-    return ok(flashcard_review_service.list_due_flashcards(goal_id, user_id))
+    return ok(flashcard_review_service.list_due_flashcards(goal_id, user_id, limit))
 
 
 @router.get("/weak-points")

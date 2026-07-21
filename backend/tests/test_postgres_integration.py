@@ -1,6 +1,7 @@
 import os
 import json
 from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
@@ -9,7 +10,13 @@ from fsrs import Card
 from sqlalchemy import text
 
 from backend.app.main import app
-from backend.app.services import database, llm_provider, material_store, store
+from backend.app.services import (
+    database,
+    flashcard_review_service,
+    llm_provider,
+    material_store,
+    store,
+)
 
 
 pytestmark = pytest.mark.postgres
@@ -427,3 +434,66 @@ def test_postgres_fsrs_schedule_and_quiz_history_protection():
         weak_points = client.get("/api/review/weak-points", params={"goalId": goal["id"]})
         assert weak_points.status_code == 200
         assert weak_points.json()["data"][0]["resolved"] is False
+
+
+def test_postgres_concurrent_flashcard_reviews_do_not_lose_updates(monkeypatch):
+    with TestClient(app) as client:
+        suffix = uuid4().hex
+        assert client.post(
+            "/api/auth/register",
+            json={
+                "name": "Concurrent Review",
+                "email": f"concurrent-review-{suffix}@example.test",
+                "password": "secret123",
+            },
+        ).status_code == 200
+        goal = client.post(
+            "/api/goals",
+            json={
+                "name": "Concurrent FSRS review",
+                "subject": "Transactions",
+                "level": "basic",
+                "deadline": "2026-12-31",
+                "daily_minutes": 30,
+                "notes": "Detect stale concurrent review writes.",
+            },
+        ).json()["data"]
+        material = client.post(
+            "/api/materials",
+            json={
+                "goalId": goal["id"],
+                "title": "Optimistic concurrency",
+                "type": "text",
+                "content": "A stale review must not overwrite a newer FSRS schedule.",
+                "url": "",
+            },
+        ).json()["data"]
+        flashcard = client.post(
+            f"/api/materials/{material['id']}/flashcards/custom",
+            json={"front": "What prevents lost updates?", "back": "A conditional write."},
+        ).json()["data"]
+
+    rendezvous = Barrier(2)
+    original_review = flashcard_review_service.SCHEDULER.review_card
+
+    def synchronized_review(*args, **kwargs):
+        rendezvous.wait(timeout=5)
+        return original_review(*args, **kwargs)
+
+    monkeypatch.setattr(flashcard_review_service.SCHEDULER, "review_card", synchronized_review)
+
+    def review_once() -> str:
+        try:
+            flashcard_review_service.review_flashcard(material["id"], flashcard["id"], "good")
+            return "updated"
+        except flashcard_review_service.FlashcardReviewConflictError:
+            return "conflict"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(lambda _: review_once(), range(2)))
+
+    assert sorted(outcomes) == ["conflict", "updated"]
+    stored = material_store.get_flashcard(material["id"], flashcard["id"])
+    assert stored["reviewCount"] == 1
+    assert stored["lastRating"] == "good"
+    assert stored["dueAt"] == Card.from_json(stored["fsrsCard"]).due.isoformat()
