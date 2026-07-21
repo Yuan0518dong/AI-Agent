@@ -9,7 +9,7 @@ const launchOptions = process.platform === "win32" && fs.existsSync(edgePath)
 /** @type {import('@playwright/test').PlaywrightTestConfig} */
 module.exports = {
   testDir: ".",
-  testMatch: "v7-batch4.spec.cjs",
+  testMatch: /(?:v7-batch4|v7-ux01)\.spec\.cjs/,
   timeout: 90_000,
   workers: 1,
   use: {

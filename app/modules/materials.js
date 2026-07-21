@@ -40,14 +40,18 @@ function normalizeSummary(material) {
 
 function renderMaterials() {
   const list = document.getElementById("material-list");
+  const materials = getScopedMaterials();
   list.innerHTML = "";
 
-  if (state.materials.length === 0) {
-    list.appendChild(emptyNode("暂无资料", "粘贴一段文本、PDF 摘录或网页链接。"));
+  if (materials.length === 0) {
+    list.appendChild(emptyNode(
+      selectedGoalId ? "当前学习空间暂无资料" : "暂无资料",
+      selectedGoalId ? "为当前学习目标添加资料后，会在这里继续整理。" : "粘贴一段文本、PDF 摘录或网页链接。"
+    ));
     return;
   }
 
-  state.materials.forEach((material) => {
+  materials.forEach((material) => {
     const item = document.createElement("article");
     item.className = "item summary-card";
     const summary = material.summary;
@@ -145,15 +149,19 @@ async function retryMaterialProcessingStage(materialId, stage, button) {
 function renderSummaries() {
   const list = document.getElementById("summary-list");
   const searchResults = document.getElementById("chunk-search-results");
+  const materials = getScopedMaterials();
   list.innerHTML = "";
   renderChunkSearchResults(searchResults);
 
-  if (state.materials.length === 0) {
-    list.appendChild(emptyNode("等待资料", "资料整理结果会显示在这里。"));
+  if (materials.length === 0) {
+    list.appendChild(emptyNode(
+      selectedGoalId ? "当前学习空间暂无资料" : "等待资料",
+      selectedGoalId ? "为当前学习目标添加资料后，整理结果会显示在这里。" : "资料整理结果会显示在这里。"
+    ));
     return;
   }
 
-  state.materials.forEach((material) => {
+  materials.forEach((material) => {
     const item = document.createElement("article");
     item.className = "item summary-card";
     const summary = material.summary;
@@ -751,11 +759,13 @@ function buildAgentSampleQuestion(sampleKey, material) {
 function renderFlashcard() {
   const card = document.getElementById("flashcard");
   const count = document.getElementById("flashcard-count");
-  const flashcard = state.flashcards[activeCardIndex];
+  const flashcards = getScopedFlashcards();
+  if (activeCardIndex >= flashcards.length) activeCardIndex = 0;
+  const flashcard = flashcards[activeCardIndex];
 
   if (count) {
-    count.textContent = state.flashcards.length
-      ? `第 ${activeCardIndex + 1} / ${state.flashcards.length} 张`
+    count.textContent = flashcards.length
+      ? `第 ${activeCardIndex + 1} / ${flashcards.length} 张`
       : "0 张";
   }
 
@@ -776,15 +786,19 @@ function renderFlashcard() {
 
 function renderQuizzes() {
   const list = document.getElementById("quiz-list");
+  const quizzes = getScopedQuizzes();
   captureQuizAnswerDrafts(list);
   list.innerHTML = "";
 
-  if (state.quizzes.length === 0) {
-    list.appendChild(emptyNode("暂无测试题", "添加资料后会自动生成测试题。"));
+  if (quizzes.length === 0) {
+    list.appendChild(emptyNode(
+      selectedGoalId ? "当前学习空间暂无测试题" : "暂无测试题",
+      selectedGoalId ? "当前目标有资料后，会在这里显示测试题。" : "添加资料后会自动生成测试题。"
+    ));
     return;
   }
 
-  state.quizzes.slice(0, 8).forEach((quiz) => {
+  quizzes.slice(0, 8).forEach((quiz) => {
     const item = document.createElement("article");
     item.className = "item";
     const attempts = state.quizAttempts?.[quiz.materialId] || [];
@@ -1032,7 +1046,8 @@ async function deleteMaterial(id) {
 }
 
 async function rateCard(status) {
-  const card = state.flashcards[activeCardIndex];
+  const flashcards = getScopedFlashcards();
+  const card = flashcards[activeCardIndex];
   if (!card) return;
 
   try {
@@ -1040,9 +1055,9 @@ async function rateCard(status) {
       ? await materialApi.updateFlashcard(card.materialId, card.id, { status })
       : { ...card, status, updatedAt: new Date().toISOString() };
 
-    state.flashcards[activeCardIndex] = updatedCard;
+    state.flashcards = state.flashcards.map((item) => item.id === card.id ? updatedCard : item);
     await loadAgentContextFromApi();
-    activeCardIndex = state.flashcards.length ? (activeCardIndex + 1) % state.flashcards.length : 0;
+    activeCardIndex = flashcards.length ? (activeCardIndex + 1) % flashcards.length : 0;
     saveAndRender();
     showSuccess(status === "known" ? "已标记为掌握" : "已加入复习队列");
   } catch (error) {

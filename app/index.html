@@ -247,10 +247,10 @@
           </div>
         </section>
 
-        <section class="view" id="view-goals">
+        <section class="view" id="view-goals" aria-label="学习空间">
           <div class="workspace two-columns">
             <section class="panel">
-              <h2 id="goal-form-title">新建成长目标</h2>
+                <h2 id="goal-form-title">新建学习目标</h2>
               <form id="goal-form" class="form">
                 <label>
                   目标名称
@@ -294,7 +294,7 @@
 
             <section class="panel">
               <div class="panel-head">
-                <h2>目标列表</h2>
+                <h2>学习目标</h2>
                 <div class="inline-actions">
                   <select class="compact-input" id="goal-plan-days" title="计划天数">
                     <option value="3">3 天</option>
@@ -310,8 +310,8 @@
 
           <section class="panel detail-panel" id="goal-detail-panel">
             <div class="panel-head">
-              <h2>目标详情</h2>
-              <button class="ghost-button" id="clear-goal-detail" title="关闭目标详情">×</button>
+              <h2>当前学习空间</h2>
+              <button class="ghost-button" id="clear-goal-detail" title="关闭当前学习空间">×</button>
             </div>
             <div id="goal-detail"></div>
           </section>
@@ -350,6 +350,7 @@
 
             <section class="panel">
               <h2>资料库</h2>
+              <p class="scope-note" id="materials-scope-note" hidden></p>
               <div class="list" id="material-list"></div>
             </section>
           </div>
@@ -359,6 +360,7 @@
           <div class="workspace two-columns study-layout">
             <section class="panel">
               <h2>成长问答</h2>
+              <p class="scope-note" id="study-scope-note" hidden></p>
               <div class="chat" id="chat-log"></div>
               <form id="chat-form" class="chat-form">
                 <input name="question" required placeholder="问一个知识点，或从右侧资料带入上下文" />
@@ -395,7 +397,8 @@
           <div class="workspace two-columns">
             <section class="panel">
               <div class="panel-head">
-                <h2>闪卡复习</h2>
+              <h2>闪卡复习</h2>
+              <p class="scope-note" id="memory-scope-note" hidden></p>
                 <div class="inline-actions">
                   <span class="panel-count" id="flashcard-count">0 张</span>
                   <button class="ghost-button" id="shuffle-cards" title="切换一张闪卡">↻</button>
@@ -578,7 +581,8 @@
         </section>
 
         <section class="view" id="view-progress">
-          <section class="progress-overview" aria-label="学习进度总览">
+          <p class="scope-note" id="progress-scope-note" hidden></p>
+          <section class="progress-overview" id="progress-overview" aria-label="学习进度总览">
             <article class="progress-score-card">
               <span>总完成率</span>
               <strong id="progress-overall-rate">0%</strong>
@@ -649,10 +653,10 @@
     <script src="./modules/utils.js?v=ai-learning-20260706"></script>
     <script src="./modules/chat.js?v=ai-learning-20260706"></script>
     <script src="./modules/agent-workbench.js?v=agent-chinese-ui-20260716"></script>
-    <script src="./modules/materials.js?v=quiz-answer-preservation-20260716"></script>
-    <script src="./modules/goals.js?v=agent-goal-selection-20260716"></script>
-    <script src="./modules/progress.js?v=v3-page-boundary-20260706"></script>
-    <script src="./app.js?v=v7-auth-demo-20260716"></script>
+    <script src="./modules/materials.js?v=ux01-learning-space-20260721"></script>
+    <script src="./modules/goals.js?v=ux01-learning-space-20260721"></script>
+    <script src="./modules/progress.js?v=ux01-learning-space-20260721"></script>
+    <script src="./app.js?v=ux01-learning-space-20260721"></script>
   </body>
 </html>
 

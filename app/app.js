@@ -62,10 +62,11 @@ var editingMaterialId = "";
 var selectedGoalId = state.selectedGoalId || "";
 var selectedTaskDate = todayString();
 var pendingChatMaterialId = "";
+var initialDataLoadPromise = null;
 
 const views = {
   today: "今日行动",
-  goals: "成长目标",
+  goals: "学习空间",
   materials: "成长资料",
   study: "成长问答",
   agent: "智能学习助手",
@@ -432,8 +433,9 @@ document.getElementById("generate-all-plans").addEventListener("click", async (e
 });
 
 document.getElementById("shuffle-cards").addEventListener("click", () => {
-  if (state.flashcards.length === 0) return;
-  activeCardIndex = (activeCardIndex + 1) % state.flashcards.length;
+  const flashcards = getScopedFlashcards();
+  if (flashcards.length === 0) return;
+  activeCardIndex = (activeCardIndex + 1) % flashcards.length;
   renderFlashcard();
 });
 
@@ -526,6 +528,12 @@ async function enterApp(user, { restoreLocalState = false } = {}) {
   currentUser = user;
   if (restoreLocalState) {
     state = loadState();
+    // Persist the user's selected goal, but always revalidate server-backed view data.
+    state.loadedViews = {
+      goals: false,
+      materials: false,
+      agent: false
+    };
   } else {
     resetLocalAppState();
   }
@@ -533,7 +541,13 @@ async function enterApp(user, { restoreLocalState = false } = {}) {
   activeCardIndex = 0;
   setActiveView("today");
   renderAuth();
-  await loadAppDataFromApi();
+  const dataLoad = loadAppDataFromApi();
+  initialDataLoadPromise = dataLoad;
+  try {
+    await dataLoad;
+  } finally {
+    if (initialDataLoadPromise === dataLoad) initialDataLoadPromise = null;
+  }
   render();
 }
 
@@ -837,13 +851,16 @@ function saveAndRender() {
 }
 
 async function switchView(name) {
-  if (!views[name]) return;
+  if (!views[name]) return false;
+  if (initialDataLoadPromise) await initialDataLoadPromise;
   setActiveView(name);
   try {
     await ensureViewData(name);
     render();
+    return true;
   } catch (error) {
     showError(error);
+    return false;
   }
 }
 
@@ -891,4 +908,58 @@ function render() {
   renderReviewDrafts();
   renderQuizzes();
   renderProgress();
+  renderScopeNotes();
+}
+
+function getCurrentGoalScope() {
+  return state.goals.find((goal) => goal.id === selectedGoalId)
+    || (state.selectedGoal?.id === selectedGoalId ? state.selectedGoal : null)
+    || null;
+}
+
+function getScopedItems(items, goalIdForItem) {
+  const list = Array.isArray(items) ? items : [];
+  if (!selectedGoalId) return list;
+  return list.filter((item) => goalIdForItem(item) === selectedGoalId);
+}
+
+function getScopedGoals() {
+  return getScopedItems(state.goals, (goal) => goal.id);
+}
+
+function getScopedProgress() {
+  return getScopedItems(state.progress, (progress) => progress.goalId);
+}
+
+function getScopedMaterials() {
+  return getScopedItems(state.materials, (material) => material.goalId);
+}
+
+function getScopedFlashcards() {
+  const materialGoalIds = new Map(state.materials.map((material) => [material.id, material.goalId]));
+  return getScopedItems(state.flashcards, (flashcard) => materialGoalIds.get(flashcard.materialId));
+}
+
+function getScopedQuizzes() {
+  const materialGoalIds = new Map(state.materials.map((material) => [material.id, material.goalId]));
+  return getScopedItems(state.quizzes, (quiz) => materialGoalIds.get(quiz.materialId));
+}
+
+function getScopedQuizAttempts() {
+  const materialIds = new Set(getScopedMaterials().map((material) => material.id));
+  if (!selectedGoalId) return state.quizAttempts || {};
+  return Object.fromEntries(
+    Object.entries(state.quizAttempts || {}).filter(([materialId]) => materialIds.has(materialId))
+  );
+}
+
+function renderScopeNotes() {
+  const goal = getCurrentGoalScope();
+  const label = goal ? `当前学习空间：${goal.name}` : "";
+  ["materials-scope-note", "study-scope-note", "memory-scope-note", "progress-scope-note"].forEach((id) => {
+    const note = document.getElementById(id);
+    if (!note) return;
+    note.hidden = !label;
+    note.textContent = label;
+  });
 }

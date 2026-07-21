@@ -1180,6 +1180,40 @@ textarea {
   margin-top: 18px;
 }
 
+.workspace-shortcuts {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.workspace-shortcuts h4,
+.workspace-shortcuts p {
+  margin: 0;
+}
+
+.workspace-shortcuts p,
+.scope-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.scope-note {
+  margin: 4px 0 12px;
+}
+
+.workspace-shortcut-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workspace-shortcut-actions .ghost-button {
+  min-height: 42px;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(110px, 1fr));
@@ -2690,6 +2724,10 @@ textarea {
   .task-row,
   .progress-row-stats {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-shortcut-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .today-hero {

@@ -1,5 +1,13 @@
 // goals module extracted from app.js.
 
+const WORKSPACE_DESTINATIONS = {
+  materials: { view: "materials", selector: "#material-list" },
+  study: { view: "study", selector: '#chat-form input[name="question"]' },
+  quiz: { view: "memory", selector: "#quiz-list" },
+  review: { view: "memory", selector: "#flashcard" },
+  progress: { view: "progress", selector: "#progress-overview" }
+};
+
 async function loadGoalDataFromApi() {
   const [goals, todayTasks, progress] = await Promise.all([
     goalApi.listGoals(),
@@ -49,6 +57,45 @@ function setSelectedGoalId(goalId) {
   selectedGoalId = goalId || "";
   state.selectedGoalId = selectedGoalId;
   saveState();
+}
+
+async function openWorkspaceDestination(destinationName, triggerButton = null) {
+  const destination = WORKSPACE_DESTINATIONS[destinationName];
+  const goalId = selectedGoalId;
+  if (!destination || !goalId) {
+    showError(new Error("请先选择一个学习目标"));
+    return;
+  }
+
+  setButtonLoading(triggerButton, true, "打开中");
+  try {
+    if (!state.goals.some((goal) => goal.id === goalId)) {
+      clearSelectedGoal();
+      render();
+      showError(new Error("当前学习目标已不可用，请重新选择。"));
+      return;
+    }
+    if (state.selectedGoal?.id !== goalId) {
+      await loadSelectedGoalFromApi(goalId);
+    }
+    if (await switchView(destination.view)) {
+      focusWorkspaceDestination(destination.selector);
+    }
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+function focusWorkspaceDestination(selector) {
+  const target = document.querySelector(selector);
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName)) {
+    target.tabIndex = -1;
+  }
+  target.focus({ preventScroll: true });
 }
 
 async function generatePlanForGoalApi(goalId, days = 7) {
@@ -503,12 +550,12 @@ function renderGoalFormMode() {
   const cancelButton = document.getElementById("cancel-goal-edit");
 
   if (editingGoalId) {
-    title.textContent = "编辑成长目标";
+    title.textContent = "编辑学习目标";
     submitButton.textContent = "保存修改";
     cancelButton.hidden = false;
   } else {
-    title.textContent = "新建成长目标";
-    submitButton.textContent = "＋ 创建目标";
+    title.textContent = "新建学习目标";
+    submitButton.textContent = "＋ 创建学习目标";
     cancelButton.hidden = true;
   }
 }
@@ -516,14 +563,23 @@ function renderGoalFormMode() {
 function renderGoalDetail() {
   const panel = document.getElementById("goal-detail-panel");
   const detail = document.getElementById("goal-detail");
+  const closeButton = document.getElementById("clear-goal-detail");
 
   if (!state.selectedGoal) {
-    panel.hidden = true;
+    panel.hidden = false;
+    closeButton.hidden = true;
     detail.innerHTML = "";
+    detail.appendChild(emptyNode(
+      state.goals.length ? "选择一个学习目标" : "先创建一个学习目标",
+      state.goals.length
+        ? "从上方列表打开一个目标，资料、问答、测试、复习和进度会保持在该目标范围内。"
+        : "创建目标后，这里会成为资料、问答、测试、复习和进度的入口。"
+    ));
     return;
   }
 
   panel.hidden = false;
+  closeButton.hidden = false;
   const goal = state.selectedGoal;
   const progress = state.selectedGoalProgress || {
     completionRate: 0,
@@ -571,6 +627,19 @@ function renderGoalDetail() {
         <span class="tag">每天 ${goal.dailyMinutes} 分钟</span>
         <span class="tag">截止 ${escapeHtml(goal.deadline)}</span>
       </div>
+      <section class="workspace-shortcuts" id="workspace-shortcuts" aria-label="当前学习目标快捷入口">
+        <div>
+          <h4>继续学习</h4>
+          <p>所有入口都会保持在“${escapeHtml(goal.name)}”范围内。</p>
+        </div>
+        <div class="workspace-shortcut-actions" role="group" aria-label="学习快捷入口">
+          <button class="ghost-button" data-workspace-destination="materials" type="button">资料</button>
+          <button class="ghost-button" data-workspace-destination="study" type="button">问答</button>
+          <button class="ghost-button" data-workspace-destination="quiz" type="button">测试</button>
+          <button class="ghost-button" data-workspace-destination="review" type="button">复习</button>
+          <button class="ghost-button" data-workspace-destination="progress" type="button">进度</button>
+        </div>
+      </section>
       <div class="detail-grid">
         <div class="detail-stat"><span>完成率</span><strong>${progress.completionRate}%</strong></div>
         <div class="detail-stat"><span>总任务</span><strong>${progress.totalTasks}</strong></div>
@@ -591,6 +660,11 @@ function renderGoalDetail() {
   detail.querySelectorAll(".detail-task-check").forEach((checkbox) => {
     checkbox.addEventListener("change", (event) => {
       checkinTaskFromDetail(event.currentTarget.dataset.taskId, event.currentTarget.checked);
+    });
+  });
+  detail.querySelectorAll("[data-workspace-destination]").forEach((button) => {
+    button.addEventListener("click", () => {
+      void openWorkspaceDestination(button.dataset.workspaceDestination, button);
     });
   });
   detail.querySelectorAll('[data-action="apply-agent-task-draft"]').forEach((button) => {
