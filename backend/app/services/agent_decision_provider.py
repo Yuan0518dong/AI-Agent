@@ -91,6 +91,7 @@ def decide_with_llm_json(
             context_window,
             repair_attempted,
             allowed_action_types,
+            guard_error_category=getattr(exc, "category", None),
         )
 
 
@@ -218,6 +219,7 @@ def _fallback_decision(
     context_window: dict,
     repair_attempted: bool = False,
     allowed_action_types: set[str] | None = None,
+    guard_error_category: str | None = None,
 ) -> dict:
     constrained_fallback = _constrain_fallback_decision(
         fallback_decision,
@@ -231,6 +233,7 @@ def _fallback_decision(
         "decisionGuard": agent_decision_guard_service.fallback_guard(
             reason,
             repair_attempted=repair_attempted,
+            error_category=guard_error_category,
         ),
         "reflection": "",
     }
@@ -355,6 +358,8 @@ def _prepare_prompt_context(context: dict) -> tuple[dict, dict]:
 def _fallback_reason(exc: Exception) -> str:
     if isinstance(exc, (TimeoutError, urllib.error.URLError, OSError)):
         return f"LLM decision provider failed ({exc.__class__.__name__})."
+    if isinstance(exc, agent_decision_guard_service.DecisionGuardError):
+        return f"Decision Guard rejected model output: {exc.category}."
     return str(exc).strip() or "LLM decision fell back to rule-based."
 
 

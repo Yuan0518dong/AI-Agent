@@ -9,6 +9,7 @@ def _context(
     steps: list[dict] | None = None,
 ) -> dict:
     return {
+        "scope": {"goalId": "goal_1"},
         "summary": {
             "goalCount": 1,
             "taskTotal": 0,
@@ -19,6 +20,8 @@ def _context(
             **(summary or {}),
         },
         "review": {"review": 0, "new": 0},
+        "materials": [{"id": "material_1", "goalId": "goal_1"}],
+        "quiz": {"weakAttempts": []},
         "drafts": drafts or {"proposedCount": 0, "proposed": []},
         "agentRun": {"objective": objective, "stepHistory": steps or []},
     }
@@ -155,4 +158,4 @@ def test_review_draft_objective_does_not_offer_answer_only_before_draft_creation
         _fallback(),
     )
 
-    assert allowed == {"create_flashcards", "create_quiz"}
+    assert allowed == {"create_review_draft"}

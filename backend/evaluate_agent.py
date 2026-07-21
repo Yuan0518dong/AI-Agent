@@ -17,9 +17,11 @@ from backend.app.services import (
     agent_decision_guard_service,
     agent_decision_service,
     agent_draft_service,
+    agent_action_log_service,
     agent_tool_execution_service,
     agent_tool_registry_service,
     evaluation_service,
+    material_store,
     store,
 )
 
@@ -28,14 +30,18 @@ SCENARIO_PATH = ROOT_DIR / "backend" / "evaluation" / "agent_scenarios.json"
 DEFAULT_REPORT_DIR = ROOT_DIR / "docs" / "status"
 
 
-def run_evaluation(report_dir: Path = DEFAULT_REPORT_DIR) -> dict:
+def run_evaluation(
+    report_dir: Path = DEFAULT_REPORT_DIR,
+    *,
+    scenario_path: Path = SCENARIO_PATH,
+) -> dict:
     os.environ["LLM_PROVIDER"] = "mock"
     os.environ["EMBEDDING_PROVIDER"] = "mock"
     os.environ["LLM_ENV_FILE"] = str(ROOT_DIR / "backend" / "missing-evaluation.env")
     os.environ["EMBEDDING_ENV_FILE"] = str(ROOT_DIR / "backend" / "missing-evaluation.env")
     os.environ["REGISTERED_DAILY_LLM_LIMIT"] = "1000"
     os.environ["GLOBAL_DAILY_LLM_LIMIT"] = "1000"
-    scenarios = json.loads(SCENARIO_PATH.read_text(encoding="utf-8"))
+    scenarios = json.loads(scenario_path.read_text(encoding="utf-8"))
     with TemporaryDirectory() as temp_dir:
         store.set_db_path(Path(temp_dir) / "evaluation.db")
         store.reset()
@@ -45,7 +51,7 @@ def run_evaluation(report_dir: Path = DEFAULT_REPORT_DIR) -> dict:
     report = evaluation_service.build_runtime_report(results)
     report["metadata"] = {
         "mode": "mock-ci",
-        "scenarioFile": str(SCENARIO_PATH.relative_to(ROOT_DIR)).replace("\\", "/"),
+        "scenarioFile": str(scenario_path.relative_to(ROOT_DIR)).replace("\\", "/"),
         "model": "",
         "provider": "mock",
     }
@@ -219,7 +225,7 @@ def _run_runtime_case(client: TestClient, scenario: dict) -> dict:
         action = _action("search_materials", {"query": "retrieval memory", "limit": 3})
     elif fixture == "review_queue":
         client.post(f"/api/materials/{material['id']}/summarize").raise_for_status()
-        action = _action("create_flashcards", {"materialIds": [material["id"]]})
+        action = _action("create_review_draft", {"materialIds": [material["id"]]})
     elif scenario["id"] == "agent_case_018":
         material = _create_material(client, goal["id"])
         action = _action("search_materials", {"query": "retrieval memory", "limit": 3})
@@ -268,7 +274,7 @@ def _run_confirmation_case(client: TestClient, scenario: dict) -> dict:
     if review:
         client.post(f"/api/materials/{material['id']}/summarize").raise_for_status()
     first = _action(
-        "create_flashcards" if review else "create_followup_tasks",
+        "create_review_draft" if review else "create_followup_tasks",
         {"materialIds": [material["id"]]} if review else {"goalIds": [goal["id"]]},
     )
     original = agent_decision_service.decide_next_action
@@ -348,6 +354,9 @@ def _run_failure_case(client: TestClient, scenario: dict, user_id: str) -> dict:
 
 
 def _run_transaction_rollback_case(client: TestClient, scenario: dict, user_id: str) -> dict:
+    if scenario.get("autoConfirm") is True:
+        return _run_corrected_review_rollback_case(client, scenario, user_id)
+
     goal = _create_goal(client, scenario["id"])
     action = _action("create_followup_tasks", {"goalIds": [goal["id"]]})
     original_decide = agent_decision_service.decide_next_action
@@ -377,6 +386,94 @@ def _run_transaction_rollback_case(client: TestClient, scenario: dict, user_id: 
     except ValueError:
         rolled_back = len(store.list_goal_tasks(goal["id"])) == 0
     return {"assertionsPassed": rolled_back, "toolSequence": ["create_task_draft", "apply_confirmed_draft"], "terminalStatus": "failed", "stopReason": "transaction_rollback", "stateAssertions": scenario["expected"]["stateAssertions"]}
+
+
+def _run_corrected_review_rollback_case(client: TestClient, scenario: dict, user_id: str) -> dict:
+    """Prove a failed review batch rolls back its first formal flashcard write too."""
+    goal = _create_goal(client, scenario["id"])
+    material = _create_material(client, goal["id"])
+    client.post(f"/api/materials/{material['id']}/summarize").raise_for_status()
+    first_action = _action("create_review_draft", {"materialIds": [material["id"]]})
+    original_decide = agent_decision_service.decide_next_action
+    agent_decision_service.decide_next_action = _scripted_decision([first_action])
+    try:
+        run = client.post(
+            "/api/agent/runs",
+            json={"goalId": goal["id"], "decisionMode": "hybrid", "maxSteps": 1},
+        ).json()["data"]
+        created = client.post(f"/api/agent/runs/{run['id']}/execute", json={}).json()["data"]
+    finally:
+        agent_decision_service.decide_next_action = original_decide
+
+    source_step = created["steps"][0]
+    valid_draft = source_step["toolOutput"]["data"]["drafts"][0]
+    invalid_draft = agent_draft_service.create_or_reuse_drafts(
+        draft_type="review",
+        payloads=[
+            {
+                "materialId": material["id"],
+                "back": "This intentionally has no front field.",
+                "sourceReason": "corrected rollback fixture",
+            }
+        ],
+        user_id=user_id,
+        goal_id=goal["id"],
+        run_id=run["id"],
+        step_id=source_step["id"],
+        tool_name="create_review_draft",
+    )[0][0]
+    draft_ids = [valid_draft["id"], invalid_draft["id"]]
+    apply_action = _action("apply_confirmed_draft", {"draftIds": draft_ids})
+    action_log = client.post(
+        "/api/agent/action-logs",
+        json={
+            "goalId": goal["id"],
+            "actionType": "apply_confirmed_draft",
+            "proposedPayload": {**apply_action, "draftIds": draft_ids},
+            "status": "proposed",
+        },
+    ).json()["data"]
+    if not scenario.get("autoConfirm"):
+        raise RuntimeError("Corrected rollback fixture must explicitly opt into autoConfirm.")
+    client.patch(
+        f"/api/agent/action-logs/{action_log['id']}",
+        json={"status": "accepted"},
+    ).raise_for_status()
+
+    flashcard_count_before = len(material_store.list_flashcards_for_material(material["id"]))
+    try:
+        agent_tool_execution_service.execute_action(
+            apply_action,
+            goal["id"],
+            user_id,
+            action_log_id=action_log["id"],
+        )
+        raised = False
+    except ValueError:
+        raised = True
+
+    confirmed_drafts = [agent_draft_service.get_agent_draft(draft_id, user_id) for draft_id in draft_ids]
+    current_log = agent_action_log_service.get_action_log(action_log["id"], user_id)
+    rollback_verified = (
+        raised
+        and len(material_store.list_flashcards_for_material(material["id"])) == flashcard_count_before
+        and all(draft and draft["status"] == "confirmed" for draft in confirmed_drafts)
+        and current_log is not None
+        and current_log["status"] == "accepted"
+    )
+    return {
+        "assertionsPassed": rollback_verified,
+        "toolSequence": ["create_review_draft", "apply_confirmed_draft"],
+        "terminalStatus": "failed",
+        "stopReason": "transaction_rollback",
+        "stateAssertions": scenario["expected"]["stateAssertions"],
+        "autoConfirm": True,
+        "rollbackVerified": rollback_verified,
+        "flashcardCountBefore": flashcard_count_before,
+        "flashcardCountAfter": len(material_store.list_flashcards_for_material(material["id"])),
+        "draftStatusesAfter": [draft["status"] if draft else "missing" for draft in confirmed_drafts],
+        "actionLogStatusAfter": current_log["status"] if current_log else "missing",
+    }
 
 
 def _run_feedback_case(client: TestClient, scenario: dict, user_id: str) -> dict:

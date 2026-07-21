@@ -52,7 +52,7 @@ TOOLS = {
         "requiresConfirmation": False,
         "draftOnly": True,
         "applyTarget": "review_drafts",
-        "inputSchema": {"materialIds": "list[str] optional", "weakAttemptCount": "int optional"},
+        "inputSchema": {"materialIds": "list[str] required"},
         "outputType": "draft",
     },
     "create_task_draft": {
@@ -106,6 +106,7 @@ ACTION_TOOL_MAP = {
     "review_material": "review_material",
     "search_materials": "search_materials",
     "answer_with_sources": "answer_with_sources",
+    "create_review_draft": "create_review_draft",
     "create_flashcards": "create_review_draft",
     "create_quiz": "create_review_draft",
     "reschedule_tasks": "create_task_draft",
@@ -115,13 +116,19 @@ ACTION_TOOL_MAP = {
     "answer_only": "answer_only",
 }
 
+# These names remain only at the Guard boundary so persisted historical records
+# stay readable. They must never be presented to a new model decision.
+LEGACY_ACTION_TYPES = {"create_flashcards", "create_quiz"}
+MODEL_ACTION_TYPES = tuple(
+    action_type for action_type in ACTION_TOOL_MAP if action_type not in LEGACY_ACTION_TYPES
+)
+
 
 MODEL_ACTION_DESCRIPTIONS = {
     "review_material": "Process existing materials when chunks or summaries are missing.",
     "search_materials": "Retrieve scoped material evidence for the current objective.",
     "answer_with_sources": "Answer a question from scoped material evidence and persist its citations.",
-    "create_flashcards": "Create a review or flashcard draft from weak learning evidence; do not write formally.",
-    "create_quiz": "Create a quiz-oriented review draft; do not write formally.",
+    "create_review_draft": "Create a flashcard review draft from scoped material IDs; do not write formally.",
     "reschedule_tasks": "Create a task draft that reschedules existing overdue tasks; do not write formally.",
     "create_followup_tasks": "Create a new task-plan draft for the current goal; do not write formally.",
     "apply_confirmed_draft": "Apply existing confirmed draft IDs exactly once; user confirmation is mandatory.",
@@ -136,7 +143,8 @@ def list_tools() -> list[dict]:
 
 def list_model_actions(allowed_action_types: set[str] | None = None) -> list[dict]:
     actions = []
-    for action_type, tool_name in ACTION_TOOL_MAP.items():
+    for action_type in MODEL_ACTION_TYPES:
+        tool_name = ACTION_TOOL_MAP[action_type]
         if allowed_action_types is not None and action_type not in allowed_action_types:
             continue
         tool = TOOLS[tool_name]
@@ -157,6 +165,12 @@ def list_model_actions(allowed_action_types: set[str] | None = None) -> list[dic
 
 def is_known_action(action_type: str) -> bool:
     return action_type in ACTION_TOOL_MAP
+
+
+def canonical_action_type(action_type: str) -> str:
+    if action_type in LEGACY_ACTION_TYPES:
+        return "create_review_draft"
+    return action_type
 
 
 def get_tool_for_action(action_type: str) -> dict:
@@ -217,3 +231,11 @@ def validate_tool_input(action_type: str, payload: dict) -> None:
         raise ValueError("Tool input limit must be between 1 and 20.")
     if action_type == "answer_with_sources" and not 1 <= int(payload.get("limit", 3)) <= 10:
         raise ValueError("Tool input limit must be between 1 and 10.")
+    if canonical_action_type(action_type) == "create_review_draft":
+        material_ids = payload.get("materialIds")
+        if not isinstance(material_ids, list) or not material_ids:
+            raise ValueError("Tool input materialIds must contain at least one material ID.")
+        if any(not material_id.strip() for material_id in material_ids):
+            raise ValueError("Tool input materialIds must contain non-empty strings.")
+        if len(set(material_ids)) != len(material_ids):
+            raise ValueError("Tool input materialIds must be unique.")

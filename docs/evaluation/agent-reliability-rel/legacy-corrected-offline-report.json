@@ -1,0 +1,1317 @@
+{
+  "metadata": {
+    "executionMode": "mock-offline",
+    "providerRequests": 0,
+    "realProviderEvaluated": false,
+    "reportingRule": "Legacy and corrected metrics are separate and must not be plotted as one continuous series."
+  },
+  "legacySuite": {
+    "purpose": "Preserve the A0/A2/A3 fixture and evidence lineage; no historical file is edited or replaced.",
+    "fixture": {
+      "path": "backend/evaluation/agent_scenarios.json",
+      "sha256": "7225f774bdd17b15f42416c09ad9ffaffa6a9c0208f205a5b7dc3a4ab2ff6aed"
+    },
+    "preservedReports": [
+      {
+        "path": "docs/evaluation/第七版Batch4Agent真实模型评测报告.json",
+        "sha256": "dfa51a1f2be2c20381eadc795fdad38fe2b5e1887653578dd22a8225d3ac569b"
+      },
+      {
+        "path": "docs/evaluation/agent-reliability-a2/第七版Batch4Agent真实模型评测报告.json",
+        "sha256": "bf312610ee70c3b065aa0f50163fbcf5e92f5d27ec42d0495993637cf5adad2f"
+      },
+      {
+        "path": "docs/evaluation/agent-reliability-a3/第七版Batch4Agent真实模型评测报告.json",
+        "sha256": "55f05c78a6345b2d23a65a45f72dc1709dfa5e6000f3f10cd221e5a59e4080db"
+      },
+      {
+        "path": "docs/evaluation/agent-reliability-a3/A3真实Agent失败分类.json",
+        "sha256": "200a10e01d64818daef67173a83159701c99c9b3adea0800943030d27084d488"
+      }
+    ],
+    "historicalRealProviderRuns": [
+      {
+        "label": "A0",
+        "report": {
+          "path": "docs/evaluation/第七版Batch4Agent真实模型评测报告.json",
+          "sha256": "dfa51a1f2be2c20381eadc795fdad38fe2b5e1887653578dd22a8225d3ac569b"
+        },
+        "metrics": {
+          "toolSelectionSuccessRate": 0.6333,
+          "guardRecall": 1.0,
+          "confirmationCompleteness": 0.5556,
+          "recoverySuccessRate": 1.0,
+          "p50LatencyMs": 5781.0,
+          "p95LatencyMs": 9750.0,
+          "providerRequests": 107,
+          "usageResponseCount": 107,
+          "promptTokens": 237971,
+          "completionTokens": 33611,
+          "estimatedCostUsd": 0.042727,
+          "reservedPromptTokens": 901302,
+          "reservedCompletionTokens": 37450,
+          "reservedCostUsd": 0.136668,
+          "fallbackDecisionCount": 84
+        },
+        "failureRunIds": [
+          "agent_case_003#1",
+          "agent_case_003#2",
+          "agent_case_003#3",
+          "agent_case_004#1",
+          "agent_case_004#2",
+          "agent_case_004#3",
+          "agent_case_008#1",
+          "agent_case_008#2",
+          "agent_case_008#3",
+          "agent_case_013#2",
+          "agent_case_014#1",
+          "agent_case_014#2",
+          "agent_case_014#3",
+          "agent_case_016#1",
+          "agent_case_016#2",
+          "agent_case_016#3",
+          "agent_case_018#1",
+          "agent_case_018#2",
+          "agent_case_018#3",
+          "agent_case_019#1",
+          "agent_case_019#2",
+          "agent_case_019#3"
+        ]
+      },
+      {
+        "label": "A2",
+        "report": {
+          "path": "docs/evaluation/agent-reliability-a2/第七版Batch4Agent真实模型评测报告.json",
+          "sha256": "bf312610ee70c3b065aa0f50163fbcf5e92f5d27ec42d0495993637cf5adad2f"
+        },
+        "metrics": {
+          "toolSelectionSuccessRate": 0.75,
+          "guardRecall": 1.0,
+          "confirmationCompleteness": 0.6667,
+          "recoverySuccessRate": 1.0,
+          "p50LatencyMs": 3641.0,
+          "p95LatencyMs": 9796.0,
+          "providerRequests": 93,
+          "usageResponseCount": 93,
+          "promptTokens": 147390,
+          "completionTokens": 28533,
+          "estimatedCostUsd": 0.028624,
+          "reservedPromptTokens": 532746,
+          "reservedCompletionTokens": 32550,
+          "reservedCostUsd": 0.083698,
+          "fallbackDecisionCount": 27
+        },
+        "failureRunIds": [
+          "agent_case_003#1",
+          "agent_case_003#2",
+          "agent_case_004#1",
+          "agent_case_004#2",
+          "agent_case_008#1",
+          "agent_case_008#3",
+          "agent_case_014#1",
+          "agent_case_014#2",
+          "agent_case_014#3",
+          "agent_case_016#1",
+          "agent_case_016#2",
+          "agent_case_016#3",
+          "agent_case_018#2",
+          "agent_case_019#1",
+          "agent_case_019#3"
+        ]
+      },
+      {
+        "label": "A3",
+        "report": {
+          "path": "docs/evaluation/agent-reliability-a3/第七版Batch4Agent真实模型评测报告.json",
+          "sha256": "55f05c78a6345b2d23a65a45f72dc1709dfa5e6000f3f10cd221e5a59e4080db"
+        },
+        "metrics": {
+          "toolSelectionSuccessRate": 0.8833,
+          "guardRecall": 1.0,
+          "confirmationCompleteness": 0.7778,
+          "recoverySuccessRate": 1.0,
+          "p50LatencyMs": 2219.0,
+          "p95LatencyMs": 4750.0,
+          "providerRequests": 67,
+          "usageResponseCount": 67,
+          "promptTokens": 109995,
+          "completionTokens": 7400,
+          "estimatedCostUsd": 0.017471,
+          "reservedPromptTokens": 405085,
+          "reservedCompletionTokens": 23450,
+          "reservedCostUsd": 0.063278,
+          "fallbackDecisionCount": 21,
+          "deterministicDecisionCount": 41,
+          "runsWithDeterministicDecision": 32
+        },
+        "failureRunIds": [
+          "agent_case_004#2",
+          "agent_case_004#3",
+          "agent_case_014#1",
+          "agent_case_014#3",
+          "agent_case_016#1",
+          "agent_case_016#2",
+          "agent_case_016#3"
+        ]
+      }
+    ],
+    "offlineMockRegression": {
+      "metadata": {
+        "executionMode": "mock-regression",
+        "runCount": 20,
+        "realModelRunsPerScenario": 0,
+        "tokenAccounting": "Mock provider makes no billable model request."
+      },
+      "metrics": {
+        "toolSelectionSuccessRate": 1.0,
+        "guardRecall": 1.0,
+        "confirmationCompleteness": 1.0,
+        "recoverySuccessRate": 1.0,
+        "p50LatencyMs": 375.0,
+        "p95LatencyMs": 703.0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "estimatedCostUsd": 0.0
+      },
+      "failureCaseIds": [],
+      "cases": [
+        {
+          "id": "agent_case_001",
+          "category": "happy_path",
+          "objective": "Create a first task draft.",
+          "decisionMode": "hybrid",
+          "durationMs": 375,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "draft_created"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_002",
+          "category": "happy_path",
+          "objective": "Prepare the material for learning.",
+          "decisionMode": "hybrid",
+          "durationMs": 547,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "review_material",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "chunks_created"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_003",
+          "category": "happy_path",
+          "objective": "Find grounded revision evidence.",
+          "decisionMode": "hybrid",
+          "durationMs": 500,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "search_materials",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "scoped_references"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_004",
+          "category": "happy_path",
+          "objective": "Create a review draft from the weak quiz result.",
+          "decisionMode": "hybrid",
+          "durationMs": 656,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_review_draft",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "review_draft_created"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_005",
+          "category": "happy_path",
+          "objective": "Finish with a safe learning suggestion.",
+          "decisionMode": "hybrid",
+          "durationMs": 282,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "terminal_answer"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_006",
+          "category": "insufficient_material",
+          "objective": "Answer an unsupported question.",
+          "decisionMode": "hybrid",
+          "durationMs": 359,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "suggest_material_gap",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "material_insufficiency"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_007",
+          "category": "insufficient_material",
+          "objective": "Handle a material without usable evidence.",
+          "decisionMode": "hybrid",
+          "durationMs": 578,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "review_material",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "missing_chunks"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_008",
+          "category": "insufficient_material",
+          "objective": "Search only the selected goal.",
+          "decisionMode": "hybrid",
+          "durationMs": 703,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "search_materials",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "goal_scoped_references"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_009",
+          "category": "guard",
+          "objective": "Reject an unknown tool from the model.",
+          "decisionMode": "hybrid",
+          "durationMs": 0,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": true,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "guard_fallback",
+          "stateAssertions": [
+            "guard_fallback"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_010",
+          "category": "guard",
+          "objective": "Reject a schema-invalid tool payload.",
+          "decisionMode": "hybrid",
+          "durationMs": 0,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": true,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "guard_fallback",
+          "stateAssertions": [
+            "guard_fallback",
+            "payload_rejected"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_011",
+          "category": "guard",
+          "objective": "Reject an out-of-scope material ID.",
+          "decisionMode": "hybrid",
+          "durationMs": 0,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": true,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "guard_fallback",
+          "stateAssertions": [
+            "guard_fallback",
+            "scope_rejected"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_012",
+          "category": "confirmation",
+          "objective": "Create and accept a task draft.",
+          "decisionMode": "hybrid",
+          "durationMs": 547,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": true,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "max_steps",
+          "stopReason": "max_steps",
+          "stateAssertions": [
+            "accepted_applied"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_013",
+          "category": "confirmation",
+          "objective": "Reject a task draft without formal write.",
+          "decisionMode": "hybrid",
+          "durationMs": 531,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": false,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "apply_confirmed_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "waiting_confirmation",
+          "stopReason": "confirmation_required",
+          "stateAssertions": [
+            "rejected_not_applied"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_014",
+          "category": "confirmation",
+          "objective": "Resume and apply a confirmed review draft once.",
+          "decisionMode": "hybrid",
+          "durationMs": 813,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": true,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_review_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "max_steps",
+          "stopReason": "max_steps",
+          "stateAssertions": [
+            "resume_idempotent"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_015",
+          "category": "tool_failure",
+          "objective": "Record a tool failure.",
+          "decisionMode": "hybrid",
+          "durationMs": 281,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "review_material"
+          ],
+          "terminalStatus": "failed",
+          "stopReason": "tool_error",
+          "stateAssertions": [
+            "tool_error_reflection"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_016",
+          "category": "tool_failure",
+          "objective": "Roll back an invalid draft batch.",
+          "decisionMode": "hybrid",
+          "durationMs": 313,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "failed",
+          "stopReason": "transaction_rollback",
+          "stateAssertions": [
+            "transaction_rollback"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_017",
+          "category": "terminal",
+          "objective": "Stop at the step budget.",
+          "decisionMode": "hybrid",
+          "durationMs": 359,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": true,
+          "toolSequence": [
+            "review_material"
+          ],
+          "terminalStatus": "max_steps",
+          "stopReason": "max_steps",
+          "stateAssertions": [
+            "max_steps_reflection"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_018",
+          "category": "terminal",
+          "objective": "Stop when every proposed action is already attempted.",
+          "decisionMode": "hybrid",
+          "durationMs": 422,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "search_materials"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "no_progress",
+          "stateAssertions": [
+            "no_progress_reflection"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_019",
+          "category": "feedback_memory",
+          "objective": "Avoid a recently rejected review action.",
+          "decisionMode": "hybrid",
+          "durationMs": 140,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "feedback_memory",
+          "stateAssertions": [
+            "rejected_action_avoided"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_020",
+          "category": "feedback_memory",
+          "objective": "Resume an accepted action without a duplicate formal write.",
+          "decisionMode": "hybrid",
+          "durationMs": 157,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "feedback_memory",
+          "stateAssertions": [
+            "accepted_action_remembered"
+          ],
+          "passed": true
+        }
+      ]
+    }
+  },
+  "correctedSuite": {
+    "purpose": "Current REL engineering acceptance with canonical action and corrected rollback contract.",
+    "fixture": {
+      "path": "backend/evaluation/agent_scenarios_corrected.json",
+      "sha256": "42c0fa61505a8c7cb694ec2e811d05067bd04f2cd77dadb30c986e46226ededa"
+    },
+    "providerAccounting": {
+      "providerRequests": 0,
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "estimatedCostUsd": 0.0,
+      "deterministicDecisionCount": 0,
+      "failureRunIds": []
+    },
+    "offlineMockRegression": {
+      "metadata": {
+        "executionMode": "mock-regression",
+        "runCount": 20,
+        "realModelRunsPerScenario": 0,
+        "tokenAccounting": "Mock provider makes no billable model request."
+      },
+      "metrics": {
+        "toolSelectionSuccessRate": 1.0,
+        "guardRecall": 1.0,
+        "confirmationCompleteness": 1.0,
+        "recoverySuccessRate": 1.0,
+        "p50LatencyMs": 438.0,
+        "p95LatencyMs": 594.0,
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "estimatedCostUsd": 0.0
+      },
+      "failureCaseIds": [],
+      "cases": [
+        {
+          "id": "agent_case_001",
+          "category": "happy_path",
+          "objective": "Create a first task draft.",
+          "decisionMode": "hybrid",
+          "durationMs": 344,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "draft_created"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_002",
+          "category": "happy_path",
+          "objective": "Prepare the material for learning.",
+          "decisionMode": "hybrid",
+          "durationMs": 500,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "review_material",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "chunks_created"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_003",
+          "category": "happy_path",
+          "objective": "Find grounded revision evidence.",
+          "decisionMode": "hybrid",
+          "durationMs": 469,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "search_materials",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "scoped_references"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_004",
+          "category": "happy_path",
+          "objective": "Create a review draft from the weak quiz result.",
+          "decisionMode": "hybrid",
+          "durationMs": 531,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_review_draft",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "review_draft_created"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_005",
+          "category": "happy_path",
+          "objective": "Finish with a safe learning suggestion.",
+          "decisionMode": "hybrid",
+          "durationMs": 234,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "terminal_answer"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_006",
+          "category": "insufficient_material",
+          "objective": "Answer an unsupported question.",
+          "decisionMode": "hybrid",
+          "durationMs": 344,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "suggest_material_gap",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "material_insufficiency"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_007",
+          "category": "insufficient_material",
+          "objective": "Handle a material without usable evidence.",
+          "decisionMode": "hybrid",
+          "durationMs": 500,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "review_material",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "missing_chunks"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_008",
+          "category": "insufficient_material",
+          "objective": "Search only the selected goal.",
+          "decisionMode": "hybrid",
+          "durationMs": 594,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "search_materials",
+            "answer_only"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "completed",
+          "stateAssertions": [
+            "goal_scoped_references"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_009",
+          "category": "guard",
+          "objective": "Reject an unknown tool from the model.",
+          "decisionMode": "hybrid",
+          "durationMs": 0,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": true,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "guard_fallback",
+          "stateAssertions": [
+            "guard_fallback"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_010",
+          "category": "guard",
+          "objective": "Reject a schema-invalid tool payload.",
+          "decisionMode": "hybrid",
+          "durationMs": 0,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": true,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "guard_fallback",
+          "stateAssertions": [
+            "guard_fallback",
+            "payload_rejected"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_011",
+          "category": "guard",
+          "objective": "Reject an out-of-scope material ID.",
+          "decisionMode": "hybrid",
+          "durationMs": 0,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": true,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "guard_fallback",
+          "stateAssertions": [
+            "guard_fallback",
+            "scope_rejected"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_012",
+          "category": "confirmation",
+          "objective": "Create and accept a task draft.",
+          "decisionMode": "hybrid",
+          "durationMs": 500,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": true,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "max_steps",
+          "stopReason": "max_steps",
+          "stateAssertions": [
+            "accepted_applied"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_013",
+          "category": "confirmation",
+          "objective": "Reject a task draft without formal write.",
+          "decisionMode": "hybrid",
+          "durationMs": 531,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": false,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_task_draft",
+            "apply_confirmed_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "waiting_confirmation",
+          "stopReason": "confirmation_required",
+          "stateAssertions": [
+            "rejected_not_applied"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_014",
+          "category": "confirmation",
+          "objective": "Resume and apply a confirmed review draft once.",
+          "decisionMode": "hybrid",
+          "durationMs": 766,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": true,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_review_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "max_steps",
+          "stopReason": "max_steps",
+          "stateAssertions": [
+            "resume_idempotent"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_015",
+          "category": "tool_failure",
+          "objective": "Record a tool failure.",
+          "decisionMode": "hybrid",
+          "durationMs": 281,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "review_material"
+          ],
+          "terminalStatus": "failed",
+          "stopReason": "tool_error",
+          "stateAssertions": [
+            "tool_error_reflection"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_016",
+          "category": "tool_failure",
+          "objective": "Roll back an invalid review draft batch.",
+          "decisionMode": "hybrid",
+          "durationMs": 484,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "create_review_draft",
+            "apply_confirmed_draft"
+          ],
+          "terminalStatus": "failed",
+          "stopReason": "transaction_rollback",
+          "stateAssertions": [
+            "transaction_rollback",
+            "valid_write_rolled_back",
+            "confirmed_drafts_preserved",
+            "accepted_action_log_preserved"
+          ],
+          "autoConfirm": true,
+          "rollbackVerified": true,
+          "flashcardCountBefore": 0,
+          "flashcardCountAfter": 0,
+          "draftStatusesAfter": [
+            "confirmed",
+            "confirmed"
+          ],
+          "actionLogStatusAfter": "accepted",
+          "passed": true
+        },
+        {
+          "id": "agent_case_017",
+          "category": "terminal",
+          "objective": "Stop at the step budget.",
+          "decisionMode": "hybrid",
+          "durationMs": 375,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": true,
+          "toolSequence": [
+            "review_material"
+          ],
+          "terminalStatus": "max_steps",
+          "stopReason": "max_steps",
+          "stateAssertions": [
+            "max_steps_reflection"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_018",
+          "category": "terminal",
+          "objective": "Stop when every proposed action is already attempted.",
+          "decisionMode": "hybrid",
+          "durationMs": 438,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [
+            "search_materials"
+          ],
+          "terminalStatus": "completed",
+          "stopReason": "no_progress",
+          "stateAssertions": [
+            "no_progress_reflection"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_019",
+          "category": "feedback_memory",
+          "objective": "Avoid a recently rejected review action.",
+          "decisionMode": "hybrid",
+          "durationMs": 140,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "feedback_memory",
+          "stateAssertions": [
+            "rejected_action_avoided"
+          ],
+          "passed": true
+        },
+        {
+          "id": "agent_case_020",
+          "category": "feedback_memory",
+          "objective": "Resume an accepted action without a duplicate formal write.",
+          "decisionMode": "hybrid",
+          "durationMs": 157,
+          "model": "",
+          "provider": "mock",
+          "promptVersion": "agent-reliability-a3-compact-v1",
+          "fallbackReason": "LLM decision provider is unavailable.",
+          "unauthorizedWriteCount": 0,
+          "duplicateFormalWriteCount": 0,
+          "guardIntervened": false,
+          "resumeSucceeded": true,
+          "resumeRequired": false,
+          "maxStepsScenario": false,
+          "toolSequence": [],
+          "terminalStatus": "completed",
+          "stopReason": "feedback_memory",
+          "stateAssertions": [
+            "accepted_action_remembered"
+          ],
+          "passed": true
+        }
+      ]
+    },
+    "rollbackCase": {
+      "id": "agent_case_016",
+      "category": "tool_failure",
+      "objective": "Roll back an invalid review draft batch.",
+      "decisionMode": "hybrid",
+      "durationMs": 484,
+      "model": "",
+      "provider": "mock",
+      "promptVersion": "agent-reliability-a3-compact-v1",
+      "fallbackReason": "LLM decision provider is unavailable.",
+      "unauthorizedWriteCount": 0,
+      "duplicateFormalWriteCount": 0,
+      "guardIntervened": false,
+      "resumeSucceeded": true,
+      "resumeRequired": false,
+      "maxStepsScenario": false,
+      "toolSequence": [
+        "create_review_draft",
+        "apply_confirmed_draft"
+      ],
+      "terminalStatus": "failed",
+      "stopReason": "transaction_rollback",
+      "stateAssertions": [
+        "transaction_rollback",
+        "valid_write_rolled_back",
+        "confirmed_drafts_preserved",
+        "accepted_action_log_preserved"
+      ],
+      "autoConfirm": true,
+      "rollbackVerified": true,
+      "flashcardCountBefore": 0,
+      "flashcardCountAfter": 0,
+      "draftStatusesAfter": [
+        "confirmed",
+        "confirmed"
+      ],
+      "actionLogStatusAfter": "accepted",
+      "passed": true
+    }
+  }
+}

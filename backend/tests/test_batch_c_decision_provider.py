@@ -168,7 +168,7 @@ def test_action_policy_limits_prompt_and_guard_to_the_same_action_types(monkeypa
     prompt = json.loads(captured_payloads[0]["messages"][1]["content"])
     assert [action["type"] for action in prompt["availableActions"]] == ["search_materials"]
     assert decision["mode"] == "rule-based"
-    assert "not allowed in the current state" in decision["fallbackReason"]
+    assert decision["fallbackReason"] == "Decision Guard rejected model output: disallowed_action."
     assert decision["nextAction"] == ""
     assert decision["proposedActions"] == []
 
@@ -241,7 +241,7 @@ def test_batch_c_guard_rejects_out_of_scope_model_payload_after_one_repair(monke
 
     assert decision["mode"] == "rule-based"
     assert len(calls) == 2
-    assert "outside current scope" in decision["fallbackReason"]
+    assert decision["fallbackReason"] == "Decision Guard rejected model output: scope_invalid."
     assert decision["decisionGuard"]["repairAttempted"] is True
 
 

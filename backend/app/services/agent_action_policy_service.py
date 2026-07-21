@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from backend.app.services import agent_tool_registry_service
+from backend.app.services import agent_review_scope_service
 
 
 EVIDENCE_TERMS = {
@@ -38,6 +39,14 @@ REVIEW_DRAFT_TERMS = {
     "生成复习草稿",
     "确认复习草稿",
     "应用复习草稿",
+}
+ASSESSMENT_TERMS = {
+    "redo quiz",
+    "retake quiz",
+    "check mastery",
+    "重做测试",
+    "重新测试",
+    "检查掌握程度",
 }
 TASK_TERMS = {
     "task",
@@ -95,6 +104,13 @@ def allowed_action_types(context: dict, fallback_decision: dict) -> set[str]:
         return {"answer_only"}
 
     summary = context.get("summary") or {}
+    review_material_ids = agent_review_scope_service.resolve_review_material_ids(context)
+    review_draft_requested = _contains_any(objective, REVIEW_DRAFT_TERMS)
+    has_weak_attempts = bool((context.get("quiz") or {}).get("weakAttempts"))
+    if _contains_any(objective, ASSESSMENT_TERMS):
+        return {"answer_only"}
+    if review_draft_requested or has_weak_attempts:
+        return {"create_review_draft"} if review_material_ids else {"ask_for_more_material"}
     if summary.get("materialsWithoutChunks", 0):
         return {"review_material", "ask_for_more_material", "answer_only"}
     if _contains_any(objective, NO_PROGRESS_TERMS):
@@ -106,16 +122,14 @@ def allowed_action_types(context: dict, fallback_decision: dict) -> set[str]:
     if _contains_any(objective, MATERIAL_PROCESSING_TERMS):
         return {"review_material", "answer_only"}
     if _contains_any(objective, REVIEW_TERMS):
-        if _contains_any(objective, REVIEW_DRAFT_TERMS):
-            return {"create_flashcards", "create_quiz"} - rejected_actions
-        return {"create_flashcards", "create_quiz", "answer_only"} - rejected_actions
+        return {"review_material", "answer_only"} - rejected_actions
     if _contains_any(objective, TASK_TERMS):
         return {"create_followup_tasks", "reschedule_tasks", "answer_only"} - rejected_actions
 
     if summary.get("qaInsufficiencyCount", 0):
         return {"search_materials", "ask_for_more_material", "answer_only"}
     if summary.get("quizWeakAttemptCount", 0) or (context.get("review") or {}).get("review", 0):
-        return {"create_flashcards", "create_quiz", "review_material", "answer_only"} - rejected_actions
+        return {"review_material", "answer_only"} - rejected_actions
     if summary.get("taskTotal", 0) == 0 and summary.get("goalCount", 0) > 0:
         return {"create_followup_tasks", "answer_only"} - rejected_actions
 
@@ -183,6 +197,11 @@ def _deterministic_action(context: dict, action_type: str) -> dict | None:
         payload = {"materialIds": material_ids}
     elif action_type == "ask_for_more_material":
         payload = {"insufficiencyCount": int((context.get("summary") or {}).get("qaInsufficiencyCount", 0))}
+    elif action_type == "create_review_draft":
+        material_ids = agent_review_scope_service.resolve_review_material_ids(context)
+        if not material_ids:
+            return None
+        payload = {"materialIds": material_ids}
     else:
         return None
 
@@ -203,10 +222,10 @@ def _expanded_memory_actions(items: list[dict]) -> set[str]:
     for item in items:
         action_or_tool = str(item.get("actionType") or "")
         if action_or_tool in agent_tool_registry_service.ACTION_TOOL_MAP:
-            expanded.add(action_or_tool)
+            expanded.add(agent_tool_registry_service.canonical_action_type(action_or_tool))
         if action_or_tool in agent_tool_registry_service.TOOLS:
             expanded.update(
-                action_type
+                agent_tool_registry_service.canonical_action_type(action_type)
                 for action_type, tool_name in agent_tool_registry_service.ACTION_TOOL_MAP.items()
                 if tool_name == action_or_tool
             )

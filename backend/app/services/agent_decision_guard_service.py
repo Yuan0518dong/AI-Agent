@@ -1,6 +1,26 @@
 from typing import Any
 
 from backend.app.services import agent_tool_registry_service
+from backend.app.services import agent_review_scope_service
+
+
+GUARD_FAILURE_TYPES = {
+    "schema_invalid",
+    "disallowed_action",
+    "missing_required_field",
+    "payload_invalid",
+    "scope_invalid",
+}
+
+
+class DecisionGuardError(ValueError):
+    """A stable, redacted Guard failure safe for persistence."""
+
+    def __init__(self, category: str):
+        if category not in GUARD_FAILURE_TYPES:
+            raise ValueError("Unknown Decision Guard failure category.")
+        self.category = category
+        super().__init__(f"Decision Guard rejected model output: {category}.")
 
 
 def decision_from_model_data(
@@ -12,7 +32,7 @@ def decision_from_model_data(
     allowed_action_types: set[str] | None = None,
 ) -> dict:
     if not isinstance(data, dict):
-        raise ValueError("Decision Guard rejected model output: payload must be an object.")
+        _reject("schema_invalid")
 
     _validate_required_decision_fields(data)
     next_action = _known_action(
@@ -29,9 +49,7 @@ def decision_from_model_data(
         allowed_action_types,
     )
     if not proposed_actions or proposed_actions[0]["type"] != next_action:
-        raise ValueError(
-            "Decision Guard rejected model output: nextAction must match the first proposed action."
-        )
+        _reject("payload_invalid")
     guard_status = "accepted"
     interventions: list[dict] = []
 
@@ -75,7 +93,12 @@ def decision_from_model_data(
     return decision
 
 
-def fallback_guard(reason: str, *, repair_attempted: bool = False) -> dict:
+def fallback_guard(
+    reason: str,
+    *,
+    repair_attempted: bool = False,
+    error_category: str | None = None,
+) -> dict:
     return {
         "status": "fallback",
         "checks": [
@@ -87,7 +110,7 @@ def fallback_guard(reason: str, *, repair_attempted: bool = False) -> dict:
             "confirmation_required",
         ],
         "interventions": [],
-        "errors": [reason],
+        "errors": [error_category] if error_category else [],
         "repairAttempted": repair_attempted,
     }
 
@@ -104,11 +127,7 @@ def _validate_required_decision_fields(data: dict[str, Any]) -> None:
         if field not in data or not isinstance(data[field], expected_type)
     ]
     if missing_or_invalid:
-        raise ValueError(
-            "Decision Guard rejected model output: missing or invalid required fields: "
-            + ", ".join(missing_or_invalid)
-            + "."
-        )
+        _reject("schema_invalid")
     optional_fields = {
         "stateSummary": str,
         "problems": list,
@@ -121,11 +140,7 @@ def _validate_required_decision_fields(data: dict[str, Any]) -> None:
         if field in data and not isinstance(data[field], expected_type)
     ]
     if invalid_optional:
-        raise ValueError(
-            "Decision Guard rejected model output: invalid optional fields: "
-            + ", ".join(invalid_optional)
-            + "."
-        )
+        _reject("schema_invalid")
 
 
 def _normalize_actions(
@@ -139,13 +154,17 @@ def _normalize_actions(
     normalized_actions = []
     for item in actions[:4]:
         if not isinstance(item, dict):
-            raise ValueError("Decision Guard rejected model output: proposedActions items must be objects.")
+            _reject("schema_invalid")
+        raw_action_type = str(item.get("type") or item.get("actionType") or "")
         action_type = _known_action(
-            item.get("type") or item.get("actionType"),
+            raw_action_type,
             "proposedActions.type",
             allowed_action_types,
         )
-        payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+        if "payload" in item and not isinstance(item["payload"], dict):
+            _reject("payload_invalid")
+        payload = dict(item.get("payload") or {})
+        payload = _normalize_legacy_review_payload(raw_action_type, action_type, payload, context)
         _validate_payload_scope(action_type, payload, context)
         normalized_actions.append(
             _model_action(
@@ -166,12 +185,11 @@ def _known_action(
 ) -> str:
     action_type = str(raw_action or "")
     if not agent_tool_registry_service.is_known_action(action_type):
-        raise ValueError(f"Decision Guard rejected model output: unknown {field_name} {action_type}.")
-    if allowed_action_types is not None and action_type not in allowed_action_types:
-        raise ValueError(
-            f"Decision Guard rejected model output: {field_name} {action_type} is not allowed in the current state."
-        )
-    return action_type
+        _reject("disallowed_action")
+    canonical_action_type = agent_tool_registry_service.canonical_action_type(action_type)
+    if allowed_action_types is not None and canonical_action_type not in allowed_action_types:
+        _reject("disallowed_action")
+    return canonical_action_type
 
 
 def _model_action(
@@ -181,7 +199,13 @@ def _model_action(
     requires_confirmation: bool,
     label: str | None = None,
 ) -> dict:
-    agent_tool_registry_service.validate_tool_input(action_type, payload)
+    try:
+        agent_tool_registry_service.validate_tool_input(action_type, payload)
+    except ValueError as exc:
+        message = str(exc)
+        if "missing required fields" in message or "must contain at least one" in message:
+            _reject("missing_required_field")
+        _reject("payload_invalid")
     action = {
         "type": action_type,
         "label": label or action_type,
@@ -219,9 +243,25 @@ def _validate_payload_scope(action_type: str, payload: dict, context: dict | Non
             continue
         values = payload[field] if isinstance(payload[field], list) else [payload[field]]
         if any(value not in allowed_ids for value in values):
-            raise ValueError(
-                f"Decision Guard rejected model output: {action_type} payload {field} is outside current scope."
-            )
+            _reject("scope_invalid")
+
+
+def _normalize_legacy_review_payload(
+    raw_action_type: str,
+    action_type: str,
+    payload: dict,
+    context: dict | None,
+) -> dict:
+    if raw_action_type not in agent_tool_registry_service.LEGACY_ACTION_TYPES:
+        return payload
+    normalized_payload = {key: value for key, value in payload.items() if key != "weakAttemptCount"}
+    if action_type == "create_review_draft" and not normalized_payload.get("materialIds"):
+        normalized_payload["materialIds"] = agent_review_scope_service.resolve_review_material_ids(context or {})
+    return normalized_payload
+
+
+def _reject(category: str) -> None:
+    raise DecisionGuardError(category)
 
 
 def _confirmation_intervention(action: dict) -> dict | None:

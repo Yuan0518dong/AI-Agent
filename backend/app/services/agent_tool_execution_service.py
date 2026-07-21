@@ -247,8 +247,10 @@ def _create_review_draft(
     step_id: str | None,
 ) -> dict:
     requested_material_ids = payload.get("materialIds") or []
+    if not requested_material_ids:
+        raise ValueError("Review draft requires at least one scoped material ID.")
     materials = []
-    for material_id in requested_material_ids[:5]:
+    for material_id in requested_material_ids:
         material = material_store.get_material(material_id, user_id)
         if not material:
             raise ValueError("Review draft material was not found in the current user scope.")
@@ -256,12 +258,8 @@ def _create_review_draft(
             raise ValueError("Review draft material does not belong to the current goal.")
         materials.append(material)
 
-    if not materials and payload.get("weakAttemptCount"):
-        for material in material_store.list_materials(goal_id, user_id):
-            attempts = material_store.list_quiz_attempts_for_material(material["id"])
-            if any(not attempt["isCorrect"] for attempt in attempts):
-                materials.append(material)
-                break
+    if not materials:
+        raise ValueError("Review draft requires at least one scoped material.")
 
     draft_payloads = []
     for material in materials:
@@ -275,13 +273,9 @@ def _create_review_draft(
                 "front": f"What is a key idea in {material['title']}?",
                 "back": key_point or f"Summarize the key idea in {material['title']}.",
                 "sourceReason": (
-                    f"Generated from a weak quiz attempt and the summary of '{material['title']}'."
-                    if payload.get("weakAttemptCount") and key_point
-                    else (
-                        f"Generated from the summary of '{material['title']}'."
-                        if key_point
-                        else f"Generated from material '{material['title']}' because it needs review."
-                    )
+                    f"Generated from the summary of '{material['title']}'."
+                    if key_point
+                    else f"Generated from material '{material['title']}' because it needs review."
                 ),
             }
         )

@@ -345,7 +345,7 @@ def test_agent_decision_prioritizes_context_problems():
     assert "weak_quiz_attempts" in problem_types
     assert "review_queue" in problem_types
     action_types = [action["type"] for action in decision["proposedActions"]]
-    assert "create_flashcards" in action_types
+    assert "create_review_draft" in action_types
     for action in decision["proposedActions"]:
         assert action["toolName"]
         assert action["riskLevel"] in {"low", "medium", "high"}
@@ -601,7 +601,7 @@ def test_agent_decision_guard_rejects_invalid_tool_payload(monkeypatch):
     assert response.status_code == 200
     decision = response.json()["data"]
     assert decision["mode"] == "rule-based"
-    assert "unknown fields" in decision["fallbackReason"]
+    assert decision["fallbackReason"] == "Decision Guard rejected model output: payload_invalid."
     assert decision["decisionGuard"]["status"] == "fallback"
     assert decision["decisionGuard"]["errors"]
     assert decision["nextAction"] == "create_followup_tasks"
@@ -633,7 +633,7 @@ def test_agent_decision_avoids_recently_rejected_action_type():
     ).status_code == 200
 
     first_decision = client.post("/api/agent/decide", params={"goalId": goal["id"]}).json()["data"]
-    assert first_decision["nextAction"] == "create_flashcards"
+    assert first_decision["nextAction"] == "create_review_draft"
 
     assert client.post(
         "/api/agent/action-logs",
@@ -652,7 +652,7 @@ def test_agent_decision_avoids_recently_rejected_action_type():
     assert second_response.status_code == 200
     second_decision = second_response.json()["data"]
     action_types = [action["type"] for action in second_decision["proposedActions"]]
-    assert "create_flashcards" not in action_types
+    assert "create_review_draft" not in action_types
     assert second_decision["nextAction"] == "review_material"
     assert second_decision["feedbackMemory"]["recentlyRejected"][0]["actionType"] == "create_flashcards"
     assert "rejected action type" in second_decision["reason"]
