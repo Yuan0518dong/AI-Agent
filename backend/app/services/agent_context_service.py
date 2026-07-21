@@ -1,6 +1,12 @@
 from collections import Counter
 
-from backend.app.services import agent_draft_service, material_store, progress_service, store
+from backend.app.services import (
+    agent_draft_service,
+    flashcard_review_service,
+    material_store,
+    progress_service,
+    store,
+)
 
 
 def build_agent_context(
@@ -22,7 +28,8 @@ def build_agent_context(
         progress_service.get_goal_progress(goal["id"], user_id) for goal in goals
     ]
 
-    review_context = _review_context(material_contexts)
+    due_flashcards = flashcard_review_service.list_due_flashcards(goal_id, user_id)
+    review_context = _review_context(material_contexts, due_flashcards)
     quiz_context = _quiz_context(material_contexts)
     qa_context = _qa_context(material_contexts)
     draft_context = _draft_context(goal_id, user_id)
@@ -106,6 +113,7 @@ def _material_context(material: dict) -> dict:
     flashcards = material_store.list_flashcards_for_material(material_id)
     quiz_questions = material_store.list_quiz_questions_for_material(material_id)
     quiz_attempts = material_store.list_quiz_attempts_for_material(material_id)
+    weak_points = material_store.list_weak_points_for_material(material_id, material["title"])
 
     return {
         "id": material_id,
@@ -119,12 +127,12 @@ def _material_context(material: dict) -> dict:
         "qaCount": len(qa_records),
         "recentQa": [_qa_item(record) for record in qa_records[-3:]],
         "flashcardStats": _flashcard_stats(flashcards),
-        "quizStats": _material_quiz_stats(quiz_questions, quiz_attempts),
+        "quizStats": _material_quiz_stats(quiz_questions, quiz_attempts, weak_points),
         "updatedAt": material["updatedAt"],
     }
 
 
-def _review_context(material_contexts: list[dict]) -> dict:
+def _review_context(material_contexts: list[dict], due_flashcards: list[dict]) -> dict:
     totals = Counter()
     for material in material_contexts:
         totals.update(material["flashcardStats"]["byStatus"])
@@ -135,6 +143,18 @@ def _review_context(material_contexts: list[dict]) -> dict:
         "new": totals.get("new", 0),
         "known": totals.get("known", 0),
         "review": totals.get("review", 0),
+        "dueCount": len(due_flashcards),
+        "dueFlashcards": [
+            {
+                "flashcardId": card["id"],
+                "materialId": card["materialId"],
+                "materialTitle": card["materialTitle"],
+                "dueAt": card["dueAt"],
+                "reviewCount": card["reviewCount"],
+                "retrievability": card["retrievability"],
+            }
+            for card in due_flashcards[:10]
+        ],
         "materialsNeedingReview": [
             {
                 "materialId": material["id"],
@@ -152,14 +172,27 @@ def _review_context(material_contexts: list[dict]) -> dict:
 def _quiz_context(material_contexts: list[dict]) -> dict:
     question_total = sum(material["quizStats"]["questionCount"] for material in material_contexts)
     attempt_total = sum(material["quizStats"]["attemptCount"] for material in material_contexts)
-    weak_attempts = [
+    weak_points = [
         {
             "materialId": material["id"],
             "title": material["title"],
-            **attempt,
+            **point,
         }
         for material in material_contexts
-        for attempt in material["quizStats"]["weakAttempts"]
+        for point in material["quizStats"]["weakPoints"]
+    ]
+    unresolved_weak_points = [point for point in weak_points if not point["resolved"]]
+    weak_attempts = [
+        {
+            "materialId": point["materialId"],
+            "title": point["title"],
+            "quizId": point["quizId"],
+            "score": point["latestScore"],
+            "feedback": point["latestFeedback"],
+            "suggestion": "",
+            "createdAt": point["latestAttemptAt"],
+        }
+        for point in unresolved_weak_points
     ]
 
     return {
@@ -167,6 +200,9 @@ def _quiz_context(material_contexts: list[dict]) -> dict:
         "attemptTotal": attempt_total,
         "weakAttemptCount": len(weak_attempts),
         "weakAttempts": weak_attempts[:5],
+        "weakPointCount": len(weak_points),
+        "unresolvedWeakPointCount": len(unresolved_weak_points),
+        "unresolvedWeakPoints": unresolved_weak_points[:5],
     }
 
 
@@ -329,24 +365,24 @@ def _flashcard_stats(flashcards: list[dict]) -> dict:
     }
 
 
-def _material_quiz_stats(questions: list[dict], attempts: list[dict]) -> dict:
-    weak_attempts = [
-        {
-            "quizId": attempt["quizId"],
-            "score": attempt["score"],
-            "feedback": _preview(attempt["feedback"], 120),
-            "suggestion": _preview(attempt["suggestion"], 120),
-            "createdAt": attempt["createdAt"],
-        }
-        for attempt in attempts
-        if attempt["score"] < 60 or not attempt["isCorrect"]
-    ]
+def _material_quiz_stats(questions: list[dict], attempts: list[dict], weak_points: list[dict]) -> dict:
     latest_score = attempts[0]["score"] if attempts else None
     return {
         "questionCount": len(questions),
         "attemptCount": len(attempts),
         "latestScore": latest_score,
-        "weakAttempts": weak_attempts[:3],
+        "weakPoints": weak_points,
+        "weakAttempts": [
+            {
+                "quizId": point["quizId"],
+                "score": point["latestScore"],
+                "feedback": _preview(point["latestFeedback"], 120),
+                "suggestion": "",
+                "createdAt": point["latestAttemptAt"],
+            }
+            for point in weak_points
+            if not point["resolved"]
+        ][:3],
     }
 
 

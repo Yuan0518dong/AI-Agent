@@ -3,9 +3,11 @@ import math
 import re
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException
+from fsrs import Card
 
 from backend.app.services import database, embedding_provider, model_usage_service
 
@@ -105,6 +107,11 @@ def init_db() -> None:
                     front TEXT NOT NULL,
                     back TEXT NOT NULL,
                     status TEXT NOT NULL,
+                    fsrs_card TEXT NOT NULL DEFAULT '',
+                    due_at TEXT NOT NULL DEFAULT '',
+                    last_reviewed_at TEXT,
+                    review_count INTEGER NOT NULL DEFAULT 0,
+                    last_rating TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
@@ -717,75 +724,24 @@ def replace_flashcards_for_material(
     material_id: str,
     next_flashcards: list[dict],
 ) -> list[dict]:
-    with _connect() as conn:
-        conn.execute("DELETE FROM flashcards WHERE material_id = ?", (material_id,))
-        conn.executemany(
-            """
-            INSERT INTO flashcards (
-                id, material_id, front, back, status, created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    flashcard["id"],
-                    flashcard["materialId"],
-                    flashcard["front"],
-                    flashcard["back"],
-                    flashcard["status"],
-                    flashcard["createdAt"],
-                    flashcard["updatedAt"],
-                )
-                for flashcard in next_flashcards
-            ],
-        )
-    return list_flashcards_for_material(material_id)
+    # Historical callers remain supported, but all writes now receive one
+    # FSRS schedule through the centralized review service.
+    from backend.app.services import flashcard_review_service
+
+    return flashcard_review_service.replace_flashcards_for_material(material_id, next_flashcards)
 
 
 def create_flashcard_for_material(flashcard: dict) -> dict:
-    with _connect() as conn:
-        conn.execute(
-            """
-            INSERT INTO flashcards (
-                id, material_id, front, back, status, created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                flashcard["id"],
-                flashcard["materialId"],
-                flashcard["front"],
-                flashcard["back"],
-                flashcard["status"],
-                flashcard["createdAt"],
-                flashcard["updatedAt"],
-            ),
-        )
-    return flashcard
+    from backend.app.services import flashcard_review_service
+
+    return flashcard_review_service.create_flashcard_for_material(flashcard)
 
 
 def update_flashcard_status(material_id: str, flashcard_id: str, status: str, updated_at: str) -> dict | None:
-    with _connect() as conn:
-        row = conn.execute(
-            """
-            SELECT * FROM flashcards
-            WHERE id = ? AND material_id = ?
-            """,
-            (flashcard_id, material_id),
-        ).fetchone()
-        if not row:
-            return None
+    del updated_at
+    from backend.app.services import flashcard_review_service
 
-        conn.execute(
-            """
-            UPDATE flashcards
-            SET status = ?, updated_at = ?
-            WHERE id = ? AND material_id = ?
-            """,
-            (status, updated_at, flashcard_id, material_id),
-        )
-
-    return get_flashcard(material_id, flashcard_id)
+    return flashcard_review_service.apply_legacy_status(material_id, flashcard_id, status)
 
 
 def get_flashcard(material_id: str, flashcard_id: str) -> dict | None:
@@ -818,6 +774,11 @@ def replace_quiz_questions_for_material(
     next_questions: list[dict],
 ) -> list[dict]:
     with _connect() as conn:
+        if conn.execute(
+            "SELECT 1 FROM quiz_attempts WHERE material_id = ? LIMIT 1",
+            (material_id,),
+        ).fetchone():
+            raise QuizHistoryExistsError("quiz_history_exists")
         conn.execute("DELETE FROM quiz_questions WHERE material_id = ?", (material_id,))
         conn.executemany(
             """
@@ -888,11 +849,88 @@ def list_quiz_attempts_for_material(material_id: str) -> list[dict]:
             """
             SELECT * FROM quiz_attempts
             WHERE material_id = ?
-            ORDER BY created_at DESC
+            ORDER BY created_at DESC, id DESC
             """,
             (material_id,),
         ).fetchall()
     return [_quiz_attempt_from_row(row) for row in rows]
+
+
+class QuizHistoryExistsError(ValueError):
+    """Replacing questions would delete persisted quiz attempt history."""
+
+
+def has_quiz_attempts_for_material(material_id: str) -> bool:
+    with _connect() as conn:
+        return bool(
+            conn.execute(
+                "SELECT 1 FROM quiz_attempts WHERE material_id = ? LIMIT 1",
+                (material_id,),
+            ).fetchone()
+        )
+
+
+def list_weak_points_for_material(material_id: str, material_title: str = "") -> list[dict]:
+    questions = {
+        question["id"]: question
+        for question in list_quiz_questions_for_material(material_id)
+    }
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM quiz_attempts
+            WHERE material_id = ?
+            ORDER BY created_at ASC, id ASC
+            """,
+            (material_id,),
+        ).fetchall()
+
+    points: dict[str, dict] = {}
+    for row in rows:
+        attempt = _quiz_attempt_from_row(row)
+        question = questions.get(attempt["quizId"])
+        if not question:
+            continue
+        is_weak_attempt = not attempt["isCorrect"] or attempt["score"] < 70
+        point = points.setdefault(
+            attempt["quizId"],
+            {
+                "quizId": attempt["quizId"],
+                "question": question["question"],
+                "materialId": material_id,
+                "materialTitle": material_title,
+                "wrongCount": 0,
+                "latestScore": None,
+                "latestFeedback": "",
+                "latestAttemptAt": "",
+                "resolved": False,
+            },
+        )
+        if is_weak_attempt:
+            point["wrongCount"] += 1
+        point["latestScore"] = attempt["score"]
+        point["latestFeedback"] = attempt["feedback"]
+        point["latestAttemptAt"] = attempt["createdAt"]
+        point["resolved"] = not is_weak_attempt
+
+    return sorted(
+        [point for point in points.values() if point["wrongCount"] > 0],
+        key=lambda point: (point["latestAttemptAt"], point["quizId"]),
+        reverse=True,
+    )
+
+
+def list_weak_points_for_scope(goal_id: str | None, user_id: str | None) -> list[dict]:
+    points = [
+        point
+        for material in list_materials(goal_id=goal_id, user_id=user_id)
+        for point in list_weak_points_for_material(material["id"], material["title"])
+    ]
+    return sorted(
+        points,
+        key=lambda point: (point["latestAttemptAt"], point["quizId"]),
+        reverse=True,
+    )
 
 
 def extract_keywords(text: str) -> list[str]:
@@ -979,12 +1017,50 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
                 else f"ALTER TABLE material_qa_records ADD COLUMN {column} INTEGER NOT NULL DEFAULT {default}"
             )
 
+    flashcard_columns = _column_names(conn, "flashcards")
+    flashcard_defaults = {
+        "fsrs_card": "TEXT NOT NULL DEFAULT ''",
+        "due_at": "TEXT NOT NULL DEFAULT ''",
+        "last_reviewed_at": "TEXT",
+        "review_count": "INTEGER NOT NULL DEFAULT 0",
+        "last_rating": "TEXT",
+    }
+    for column, definition in flashcard_defaults.items():
+        if column not in flashcard_columns:
+            conn.execute(f"ALTER TABLE flashcards ADD COLUMN {column} {definition}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_flashcards_due_at ON flashcards(due_at)")
+
+    # Legacy status alone is not trusted review history. Initialize its FSRS
+    # state in this transaction as an immediately due, unreviewed card.
+    _initialize_legacy_flashcards(conn)
+
 
 def _column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {
         row["name"]
         for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     }
+
+
+def _initialize_legacy_flashcards(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT id FROM flashcards
+        WHERE fsrs_card IS NULL OR fsrs_card = '' OR due_at IS NULL OR due_at = ''
+        """
+    ).fetchall()
+    now = datetime.now(timezone.utc)
+    for offset, row in enumerate(rows):
+        card = Card(card_id=int(now.timestamp() * 1000) + offset, due=now)
+        conn.execute(
+            """
+            UPDATE flashcards
+            SET status = ?, fsrs_card = ?, due_at = ?, last_reviewed_at = NULL,
+                review_count = 0, last_rating = NULL, updated_at = ?
+            WHERE id = ?
+            """,
+            ("new", card.to_json(), now.isoformat(), now.isoformat(), row["id"]),
+        )
 
 
 def _material_from_row(row: sqlite3.Row) -> dict:
@@ -1028,6 +1104,11 @@ def _flashcard_from_row(row: sqlite3.Row) -> dict:
         "front": row["front"],
         "back": row["back"],
         "status": row["status"],
+        "fsrsCard": row["fsrs_card"],
+        "dueAt": row["due_at"],
+        "lastReviewedAt": row["last_reviewed_at"],
+        "reviewCount": int(row["review_count"]),
+        "lastRating": row["last_rating"],
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }

@@ -109,6 +109,11 @@ jobs:
       - name: Apply PostgreSQL migrations
         run: python -m alembic -c backend/alembic.ini upgrade head
 
+      - name: Verify latest PostgreSQL migration rollback
+        run: |
+          python -m alembic -c backend/alembic.ini downgrade -1
+          python -m alembic -c backend/alembic.ini upgrade head
+
       - name: Run PostgreSQL integration tests
         run: python -m pytest backend/tests -m postgres -q --tb=short
 

@@ -256,6 +256,11 @@ def init_db() -> None:
                 front TEXT NOT NULL,
                 back TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'new',
+                fsrs_card TEXT NOT NULL DEFAULT '',
+                due_at TEXT NOT NULL DEFAULT '',
+                last_reviewed_at TEXT,
+                review_count INTEGER NOT NULL DEFAULT 0,
+                last_rating TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE

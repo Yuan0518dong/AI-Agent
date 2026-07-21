@@ -12,8 +12,13 @@ from fastapi.routing import APIRoute, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.app.routers import agent, auth, dashboard, goals, materials, progress, tasks
-from backend.app.services import embedding_provider, rate_limit_service, store
+from backend.app.routers import agent, auth, dashboard, goals, materials, progress, review, tasks
+from backend.app.services import (
+    embedding_provider,
+    flashcard_review_service,
+    rate_limit_service,
+    store,
+)
 
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "app"
@@ -102,6 +107,32 @@ async def handle_http_exception(request: Request, exc: HTTPException):
     )
 
 
+@app.exception_handler(flashcard_review_service.FlashcardScheduleError)
+async def handle_flashcard_schedule_error(
+    request: Request,
+    exc: flashcard_review_service.FlashcardScheduleError,
+):
+    return _error_response(
+        request,
+        status_code=409,
+        error_type="flashcard_schedule_invalid",
+        message=str(exc),
+    )
+
+
+@app.exception_handler(flashcard_review_service.FlashcardReviewConflictError)
+async def handle_flashcard_review_conflict(
+    request: Request,
+    exc: flashcard_review_service.FlashcardReviewConflictError,
+):
+    return _error_response(
+        request,
+        status_code=409,
+        error_type="flashcard_review_conflict",
+        message=str(exc),
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def handle_validation_exception(request: Request, exc: RequestValidationError):
     field_errors = {
@@ -182,6 +213,7 @@ include_api_router(goals.router, prefix="/api/goals", tags=["goals"])
 include_api_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 include_api_router(progress.router, prefix="/api/progress", tags=["progress"])
 include_api_router(materials.router, prefix="/api/materials", tags=["materials"])
+include_api_router(review.router, prefix="/api/review", tags=["review"])
 include_api_router(agent.router, prefix="/api/agent", tags=["agent"])
 include_api_router(auth.router, prefix="/api/auth", tags=["auth"])
 include_api_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])

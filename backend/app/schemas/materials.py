@@ -34,5 +34,9 @@ class FlashcardStatusUpdate(BaseModel):
     status: str = Field(pattern="^(new|known|review)$")
 
 
+class FlashcardReviewCreate(BaseModel):
+    rating: str = Field(pattern="^(again|hard|good|easy)$")
+
+
 class QuizAnswerSubmit(BaseModel):
     answer: str = Field(min_length=1)

@@ -2,7 +2,7 @@ import hashlib
 import json
 from typing import Any
 
-from backend.app.services import store
+from backend.app.services import flashcard_review_service, store
 
 
 VALID_DRAFT_TYPES = {"review", "task"}
@@ -400,12 +400,15 @@ def _apply_formal_entity(
         front = _required_text(payload, "front")
         back = _required_text(payload, "back")
         entity_id = store.make_id("flashcard")
-        conn.execute(
-            """
-            INSERT INTO flashcards (id, material_id, front, back, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (entity_id, material_id, front, back, "new", now, now),
+        flashcard_review_service.insert_scheduled_flashcard(
+            conn,
+            flashcard_review_service.new_scheduled_flashcard(
+                material_id=material_id,
+                front=front,
+                back=back,
+                flashcard_id=entity_id,
+                now=now,
+            ),
         )
         return entity_id
 
