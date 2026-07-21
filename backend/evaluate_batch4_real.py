@@ -186,6 +186,7 @@ def run_real_agent_evaluation(
     report["metadata"].update(
         {
             "provider": "DeepSeek configured OpenAI-compatible provider",
+            "promptVersion": agent_decision_provider.PROMPT_VERSION,
             "scenarioFixture": str(SCENARIO_PATH.relative_to(ROOT_DIR)).replace("\\", "/"),
             "scenarioFixtureSha256": hashlib.sha256(SCENARIO_PATH.read_bytes()).hexdigest(),
             "authorizedRequestCeiling": authorization.max_requests,
@@ -193,6 +194,7 @@ def run_real_agent_evaluation(
             "tokenCostMethod": "Reported prompt/completion tokens multiplied by the documented cache-miss rate; this is an estimate, not an invoice.",
             "promptReservation": "Each request was capped at 12,000 UTF-8 bytes before send; one byte per token was reserved conservatively.",
             "runCreation": "A rule-based initial snapshot avoids a discarded paid creation decision; execution uses real llm-json decisions.",
+            "fallbackCountMethod": "Count persisted Step decisions plus a distinct terminal Run decision when it is not represented by a Step.",
         }
     )
     _write_report(report_dir, report)
@@ -412,11 +414,29 @@ def _run_scenario_repeat(
         "terminalStatus": final_run["status"],
         "toolSequence": tools,
         "durationMs": duration_ms,
-        "fallbackDecisionCount": sum(
-            1 for step in steps if bool((step.get("decisionSnapshot") or {}).get("fallbackReason"))
-        ),
+        "fallbackDecisionCount": _count_persisted_fallback_decisions(final_run),
         **ledger.delta(before),
     }
+
+
+def _count_persisted_fallback_decisions(final_run: dict) -> int:
+    step_decisions = [
+        step.get("decisionSnapshot") or {}
+        for step in final_run.get("steps") or []
+    ]
+    count = sum(bool(decision.get("fallbackReason")) for decision in step_decisions)
+    terminal_decision = final_run.get("decisionSnapshot") or {}
+    if (
+        terminal_decision.get("fallbackReason")
+        and _decision_fingerprint(terminal_decision)
+        not in {_decision_fingerprint(decision) for decision in step_decisions}
+    ):
+        count += 1
+    return count
+
+
+def _decision_fingerprint(decision: dict) -> str:
+    return json.dumps(decision, ensure_ascii=False, sort_keys=True)
 
 
 def _prepare_fixture(client: TestClient, scenario: dict, user_id: str) -> tuple[dict, dict]:

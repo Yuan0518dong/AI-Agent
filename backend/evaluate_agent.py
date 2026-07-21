@@ -13,6 +13,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from backend.app.main import app
 from backend.app.services import (
+    agent_decision_provider,
     agent_decision_guard_service,
     agent_decision_service,
     agent_draft_service,
@@ -100,7 +101,7 @@ def _run_case(client: TestClient, scenario: dict, user_id: str) -> dict:
         "durationMs": round((time.monotonic() - started) * 1000),
         "model": "",
         "provider": "mock",
-        "promptVersion": "batch-c-v1",
+        "promptVersion": agent_decision_provider.PROMPT_VERSION,
         "fallbackReason": "LLM decision provider is unavailable.",
         "unauthorizedWriteCount": 0,
         "duplicateFormalWriteCount": 0,

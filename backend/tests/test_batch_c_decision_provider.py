@@ -84,7 +84,7 @@ def _model_decision(action_type: str = "review_material", payload: dict | None =
     )
 
 
-def test_batch_c_prompt_contains_context_objective_tools_and_previous_steps(monkeypatch):
+def test_batch_c_prompt_contains_context_objective_actions_and_previous_steps(monkeypatch):
     captured_payloads = []
 
     class Provider:
@@ -103,12 +103,16 @@ def test_batch_c_prompt_contains_context_objective_tools_and_previous_steps(monk
     assert prompt["context"]["materials"][0]["id"] == "material_1"
     assert prompt["runObjective"] == "Find grounded evidence for the next learning action."
     assert prompt["previousSteps"][0]["toolName"] == "search_materials"
-    assert {tool["name"] for tool in prompt["availableTools"]} >= {"review_material", "search_materials"}
+    actions = {action["type"]: action for action in prompt["availableActions"]}
+    assert {"review_material", "search_materials", "create_followup_tasks", "reschedule_tasks"} <= set(actions)
+    assert actions["create_followup_tasks"]["toolName"] == "create_task_draft"
+    assert actions["create_followup_tasks"]["draftOnly"] is True
+    assert "create_task_draft" not in actions
     assert decision["reflection"] == ""
     assert decision["providerMetadata"] == {
         "provider": "openai-compatible",
         "model": "decision-test",
-        "promptVersion": "batch-c-v1",
+        "promptVersion": "agent-reliability-a2-policy-v1",
         "durationMs": decision["providerMetadata"]["durationMs"],
         "formatRepairAttempted": False,
         "contextWindow": {
@@ -117,6 +121,45 @@ def test_batch_c_prompt_contains_context_objective_tools_and_previous_steps(monk
             "promptCharacters": decision["providerMetadata"]["contextWindow"]["promptCharacters"],
         },
     }
+
+
+def test_action_policy_limits_prompt_and_guard_to_the_same_action_types(monkeypatch):
+    captured_payloads = []
+
+    class Provider:
+        mode = "openai-compatible"
+        model = "decision-test"
+
+        def _post_chat_completion(self, payload):
+            captured_payloads.append(payload)
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": _model_decision(
+                                "create_followup_tasks",
+                                {"goalIds": ["goal_1"]},
+                            )
+                        }
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(agent_decision_provider.llm_provider, "get_llm_provider", lambda: Provider())
+
+    decision = agent_decision_provider.decide_with_llm_json(
+        _context(),
+        _fallback(),
+        "hybrid",
+        allowed_action_types={"search_materials"},
+    )
+
+    prompt = json.loads(captured_payloads[0]["messages"][1]["content"])
+    assert [action["type"] for action in prompt["availableActions"]] == ["search_materials"]
+    assert decision["mode"] == "rule-based"
+    assert "not allowed in the current state" in decision["fallbackReason"]
+    assert decision["nextAction"] == ""
+    assert decision["proposedActions"] == []
 
 
 def test_batch_c_retries_one_format_repair_before_accepting_decision(monkeypatch):

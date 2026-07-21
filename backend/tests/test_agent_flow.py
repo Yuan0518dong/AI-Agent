@@ -392,7 +392,7 @@ def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
 
         def _post_chat_completion(self, payload):
             assert payload["response_format"]["type"] == "json_object"
-            assert '"availableTools"' in payload["messages"][1]["content"]
+            assert '"availableActions"' in payload["messages"][1]["content"]
             assert '"review_material"' in payload["messages"][1]["content"]
             return {
                 "choices": [
@@ -432,7 +432,7 @@ def test_agent_decision_hybrid_accepts_valid_llm_json(monkeypatch):
     assert decision["nextAction"] == "review_material"
     assert decision["reflection"] == ""
     assert decision["providerMetadata"]["provider"] == "openai-compatible"
-    assert decision["providerMetadata"]["promptVersion"] == "batch-c-v1"
+    assert decision["providerMetadata"]["promptVersion"] == "agent-reliability-a2-policy-v1"
     assert decision["decisionGuard"]["status"] == "accepted"
     assert decision["decisionGuard"]["interventions"] == []
     assert decision["proposedActions"][0]["toolName"] == "review_material"

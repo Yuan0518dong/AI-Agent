@@ -1,0 +1,449 @@
+{
+  "metadata": {
+    "sourceReportExecutionMode": "configured-deepseek-real-agent",
+    "scenarioFixtureSha256": "7225f774bdd17b15f42416c09ad9ffaffa6a9c0208f205a5b7dc3a4ab2ff6aed",
+    "analysisRule": "Classify every preserved failed run without changing fixtures or pass criteria."
+  },
+  "baseline": {
+    "runCount": 60,
+    "scenarioCount": 20,
+    "runsPerScenario": 3,
+    "toolSelectionSuccessRate": 0.75,
+    "confirmationCompleteness": 0.6667,
+    "recoverySuccessRate": 1.0,
+    "fallbackDecisionCount": 27,
+    "providerRequests": 93,
+    "estimatedCostUsd": 0.028624
+  },
+  "summary": {
+    "failedRunCount": 15,
+    "failingScenarioCount": 7,
+    "systematicScenarioCount": 2,
+    "intermittentScenarioCount": 5,
+    "failureRunsByFamily": {
+      "confirmation_state": 3,
+      "feedback_memory": 2,
+      "scope_and_evidence": 2,
+      "semantic_routing": 4,
+      "terminal_control": 1,
+      "tool_failure_recovery": 3
+    }
+  },
+  "scenarios": [
+    {
+      "scenarioId": "agent_case_003",
+      "category": "happy_path",
+      "objective": "Find grounded revision evidence.",
+      "failureCount": 2,
+      "systematicAcrossRepeats": false,
+      "expected": {
+        "allowedTools": [
+          "search_materials",
+          "answer_with_sources",
+          "answer_only"
+        ],
+        "requiredTools": [
+          "search_materials"
+        ],
+        "forbiddenTools": [],
+        "terminalStatuses": [
+          "completed",
+          "max_steps"
+        ],
+        "stateAssertions": [
+          "scoped_references"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_003#1",
+          "repeat": 1,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "search_materials"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "semantic_routing"
+        },
+        {
+          "runId": "agent_case_003#2",
+          "repeat": 2,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "search_materials"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "semantic_routing"
+        }
+      ]
+    },
+    {
+      "scenarioId": "agent_case_004",
+      "category": "happy_path",
+      "objective": "Create a review draft from the weak quiz result.",
+      "failureCount": 2,
+      "systematicAcrossRepeats": false,
+      "expected": {
+        "allowedTools": [
+          "create_review_draft",
+          "apply_confirmed_draft",
+          "answer_only"
+        ],
+        "requiredTools": [
+          "create_review_draft"
+        ],
+        "forbiddenTools": [],
+        "terminalStatuses": [
+          "waiting_confirmation",
+          "completed",
+          "max_steps"
+        ],
+        "stateAssertions": [
+          "review_draft_created"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_004#1",
+          "repeat": 1,
+          "observedTools": [
+            "answer_only"
+          ],
+          "missingRequiredTools": [
+            "create_review_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "semantic_routing"
+        },
+        {
+          "runId": "agent_case_004#2",
+          "repeat": 2,
+          "observedTools": [
+            "answer_only"
+          ],
+          "missingRequiredTools": [
+            "create_review_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "semantic_routing"
+        }
+      ]
+    },
+    {
+      "scenarioId": "agent_case_008",
+      "category": "insufficient_material",
+      "objective": "Search only the selected goal.",
+      "failureCount": 2,
+      "systematicAcrossRepeats": false,
+      "expected": {
+        "allowedTools": [
+          "search_materials",
+          "suggest_material_gap"
+        ],
+        "requiredTools": [
+          "search_materials"
+        ],
+        "forbiddenTools": [],
+        "terminalStatuses": [
+          "completed",
+          "max_steps"
+        ],
+        "stateAssertions": [
+          "goal_scoped_references"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_008#1",
+          "repeat": 1,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "search_materials"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "scope_and_evidence"
+        },
+        {
+          "runId": "agent_case_008#3",
+          "repeat": 3,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "search_materials"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "scope_and_evidence"
+        }
+      ]
+    },
+    {
+      "scenarioId": "agent_case_014",
+      "category": "confirmation",
+      "objective": "Resume and apply a confirmed review draft once.",
+      "failureCount": 3,
+      "systematicAcrossRepeats": true,
+      "expected": {
+        "allowedTools": [
+          "create_review_draft",
+          "apply_confirmed_draft"
+        ],
+        "requiredTools": [
+          "apply_confirmed_draft"
+        ],
+        "forbiddenTools": [],
+        "terminalStatuses": [
+          "max_steps",
+          "completed"
+        ],
+        "stateAssertions": [
+          "resume_idempotent"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_014#1",
+          "repeat": 1,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "apply_confirmed_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": true,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "confirmation_state"
+        },
+        {
+          "runId": "agent_case_014#2",
+          "repeat": 2,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "apply_confirmed_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": true,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "confirmation_state"
+        },
+        {
+          "runId": "agent_case_014#3",
+          "repeat": 3,
+          "observedTools": [
+            "answer_only"
+          ],
+          "missingRequiredTools": [
+            "apply_confirmed_draft"
+          ],
+          "unexpectedTools": [
+            "answer_only"
+          ],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": true,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "confirmation_state"
+        }
+      ]
+    },
+    {
+      "scenarioId": "agent_case_016",
+      "category": "tool_failure",
+      "objective": "Roll back an invalid draft batch.",
+      "failureCount": 3,
+      "systematicAcrossRepeats": true,
+      "expected": {
+        "allowedTools": [
+          "apply_confirmed_draft"
+        ],
+        "requiredTools": [
+          "apply_confirmed_draft"
+        ],
+        "forbiddenTools": [],
+        "terminalStatuses": [
+          "failed"
+        ],
+        "stateAssertions": [
+          "transaction_rollback"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_016#1",
+          "repeat": 1,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "apply_confirmed_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": true,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "tool_failure_recovery"
+        },
+        {
+          "runId": "agent_case_016#2",
+          "repeat": 2,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "apply_confirmed_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": true,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "tool_failure_recovery"
+        },
+        {
+          "runId": "agent_case_016#3",
+          "repeat": 3,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "apply_confirmed_draft"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": true,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "tool_failure_recovery"
+        }
+      ]
+    },
+    {
+      "scenarioId": "agent_case_018",
+      "category": "terminal",
+      "objective": "Stop when every proposed action is already attempted.",
+      "failureCount": 1,
+      "systematicAcrossRepeats": false,
+      "expected": {
+        "allowedTools": [
+          "search_materials"
+        ],
+        "requiredTools": [
+          "search_materials"
+        ],
+        "forbiddenTools": [],
+        "terminalStatuses": [
+          "completed"
+        ],
+        "stateAssertions": [
+          "no_progress_reflection"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_018#2",
+          "repeat": 2,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "search_materials"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "terminal_control"
+        }
+      ]
+    },
+    {
+      "scenarioId": "agent_case_019",
+      "category": "feedback_memory",
+      "objective": "Avoid a recently rejected review action.",
+      "failureCount": 2,
+      "systematicAcrossRepeats": false,
+      "expected": {
+        "allowedTools": [
+          "answer_only"
+        ],
+        "requiredTools": [
+          "answer_only"
+        ],
+        "forbiddenTools": [
+          "create_review_draft"
+        ],
+        "terminalStatuses": [
+          "completed",
+          "max_steps"
+        ],
+        "stateAssertions": [
+          "rejected_action_avoided"
+        ]
+      },
+      "failedRuns": [
+        {
+          "runId": "agent_case_019#1",
+          "repeat": 1,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "answer_only"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "feedback_memory"
+        },
+        {
+          "runId": "agent_case_019#3",
+          "repeat": 3,
+          "observedTools": [],
+          "missingRequiredTools": [
+            "answer_only"
+          ],
+          "unexpectedTools": [],
+          "usedForbiddenTools": [],
+          "terminalStatus": "completed",
+          "terminalMismatch": false,
+          "confirmationIncomplete": false,
+          "fallbackDecisionCount": 0,
+          "failureFamily": "feedback_memory"
+        }
+      ]
+    }
+  ]
+}

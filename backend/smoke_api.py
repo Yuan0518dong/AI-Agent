@@ -10,7 +10,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from backend.app.main import app
-from backend.app.services import store
+from backend.app.services import agent_decision_provider, store
 
 
 def _register_disposable_session(client: TestClient) -> None:
@@ -248,8 +248,8 @@ def main() -> None:
             hybrid_metadata = agent_hybrid_decision.get("providerMetadata") or {}
             if hybrid_metadata.get("provider") != "mock":
                 raise RuntimeError("Agent hybrid smoke did not keep Mock as the CI fallback provider")
-            if hybrid_metadata.get("promptVersion") != "batch-c-v1":
-                raise RuntimeError("Agent hybrid smoke did not record the Batch C prompt version")
+            if hybrid_metadata.get("promptVersion") != agent_decision_provider.PROMPT_VERSION:
+                raise RuntimeError("Agent hybrid smoke did not record the current prompt version")
 
             agent_tools_response = client.get("/api/agent/tools")
             agent_tools_response.raise_for_status()
