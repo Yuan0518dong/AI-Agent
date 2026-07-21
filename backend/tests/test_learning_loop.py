@@ -172,6 +172,29 @@ def test_invalid_fsrs_json_is_rejected_without_resetting_state():
     assert persisted["status"] == "new"
 
 
+def test_inconsistent_schedule_metadata_is_rejected_without_resetting_state():
+    goal = create_goal()
+    material = create_material(goal["id"])
+    flashcard = create_flashcard(material["id"])
+    with store.db_connection() as conn:
+        conn.execute(
+            "UPDATE flashcards SET status = 'known' WHERE id = ?",
+            (flashcard["id"],),
+        )
+
+    response = client.get(f"/api/materials/{material['id']}/flashcards")
+    assert response.status_code == 409
+    assert response.json()["error"]["type"] == "flashcard_schedule_invalid"
+    with store.db_connection() as conn:
+        persisted = conn.execute(
+            "SELECT status, review_count, last_rating FROM flashcards WHERE id = ?",
+            (flashcard["id"],),
+        ).fetchone()
+    assert persisted["status"] == "known"
+    assert persisted["review_count"] == 0
+    assert persisted["last_rating"] is None
+
+
 def test_sqlite_legacy_flashcard_initializes_due_now_without_fabricating_history():
     goal = create_goal()
     material = create_material(goal["id"])

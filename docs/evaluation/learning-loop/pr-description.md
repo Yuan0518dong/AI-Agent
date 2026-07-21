@@ -15,6 +15,7 @@
 ## 安全与数据不变量
 
 - `fsrs_card` 是调度事实来源，`due_at` 必须等于其 `Card.due`；相关字段在一个事务中成功或回滚。
+- `reviewCount/status/lastRating/lastReviewedAt/Card.last_review` 也必须互相一致；矛盾记录返回 `409 flashcard_schedule_invalid`，不静默修复。
 - 损坏 FSRS JSON 返回 `409 flashcard_schedule_invalid`，不静默重置历史。
 - 旧卡不依据旧 status 伪造历史，统一转为立即到期、未复习。
 - 不增加弱项表、不提供破坏性 reset，不删除已有 quiz attempts。
@@ -22,7 +23,7 @@
 
 ## 验证
 
-- 全量 Mock：`193 passed, 5 skipped`
+- 全量 Mock：`194 passed, 5 skipped`
 - 隔离 PostgreSQL/pgvector：`5 passed`，已验证 `20260721_03`
 - Playwright（桌面、390px、axe）：`1 passed`
 - 本轮没有真实 Provider 请求、Token 或成本。

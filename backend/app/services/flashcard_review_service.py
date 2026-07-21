@@ -46,13 +46,15 @@ def new_scheduled_flashcard(
     now: datetime | str | None = None,
 ) -> dict:
     """Create an immediately due, UTC FSRS card without inventing history."""
+    front_text = _required_text({"front": front}, "front")
+    back_text = _required_text({"back": back}, "back")
     created_at = _as_utc_datetime(now)
     fsrs_card = Card(due=created_at)
     return {
         "id": flashcard_id or store.make_id("flashcard"),
         "materialId": material_id,
-        "front": front.strip(),
-        "back": back.strip(),
+        "front": front_text,
+        "back": back_text,
         "status": "new",
         "fsrsCard": fsrs_card.to_json(),
         "dueAt": _iso_utc(fsrs_card.due),
@@ -75,6 +77,10 @@ def normalize_scheduled_flashcard(flashcard: dict) -> dict:
     }
     if required_schedule_fields <= flashcard.keys():
         normalized = dict(flashcard)
+        normalized["front"] = _required_text(normalized, "front")
+        normalized["back"] = _required_text(normalized, "back")
+        if not isinstance(normalized.get("status"), str):
+            raise ValueError("Flashcard status must be a string.")
         _load_schedule(normalized)
         return normalized
 
@@ -269,6 +275,28 @@ def _load_schedule(flashcard: dict) -> Card:
         raise FlashcardScheduleError("flashcard_schedule_invalid") from exc
     if _iso_utc(fsrs_card.due) != _iso_utc(due_at):
         raise FlashcardScheduleError("flashcard_schedule_invalid")
+    try:
+        review_count = int(flashcard["reviewCount"])
+        last_rating = flashcard["lastRating"]
+        last_reviewed_at = flashcard["lastReviewedAt"]
+        status = flashcard["status"]
+    except (KeyError, TypeError, ValueError) as exc:
+        raise FlashcardScheduleError("flashcard_schedule_invalid") from exc
+    if review_count < 0:
+        raise FlashcardScheduleError("flashcard_schedule_invalid")
+    if review_count == 0:
+        if status != "new" or last_rating is not None or last_reviewed_at is not None:
+            raise FlashcardScheduleError("flashcard_schedule_invalid")
+        if fsrs_card.last_review is not None:
+            raise FlashcardScheduleError("flashcard_schedule_invalid")
+        return fsrs_card
+    if last_rating not in RATINGS or status != STATUS_BY_RATING[last_rating] or not last_reviewed_at:
+        raise FlashcardScheduleError("flashcard_schedule_invalid")
+    try:
+        if _iso_utc(fsrs_card.last_review) != _iso_utc(_as_utc_datetime(last_reviewed_at)):
+            raise FlashcardScheduleError("flashcard_schedule_invalid")
+    except (TypeError, ValueError) as exc:
+        raise FlashcardScheduleError("flashcard_schedule_invalid") from exc
     return fsrs_card
 
 
