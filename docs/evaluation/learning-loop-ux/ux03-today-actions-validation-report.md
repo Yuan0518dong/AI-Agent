@@ -41,3 +41,5 @@
 ## Provider 与历史证据
 
 Provider 请求、Token 与成本均为 `0`。本记录不改写 REL 的 A0/A2/A3、legacy/corrected 或任何既有失败证据。
+
+UX-03 实现本地提交：`0707f63 feat: add bounded today actions`。未推送、未创建 PR、未合并、未部署。
