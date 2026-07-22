@@ -201,6 +201,9 @@ async function respondToAgentConfirmation(run, status, triggerButton = null) {
   try {
     await agentApi.updateActionLog(waitingStep.actionLogId, { status });
     await syncAgentRunState(await agentApi.advanceRun(run.id));
+    if (status === "accepted" && waitingStep.toolName === "apply_confirmed_draft") {
+      await loadMaterialDataFromApi();
+    }
     await refreshAgentContext(null, selectedGoalId);
     showSuccess(status === "accepted" ? "已确认当前步骤" : "已拒绝写入，任务将继续判断");
   } catch (error) {
