@@ -11,9 +11,10 @@ docs/portfolio/架构与评测边界.md
 docs/portfolio/简历材料.md
 docs/portfolio/90秒演示脚本.md
 docs/videos/v7-batch4-90s-demo.webm
+docs/evaluation/产品收口最终验收报告.md
 ```
 
-这些材料分别说明项目定位、个人贡献边界、架构与评测口径、简历 Bullet 和演示流程。公开 Demo 与录屏使用 Mock Provider，真实模型结论只引用独立评测报告。
+这些材料分别说明项目定位、个人贡献边界、架构与评测口径、简历 Bullet 和演示流程。`产品收口最终验收报告.md` 是当前对外指标的唯一汇总来源；公开 Demo 与录屏使用 Mock Provider，真实模型结论只引用报告中并列保留的原始证据。
 
 ## 当前开发入口
 
@@ -21,11 +22,12 @@ docs/videos/v7-batch4-90s-demo.webm
 docs/planning/个人学习助手后续任务执行文档.md
 docs/status/当前状态.md
 docs/planning/AI-Agent简历与面试讲解稿.md
+docs/evaluation/产品收口最终验收报告.md
 docs/evaluation/真实Agent决策失败分类与可靠性实验基线.md
 docs/evaluation/真实Agent可靠性A3候选设计与离线验收.md
 ```
 
-`个人学习助手后续任务执行文档.md` 是唯一当前计划入口；历史“第几版”计划只用于追溯。后续按 Agent 可靠性、学习空间、间隔复习、薄弱点、学习教练、引用详情和完整验收的顺序推进。
+`个人学习助手后续任务执行文档.md` 是唯一当前计划入口；历史“第几版”计划只用于追溯。第 4 周已收口，项目现处于维护状态：只处理 P0 和时间盒内的黄金流程 P1；新增功能和远程操作需要新的独立任务与授权。
 
 ## 评测与验收
 
@@ -35,13 +37,20 @@ docs/evaluation/第七版Batch4问答评测报告.json
 docs/evaluation/第七版Batch4AgentMock评测报告.json
 docs/evaluation/第七版Batch4Agent真实模型评测报告.md
 docs/evaluation/第七版Batch4Agent真实模型评测报告.json
+docs/evaluation/agent-reliability-rel/corrected-real-provider-report.md
+docs/evaluation/learning-loop-ux/close02-golden-flow-validation-report.md
+docs/evaluation/learning-loop-ux/close03-role-acceptance-report.md
+docs/evaluation/release-v7.1.0/ship01-release-audit.md
+docs/evaluation/release-v7.1.0/pr-description.md
+docs/evaluation/release-v7.1.0/release-notes.md
+docs/evaluation/产品收口最终验收报告.md
 docs/status/第七版Batch1本地验收记录.md
 docs/status/第七版Batch2验收记录.md
 docs/status/第七版Batch3验收记录.md
 docs/status/第七版Batch4验收记录.md
 ```
 
-固定离线、Mock、真实 Provider 和公开 Demo 是四类不同证据，不能互相替代。当前真实模型工具选择与确认完整性仍是下一阶段要改进的基线。
+固定离线、Mock、真实 Provider、浏览器回归与公开 Demo 是不同证据，不能互相替代。A0/A2/A3 与 REL corrected fixture 也不能拼接为同一性能曲线；当前完整口径见最终验收报告。
 
 ## 工程说明
 

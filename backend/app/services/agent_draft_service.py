@@ -103,6 +103,8 @@ def list_agent_drafts(
     draft_type: str | None = None,
     status: str | None = None,
     limit: int = 20,
+    ascending: bool = False,
+    require_goal_id: bool = False,
 ) -> list[dict]:
     filters = ["user_id = ?" if user_id is not None else "user_id IS NULL"]
     values: list[Any] = [user_id] if user_id is not None else []
@@ -115,14 +117,18 @@ def list_agent_drafts(
     if status:
         filters.append("status = ?")
         values.append(_normalize_draft_status(status))
+    if require_goal_id:
+        filters.append("goal_id IS NOT NULL")
     values.append(limit)
+    order_direction = "ASC" if ascending else "DESC"
+    tie_break_direction = "ASC" if ascending else "DESC"
 
     with store.db_connection() as conn:
         rows = conn.execute(
             f"""
             SELECT * FROM agent_drafts
             WHERE {' AND '.join(filters)}
-            ORDER BY created_at DESC, id DESC
+            ORDER BY created_at {order_direction}, id {tie_break_direction}
             LIMIT ?
             """,
             values,

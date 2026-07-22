@@ -54,10 +54,10 @@ test("Batch 2 interactive runtime, responsive navigation, and account data flow"
   await page.getByRole("button", { name: "生成待确认任务" }).click();
   await page.locator("#agent-run-start").click();
   await page.locator(".agent-run-details > summary").click();
-  await expect(page.locator("#agent-run-detail")).toContainText("执行下一步");
-  await page.getByRole("button", { name: "执行下一步" }).click();
-  await expect(page.locator("#agent-run-detail")).toContainText("执行下一步");
-  await page.getByRole("button", { name: "执行下一步" }).click();
+  await expect(page.locator("#agent-current-action")).toContainText("执行下一步");
+  await page.locator("#agent-current-action").getByRole("button", { name: "执行下一步" }).click();
+  await expect(page.locator("#agent-current-action")).toContainText("执行下一步");
+  await page.locator("#agent-current-action").getByRole("button", { name: "执行下一步" }).click();
   await expect(page.locator("#agent-run-detail")).toContainText("已完成");
 
   await page.locator("#logout-button").click();
@@ -69,11 +69,11 @@ test("Batch 2 interactive runtime, responsive navigation, and account data flow"
   if (!(await page.locator(".agent-run-details").evaluate((details) => details.open))) {
     await page.locator(".agent-run-details > summary").click();
   }
-  await expect(page.getByRole("button", { name: "确认写入并继续" })).toBeVisible();
-  await page.getByRole("button", { name: "确认写入并继续" }).click();
-  await expect(page.locator("#agent-run-detail")).toContainText("等待下一步");
+  await expect(page.locator("#agent-current-action").getByRole("button", { name: "接受" })).toBeVisible();
+  await page.locator("#agent-current-action").getByRole("button", { name: "接受" }).click();
+  await expect(page.locator("#agent-current-action")).toContainText("等待下一步");
   await expect(page.locator("#toast")).toContainText("已确认当前步骤");
-  await page.getByRole("button", { name: "取消任务" }).click();
+  await page.locator("#agent-current-action").getByRole("button", { name: "取消任务" }).click();
   await expect(page.locator("#agent-run-detail")).toContainText("已取消");
   await expect(page.locator("#toast")).toContainText("智能任务已取消");
   await page.screenshot({ path: "docs/images/v7-batch2-desktop-runtime.png", fullPage: true });

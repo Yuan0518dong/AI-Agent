@@ -1,6 +1,7 @@
 // Agent workbench module.
 
 let currentDecisionMode = "hybrid";
+const dismissedAgentCurrentActionRuns = new Set();
 
 function toggleAgentDecisionMode() {
   currentDecisionMode = currentDecisionMode === "rule-based" ? "hybrid" : "rule-based";
@@ -118,6 +119,7 @@ function renderAgentWorkbench() {
   const root = document.getElementById("agent-workbench");
   if (!root) return;
 
+  renderAgentCurrentActionPanel();
   if (!context) {
     renderAgentGoalSelect();
     renderAgentRunPanel();
@@ -199,6 +201,9 @@ async function respondToAgentConfirmation(run, status, triggerButton = null) {
   try {
     await agentApi.updateActionLog(waitingStep.actionLogId, { status });
     await syncAgentRunState(await agentApi.advanceRun(run.id));
+    if (status === "accepted" && waitingStep.toolName === "apply_confirmed_draft") {
+      await loadMaterialDataFromApi();
+    }
     await refreshAgentContext(null, selectedGoalId);
     showSuccess(status === "accepted" ? "已确认当前步骤" : "已拒绝写入，任务将继续判断");
   } catch (error) {
@@ -239,6 +244,10 @@ async function recordAgentActionFeedback(actionIndex, status, triggerButton = nu
   const decision = state.agentDecision;
   const action = decision?.proposedActions?.[actionIndex];
   if (!decision || !action) return;
+  if (action.type === "apply_confirmed_draft" && !["accepted", "rejected"].includes(status)) {
+    showError(new Error("已确认内容只能接受或拒绝。"));
+    return;
+  }
 
   setButtonLoading(triggerButton, true, "记录中");
   try {
@@ -579,6 +588,7 @@ function renderAgentRunPanel() {
       const item = document.createElement("button");
       item.type = "button";
       item.className = `agent-run-row ${run.id === state.selectedAgentRunId ? "active" : ""}`;
+      item.dataset.runId = run.id;
       item.innerHTML = `
         <span class="agent-run-status ${escapeHtml(run.status || "decided")}">${escapeHtml(agentRunStatusLabel(run.status))}</span>
         <strong>${escapeHtml(run.objective || "未命名学习行动")}</strong>
@@ -625,16 +635,6 @@ function agentRunSummaryNode(run) {
     ${run.error ? `<p class="agent-run-error">${escapeHtml(localizeAgentText(run.error))}</p>` : ""}
     ${run.decisionSnapshot?.reflection ? `<p class="agent-run-reflection">${escapeHtml(localizeAgentText(run.decisionSnapshot.reflection))}</p>` : ""}
   `;
-  const actions = document.createElement("div");
-  actions.className = "agent-run-actions";
-  if (run.status === "waiting_confirmation") {
-    actions.appendChild(agentRunButton("确认写入并继续", "primary-button", (button) => respondToAgentConfirmation(run, "accepted", button)));
-    actions.appendChild(agentRunButton("拒绝写入并继续", "ghost-button", (button) => respondToAgentConfirmation(run, "rejected", button)));
-  } else if (!["completed", "failed", "max_steps", "cancelled", "closed"].includes(run.status)) {
-    actions.appendChild(agentRunButton("执行下一步", "primary-button", (button) => resumeAgentRun(run.id, button)));
-    actions.appendChild(agentRunButton("取消任务", "ghost-button", (button) => closeAgentRun(run.id, button)));
-  }
-  if (actions.children.length) wrapper.appendChild(actions);
   return wrapper;
 }
 
@@ -855,6 +855,7 @@ function agentDecisionActionsNode(actions) {
   }
 
   actions.forEach((action, index) => {
+    const confirmationOnly = action.type === "apply_confirmed_draft";
     const item = document.createElement("article");
     item.className = `agent-action-card ${action.requiresConfirmation ? "confirm" : ""}`;
     item.innerHTML = `
@@ -869,9 +870,9 @@ function agentDecisionActionsNode(actions) {
         <span>${action.draftOnly ? "先生成草稿" : "可直接处理"}</span>
       </div>
       <div class="agent-action-feedback">
-        <button class="ghost-button" data-feedback="accepted" type="button">采纳</button>
-        <button class="ghost-button" data-feedback="rejected" type="button">忽略</button>
-        <button class="ghost-button" data-feedback="later" type="button">稍后</button>
+        <button class="ghost-button" data-feedback="accepted" type="button">${confirmationOnly ? "接受" : "采纳"}</button>
+        <button class="ghost-button" data-feedback="rejected" type="button">${confirmationOnly ? "拒绝" : "忽略"}</button>
+        ${confirmationOnly ? "" : '<button class="ghost-button" data-feedback="later" type="button">稍后</button>'}
       </div>
     `;
     item.querySelectorAll("[data-feedback]").forEach((button) => {
@@ -882,6 +883,139 @@ function agentDecisionActionsNode(actions) {
     wrapper.appendChild(item);
   });
   return wrapper;
+}
+
+function renderAgentCurrentActionPanel() {
+  const body = document.getElementById("agent-current-action");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const run = state.selectedAgentRun
+    || (state.agentRuns || []).find((item) => item.id === state.selectedAgentRunId)
+    || null;
+  if (!run) {
+    body.appendChild(emptyNode("暂无当前行动", "选择学习目标后开始智能任务；新的行动会先在这里说明。"));
+    return;
+  }
+
+  if (dismissedAgentCurrentActionRuns.has(run.id)) {
+    const deferred = document.createElement("div");
+    deferred.className = "agent-current-action-deferred";
+    deferred.innerHTML = `
+      <p>已暂时收起当前提醒。运行仍为“${escapeHtml(agentRunStatusLabel(run.status))}”，没有接受、拒绝或写入任何内容。</p>
+    `;
+    const restoreButton = agentRunButton("继续查看", "ghost-button", () => {
+      dismissedAgentCurrentActionRuns.delete(run.id);
+      renderAgentCurrentActionPanel();
+    });
+    restoreButton.dataset.currentActionRestore = run.id;
+    deferred.appendChild(restoreButton);
+    body.appendChild(deferred);
+    return;
+  }
+
+  const step = [...(run.steps || [])].at(-1) || null;
+  const decision = step?.decisionSnapshot || run.decisionSnapshot || {};
+  const action = step?.actionSnapshot
+    || (decision.proposedActions || [])[0]
+    || { type: decision.nextAction || run.decisionSummary?.nextAction || step?.toolName || "" };
+  const actionType = action.type || step?.toolName || decision.nextAction || "";
+  const guard = decision.decisionGuard || {};
+  const waitingForConfirmation = run.status === "waiting_confirmation";
+  const reason = step ? getAgentStepReason(step) : getAgentDecisionReason(decision);
+  const evidence = getAgentCurrentActionEvidence(run, step);
+
+  const card = document.createElement("article");
+  card.className = "agent-current-action-card";
+  card.innerHTML = `
+    <div class="agent-current-action-head">
+      <div>
+        <span class="eyebrow">当前行动</span>
+        <h3>${escapeHtml(getAgentActionLabel(actionType))}</h3>
+      </div>
+      <span class="agent-run-status ${escapeHtml(run.status || "decided")}">${escapeHtml(agentRunStatusLabel(run.status))}</span>
+    </div>
+    <div class="agent-chip-row" aria-label="运行摘要">
+      <span>运行状态：${escapeHtml(agentRunStatusLabel(run.status))}</span>
+      <span>模式：${escapeHtml(getAgentModeLabel(decision.mode || run.decisionMode))}</span>
+      <span>安全检查：${escapeHtml(getAgentGuardStatusLabel(guard.status))}</span>
+      <span>${waitingForConfirmation ? "等待你确认" : "无需确认或等待下一步"}</span>
+    </div>
+    <div class="agent-current-action-copy">
+      <strong>为什么现在做</strong>
+      <p>${escapeHtml(reason)}</p>
+    </div>
+    <div class="agent-current-action-copy">
+      <strong>学习依据</strong>
+      <ul>${evidence.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </div>
+  `;
+
+  const actions = document.createElement("div");
+  actions.className = "agent-current-action-actions";
+  if (waitingForConfirmation) {
+    const acceptButton = agentRunButton("接受", "primary-button", (button) => {
+      respondToAgentConfirmation(run, "accepted", button);
+    });
+    acceptButton.dataset.currentConfirmation = "accepted";
+    actions.appendChild(acceptButton);
+
+    const rejectButton = agentRunButton("拒绝", "ghost-button", (button) => {
+      respondToAgentConfirmation(run, "rejected", button);
+    });
+    rejectButton.dataset.currentConfirmation = "rejected";
+    actions.appendChild(rejectButton);
+
+    const dismissButton = agentRunButton("暂不处理", "ghost-button", () => {
+      dismissedAgentCurrentActionRuns.add(run.id);
+      renderAgentCurrentActionPanel();
+    });
+    dismissButton.dataset.currentActionDismiss = run.id;
+    actions.appendChild(dismissButton);
+  } else if (![
+    "completed", "failed", "max_steps", "cancelled", "closed"
+  ].includes(run.status)) {
+    actions.appendChild(agentRunButton("执行下一步", "primary-button", (button) => {
+      resumeAgentRun(run.id, button);
+    }));
+    actions.appendChild(agentRunButton("取消任务", "ghost-button", (button) => {
+      closeAgentRun(run.id, button);
+    }));
+  }
+  if (actions.children.length) card.appendChild(actions);
+  body.appendChild(card);
+}
+
+function getAgentCurrentActionEvidence(run, step) {
+  const context = step?.contextSnapshot || run.contextSnapshot || state.agentContext || {};
+  const summary = context.summary || {};
+  const evidence = [];
+  if (summary.taskOverdue) evidence.push(`${summary.taskOverdue} 项任务已经逾期。`);
+  if (context.review?.dueCount) evidence.push(`${context.review.dueCount} 张闪卡已到期。`);
+  if (summary.quizWeakAttemptCount) evidence.push(`${summary.quizWeakAttemptCount} 次测试记录显示薄弱点。`);
+  if (summary.draftProposedCount) evidence.push(`${summary.draftProposedCount} 份草稿正在等待确认。`);
+  if (summary.materialsWithoutChunks) evidence.push(`${summary.materialsWithoutChunks} 份资料尚未完成检索处理。`);
+  if (summary.qaInsufficiencyCount) evidence.push(`${summary.qaInsufficiencyCount} 条问答资料不足记录需要补充。`);
+  if (!evidence.length) {
+    const stateSummary = getAgentStateSummary(step?.decisionSnapshot || run.decisionSnapshot || {});
+    if (stateSummary) evidence.push(stateSummary);
+  }
+  return evidence.slice(0, 3);
+}
+
+async function respondToStandaloneConfirmedDraft(log, status, triggerButton = null) {
+  if (!["accepted", "rejected"].includes(status)) return;
+  setButtonLoading(triggerButton, true, status === "accepted" ? "确认中" : "拒绝中");
+  try {
+    await agentApi.updateActionLog(log.id, { status });
+    await loadAgentActionLogsFromApi(selectedGoalId || "");
+    renderAgentWorkbench();
+    showSuccess(status === "accepted" ? "已接受，等待智能任务继续处理" : "已拒绝，草稿不会写入正式内容");
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
 }
 
 function renderAgentActionLogPanel() {
@@ -899,22 +1033,38 @@ function renderAgentActionLogPanel() {
   }
 
   logs.slice(0, 5).forEach((log) => {
+    const confirmationOnly = log.actionType === "apply_confirmed_draft";
     const item = document.createElement("article");
     item.className = `agent-action-log-item ${log.status}`;
     item.innerHTML = `
       <div class="agent-card-head">
         <strong>${escapeHtml(getAgentActionLabel(log.actionType))}</strong>
-        <span>${escapeHtml(getAgentFeedbackLabel(log.status))}</span>
+        <span>${escapeHtml(confirmationOnly ? getAgentConfirmedDraftStatusLabel(log.status) : getAgentFeedbackLabel(log.status))}</span>
       </div>
       <p>${escapeHtml(getAgentActionDescription(log.proposedPayload || log))}</p>
       <small>${escapeHtml(formatDateTime(log.createdAt))}</small>
       ${renderAgentExecutionHint(log)}
-      ${log.status === "applied" ? "" : `
+      ${!confirmationOnly && log.status !== "applied" ? `
         <div class="agent-action-feedback">
           <button class="ghost-button" data-apply-log="${escapeHtml(log.id)}" type="button">执行并标记</button>
         </div>
-      `}
+      ` : ""}
     `;
+    if (confirmationOnly && log.status === "proposed") {
+      const controls = document.createElement("div");
+      controls.className = "agent-action-feedback";
+      const acceptButton = agentRunButton("接受", "ghost-button", (button) => {
+        respondToStandaloneConfirmedDraft(log, "accepted", button);
+      });
+      acceptButton.dataset.confirmedDraftFeedback = "accepted";
+      controls.appendChild(acceptButton);
+      const rejectButton = agentRunButton("拒绝", "ghost-button", (button) => {
+        respondToStandaloneConfirmedDraft(log, "rejected", button);
+      });
+      rejectButton.dataset.confirmedDraftFeedback = "rejected";
+      controls.appendChild(rejectButton);
+      item.appendChild(controls);
+    }
     const applyButton = item.querySelector("[data-apply-log]");
     if (applyButton) {
       applyButton.addEventListener("click", () => {
@@ -1207,6 +1357,16 @@ function getAgentFeedbackLabel(status) {
     applied: "已执行"
   };
   return labels[status] || "已记录";
+}
+
+function getAgentConfirmedDraftStatusLabel(status) {
+  const labels = {
+    proposed: "待确认",
+    accepted: "已接受",
+    rejected: "已拒绝",
+    applied: "已写入"
+  };
+  return labels[status] || "待确认";
 }
 
 function getAgentModeLabel(mode) {

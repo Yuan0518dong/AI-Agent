@@ -1,9 +1,9 @@
 {
   "name": "ai-agent-browser-checks",
   "private": true,
-  "version": "7.0.0",
+  "version": "7.1.0",
   "scripts": {
-    "check": "node --check app/api.js && node --check app/app.js && node --check app/modules/agent-workbench.js && node --check app/modules/materials.js && node --check app/modules/chat.js",
+    "check": "node --check app/api.js && node --check app/app.js && node --check app/modules/agent-workbench.js && node --check app/modules/goals.js && node --check app/modules/materials.js && node --check app/modules/chat.js && node --check app/modules/progress.js",
     "test:e2e": "playwright test --config=tests/browser/playwright.v7-batch4.config.cjs",
     "record:batch4-demo": "playwright test --config=tests/browser/playwright.v7-batch4-video.config.cjs"
   },

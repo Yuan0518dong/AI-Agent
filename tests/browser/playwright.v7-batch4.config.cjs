@@ -9,7 +9,7 @@ const launchOptions = process.platform === "win32" && fs.existsSync(edgePath)
 /** @type {import('@playwright/test').PlaywrightTestConfig} */
 module.exports = {
   testDir: ".",
-  testMatch: "v7-batch4.spec.cjs",
+  testMatch: /(?:v7-batch4|v7-ux01|v7-ux02|v7-ux03|v7-ux04|v7-close02|v7-close03)\.spec\.cjs/,
   timeout: 90_000,
   workers: 1,
   use: {
@@ -31,6 +31,7 @@ module.exports = {
       EMBEDDING_PROVIDER: "mock",
       LLM_ENV_FILE: ".missing-v7-batch4-browser.env",
       EMBEDDING_ENV_FILE: ".missing-v7-batch4-browser.env",
+      DEMO_IP_HOURLY_LIMIT: "20",
       SQLITE_DATABASE_PATH: "test-results/v7-batch4-browser.db"
     }
   },

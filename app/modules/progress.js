@@ -19,15 +19,19 @@ function renderMetrics() {
 }
 
 function getProgressStats() {
-  const totalTasks = state.progress.reduce((sum, item) => sum + item.totalTasks, 0);
-  const completedTasks = state.progress.reduce((sum, item) => sum + item.completedTasks, 0);
+  const progressItems = getScopedProgress();
+  const flashcards = getScopedFlashcards();
+  const quizzes = getScopedQuizzes();
+  const quizAttemptsByMaterial = getScopedQuizAttempts();
+  const totalTasks = progressItems.reduce((sum, item) => sum + item.totalTasks, 0);
+  const completedTasks = progressItems.reduce((sum, item) => sum + item.completedTasks, 0);
   const completionRate = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  const reviewCards = state.flashcards.filter((card) => card.status !== "known");
-  const quizAttempts = Object.values(state.quizAttempts || {}).flat();
+  const reviewCards = flashcards.filter((card) => card.status !== "known");
+  const quizAttempts = Object.values(quizAttemptsByMaterial).flat();
   const attemptedQuizIds = new Set(quizAttempts.map((attempt) => attempt.quizId));
-  const unattemptedQuizTotal = Math.max(0, state.quizzes.length - attemptedQuizIds.size);
-  const quizCoverage = state.quizzes.length ? Math.round((attemptedQuizIds.size / state.quizzes.length) * 100) : 0;
-  const atRiskGoals = state.progress.filter((progress) => isGoalAtRisk(progress));
+  const unattemptedQuizTotal = Math.max(0, quizzes.length - attemptedQuizIds.size);
+  const quizCoverage = quizzes.length ? Math.round((attemptedQuizIds.size / quizzes.length) * 100) : 0;
+  const atRiskGoals = progressItems.filter((progress) => isGoalAtRisk(progress));
 
   return {
     totalTasks,
@@ -38,7 +42,9 @@ function getProgressStats() {
     attemptedQuizIds,
     quizCoverage,
     unattemptedQuizTotal,
-    atRiskGoals
+    atRiskGoals,
+    goalTotal: getScopedGoals().length,
+    quizTotal: quizzes.length
   };
 }
 
@@ -59,8 +65,9 @@ function getProgressStatus(progress) {
 
 function buildProgressAdvice(stats) {
   const advice = [];
+  const goals = getScopedGoals();
 
-  if (state.goals.length === 0) {
+  if (goals.length === 0) {
     advice.push({
       type: "start",
       title: "先创建一个学习目标",
@@ -141,11 +148,11 @@ function renderProgressOverview(stats) {
     ? "临近截止且完成率偏低"
     : "暂无明显风险";
   document.getElementById("progress-quiz-total").textContent = `${stats.quizCoverage}%`;
-  document.getElementById("progress-quiz-text").textContent = state.quizzes.length
-    ? `${stats.attemptedQuizIds.size} / ${state.quizzes.length} 道已作答`
+  document.getElementById("progress-quiz-text").textContent = stats.quizTotal
+    ? `${stats.attemptedQuizIds.size} / ${stats.quizTotal} 道已作答`
     : "暂无测试题";
   document.getElementById("progress-risk-count").textContent = `${stats.atRiskGoals.length} 条风险`;
-  document.getElementById("progress-goal-count").textContent = `${state.goals.length} 个目标`;
+  document.getElementById("progress-goal-count").textContent = `${stats.goalTotal} 个目标`;
 }
 
 function renderProgressAdvice(stats) {
@@ -171,7 +178,7 @@ function renderProgressGoals() {
   const list = document.getElementById("progress-list");
   list.innerHTML = "";
 
-  [...state.progress]
+  [...getScopedProgress()]
     .sort((a, b) => b.completionRate - a.completionRate)
     .forEach((progress) => {
     const goal = state.goals.find((item) => item.id === progress.goalId);
@@ -217,7 +224,7 @@ function renderProgress() {
   renderProgressGoals();
 
   const list = document.getElementById("progress-list");
-  if (state.progress.length === 0) {
+  if (getScopedProgress().length === 0) {
     list.innerHTML = "";
     list.appendChild(emptyNode("暂无进度", "创建目标并完成任务后会生成进度。"));
   }

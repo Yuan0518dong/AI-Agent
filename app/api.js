@@ -140,6 +140,12 @@ const dashboardApi = {
   }
 };
 
+const todayApi = {
+  getActions(limit = 15) {
+    return request(`/today/actions?limit=${encodeURIComponent(String(limit))}`);
+  }
+};
+
 const goalApi = {
   listGoals() {
     return request("/goals");

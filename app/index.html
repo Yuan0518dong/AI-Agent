@@ -97,13 +97,13 @@
         </div>
 
         <nav class="nav desktop-nav" aria-label="主导航">
-          <button class="nav-item active" data-view="today"><span>⌂</span>今日</button>
-          <button class="nav-item" data-view="goals"><span>＋</span>目标</button>
-          <button class="nav-item" data-view="materials"><span>▣</span>资料</button>
-          <button class="nav-item" data-view="study"><span>?</span>学习</button>
-          <button class="nav-item" data-view="agent"><span>◎</span>智能助手</button>
-          <button class="nav-item" data-view="memory"><span>◇</span>记忆</button>
-          <button class="nav-item" data-view="progress"><span>▥</span>进度</button>
+          <button class="nav-item active" data-view="today" type="button" aria-current="page"><span>⌂</span>今日</button>
+          <button class="nav-item" data-view="goals" type="button"><span>＋</span>学习目标</button>
+          <button class="nav-item" data-view="materials" type="button"><span>▣</span>资料</button>
+          <button class="nav-item" data-view="study" type="button"><span>?</span>问答</button>
+          <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能助手</button>
+          <button class="nav-item" data-view="memory" type="button"><span>◇</span>复习</button>
+          <button class="nav-item" data-view="progress" type="button"><span>▥</span>进度</button>
         </nav>
       </aside>
 
@@ -187,12 +187,23 @@
             </div>
           </section>
 
+          <section class="panel today-actions-panel" aria-labelledby="today-actions-title">
+            <div class="panel-head">
+              <div>
+                <h2 id="today-actions-title">当前行动</h2>
+                <p class="muted-text">只展示尚未完成的学习行动，不会自动执行任何操作。</p>
+              </div>
+              <span class="panel-count" id="today-actions-count">加载中</span>
+            </div>
+            <div class="today-actions-list" id="today-actions-list" aria-live="polite"></div>
+          </section>
+
           <div class="workspace two-columns">
             <section class="panel task-panel">
               <div class="panel-head">
                 <h2>今日任务</h2>
                 <div class="inline-actions">
-                  <input class="compact-input" type="date" id="today-date-filter" />
+                  <input class="compact-input" type="date" id="today-date-filter" aria-label="选择任务日期" />
                   <button class="ghost-button" id="reset-today-date" type="button">今天</button>
                   <select class="compact-input" id="quick-plan-days" title="计划天数">
                     <option value="3">3 天</option>
@@ -247,10 +258,10 @@
           </div>
         </section>
 
-        <section class="view" id="view-goals">
+        <section class="view" id="view-goals" aria-label="学习目标">
           <div class="workspace two-columns">
             <section class="panel">
-              <h2 id="goal-form-title">新建成长目标</h2>
+                <h2 id="goal-form-title">新建学习目标</h2>
               <form id="goal-form" class="form">
                 <label>
                   目标名称
@@ -294,7 +305,7 @@
 
             <section class="panel">
               <div class="panel-head">
-                <h2>目标列表</h2>
+                <h2>学习目标</h2>
                 <div class="inline-actions">
                   <select class="compact-input" id="goal-plan-days" title="计划天数">
                     <option value="3">3 天</option>
@@ -350,6 +361,10 @@
 
             <section class="panel">
               <h2>资料库</h2>
+              <div class="goal-scope-bar" id="materials-scope-note" hidden>
+                <span></span>
+                <button class="ghost-button" data-clear-goal-scope type="button">查看全部</button>
+              </div>
               <div class="list" id="material-list"></div>
             </section>
           </div>
@@ -359,6 +374,10 @@
           <div class="workspace two-columns study-layout">
             <section class="panel">
               <h2>成长问答</h2>
+              <div class="goal-scope-bar" id="study-scope-note" hidden>
+                <span></span>
+                <button class="ghost-button" data-clear-goal-scope type="button">查看全部</button>
+              </div>
               <div class="chat" id="chat-log"></div>
               <form id="chat-form" class="chat-form">
                 <input name="question" required placeholder="问一个知识点，或从右侧资料带入上下文" />
@@ -395,7 +414,11 @@
           <div class="workspace two-columns">
             <section class="panel">
               <div class="panel-head">
-                <h2>闪卡复习</h2>
+              <h2>闪卡复习</h2>
+              <div class="goal-scope-bar" id="memory-scope-note" hidden>
+                <span></span>
+                <button class="ghost-button" data-clear-goal-scope type="button">查看全部</button>
+              </div>
                 <div class="inline-actions">
                   <span class="panel-count" id="flashcard-count">0 张</span>
                   <button class="ghost-button" id="shuffle-cards" title="切换一张闪卡">↻</button>
@@ -431,6 +454,16 @@
                 <h2>让智能体推进一项明确的学习行动</h2>
               </div>
             </div>
+
+            <section class="panel agent-current-action-panel" aria-labelledby="agent-current-action-title">
+              <div class="panel-head">
+                <div>
+                  <h2 id="agent-current-action-title">当前行动</h2>
+                  <p>先确认下一步、原因和学习依据；技术过程仍可在下方核对。</p>
+                </div>
+              </div>
+              <div id="agent-current-action" aria-live="polite"></div>
+            </section>
 
             <section class="panel agent-run-panel">
               <div class="panel-head">
@@ -578,7 +611,11 @@
         </section>
 
         <section class="view" id="view-progress">
-          <section class="progress-overview" aria-label="学习进度总览">
+          <div class="goal-scope-bar" id="progress-scope-note" hidden>
+            <span></span>
+            <button class="ghost-button" data-clear-goal-scope type="button">查看全部</button>
+          </div>
+          <section class="progress-overview" id="progress-overview" aria-label="学习进度总览">
             <article class="progress-score-card">
               <span>总完成率</span>
               <strong id="progress-overall-rate">0%</strong>
@@ -624,13 +661,13 @@
     </div>
 
     <nav class="mobile-bottom-nav" aria-label="移动主导航" hidden>
-      <button class="nav-item active" data-view="today" type="button"><span>⌂</span>今日</button>
+      <button class="nav-item active" data-view="today" type="button" aria-current="page"><span>⌂</span>今日</button>
       <button class="nav-item" data-view="goals" type="button"><span>＋</span>目标</button>
       <button class="nav-item" data-view="materials" type="button"><span>▣</span>资料</button>
-      <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能任务</button>
-      <button class="mobile-more-toggle" id="mobile-more-toggle" type="button" aria-expanded="false"><span>•••</span>更多</button>
+      <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能助手</button>
+      <button class="mobile-more-toggle" id="mobile-more-toggle" type="button" aria-controls="mobile-more-menu" aria-expanded="false" aria-label="更多导航"><span>•••</span>更多</button>
     </nav>
-    <div class="mobile-more-menu" id="mobile-more-menu" hidden>
+    <div class="mobile-more-menu" id="mobile-more-menu" aria-label="更多导航" hidden>
       <button class="nav-item" data-view="study" type="button">问答</button>
       <button class="nav-item" data-view="memory" type="button">复习</button>
       <button class="nav-item" data-view="progress" type="button">进度</button>
@@ -649,10 +686,10 @@
     <script src="./modules/utils.js?v=ai-learning-20260706"></script>
     <script src="./modules/chat.js?v=ai-learning-20260706"></script>
     <script src="./modules/agent-workbench.js?v=agent-chinese-ui-20260716"></script>
-    <script src="./modules/materials.js?v=quiz-answer-preservation-20260716"></script>
-    <script src="./modules/goals.js?v=agent-goal-selection-20260716"></script>
-    <script src="./modules/progress.js?v=v3-page-boundary-20260706"></script>
-    <script src="./app.js?v=v7-auth-demo-20260716"></script>
+    <script src="./modules/materials.js?v=ux01-goal-shortcuts-20260721"></script>
+    <script src="./modules/goals.js?v=ux01-goal-shortcuts-20260721"></script>
+    <script src="./modules/progress.js?v=ux01-goal-shortcuts-20260721"></script>
+    <script src="./app.js?v=ux01-goal-shortcuts-20260721"></script>
   </body>
 </html>
 
