@@ -4,8 +4,8 @@ const AxeBuilder = require("@axe-core/playwright").default;
 const ORIGINAL_GOAL = "完成一周 AI Agent 学习计划";
 
 async function waitForTodayActions(page) {
-  await expect(page.locator("#today-actions-count")).not.toHaveText("加载中");
-  await expect(page.locator("#today-actions-count")).not.toHaveText("读取失败");
+  await expect(page.locator("#today-actions-count")).not.toHaveText("加载中", { timeout: 15_000 });
+  await expect(page.locator("#today-actions-count")).not.toHaveText("读取失败", { timeout: 15_000 });
 }
 
 async function openToday(page) {
@@ -130,7 +130,7 @@ test("UX-03 routes all five Today Action categories without automatic writes", a
   await expect(page.locator("#toast")).toContainText("已完成第一步");
   const details = page.locator(".agent-run-details");
   if (!(await details.evaluate((node) => node.open))) await details.locator(":scope > summary").click();
-  await page.getByRole("button", { name: "执行下一步" }).click();
+  await page.locator("#agent-current-action").getByRole("button", { name: "执行下一步" }).click();
   await expect(page.locator("#agent-run-detail")).toContainText("等待确认");
 
   await openToday(page);

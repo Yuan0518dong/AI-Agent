@@ -74,9 +74,9 @@ test("record the Batch 4 90-second portfolio walkthrough", async ({ browser }) =
     await expect(page.locator("#toast")).toContainText("学习目标已切换");
     const details = page.locator(".agent-run-details");
     if (!(await details.evaluate((node) => node.open))) await details.locator(":scope > summary").click();
-    await expect(page.getByRole("button", { name: "确认写入并继续" })).toBeVisible();
+    await expect(page.locator("#agent-current-action").getByRole("button", { name: "接受" })).toBeVisible();
     await page.waitForTimeout(12_000);
-    await page.getByRole("button", { name: "确认写入并继续" }).click();
+    await page.locator("#agent-current-action").getByRole("button", { name: "接受" }).click();
     await expect(page.locator("#toast")).toContainText("已确认当前步骤");
     await page.waitForTimeout(8_000);
 

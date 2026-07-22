@@ -632,16 +632,6 @@ function agentRunSummaryNode(run) {
     ${run.error ? `<p class="agent-run-error">${escapeHtml(localizeAgentText(run.error))}</p>` : ""}
     ${run.decisionSnapshot?.reflection ? `<p class="agent-run-reflection">${escapeHtml(localizeAgentText(run.decisionSnapshot.reflection))}</p>` : ""}
   `;
-  const actions = document.createElement("div");
-  actions.className = "agent-run-actions";
-  if (run.status === "waiting_confirmation") {
-    actions.appendChild(agentRunButton("确认写入并继续", "primary-button", (button) => respondToAgentConfirmation(run, "accepted", button)));
-    actions.appendChild(agentRunButton("拒绝写入并继续", "ghost-button", (button) => respondToAgentConfirmation(run, "rejected", button)));
-  } else if (!["completed", "failed", "max_steps", "cancelled", "closed"].includes(run.status)) {
-    actions.appendChild(agentRunButton("执行下一步", "primary-button", (button) => resumeAgentRun(run.id, button)));
-    actions.appendChild(agentRunButton("取消任务", "ghost-button", (button) => closeAgentRun(run.id, button)));
-  }
-  if (actions.children.length) wrapper.appendChild(actions);
   return wrapper;
 }
 

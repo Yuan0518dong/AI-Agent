@@ -31,6 +31,7 @@ module.exports = {
       EMBEDDING_PROVIDER: "mock",
       LLM_ENV_FILE: ".missing-v7-batch4-browser.env",
       EMBEDDING_ENV_FILE: ".missing-v7-batch4-browser.env",
+      DEMO_IP_HOURLY_LIMIT: "20",
       SQLITE_DATABASE_PATH: "test-results/v7-batch4-browser.db"
     }
   },

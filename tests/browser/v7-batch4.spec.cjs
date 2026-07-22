@@ -84,10 +84,10 @@ test("Batch 4 portfolio flow covers demo, goal, PDF, cited QA, confirmation, rej
   await expect(page.locator("#agent-run-count")).toHaveText("1 条");
   const details = page.locator(".agent-run-details");
   if (!(await details.evaluate((node) => node.open))) await details.locator(":scope > summary").click();
-  await expect(page.getByRole("button", { name: "确认写入并继续" })).toBeVisible();
-  await page.getByRole("button", { name: "确认写入并继续" }).click();
+  await expect(page.locator("#agent-current-action").getByRole("button", { name: "接受" })).toBeVisible();
+  await page.locator("#agent-current-action").getByRole("button", { name: "接受" }).click();
   await expect(page.locator("#toast")).toContainText("已确认当前步骤");
-  await page.getByRole("button", { name: "取消任务" }).click();
+  await page.locator("#agent-current-action").getByRole("button", { name: "取消任务" }).click();
   await expect(page.locator("#agent-run-detail")).toContainText("已取消");
 
   await page.locator("#logout-button").click();
@@ -101,8 +101,8 @@ test("Batch 4 portfolio flow covers demo, goal, PDF, cited QA, confirmation, rej
   await expect(page.locator("#agent-run-count")).toHaveText("1 条");
   const secondDetails = page.locator(".agent-run-details");
   if (!(await secondDetails.evaluate((node) => node.open))) await secondDetails.locator(":scope > summary").click();
-  await expect(page.getByRole("button", { name: "拒绝写入并继续" })).toBeVisible();
-  await page.getByRole("button", { name: "拒绝写入并继续" }).click();
+  await expect(page.locator("#agent-current-action").getByRole("button", { name: "拒绝" })).toBeVisible();
+  await page.locator("#agent-current-action").getByRole("button", { name: "拒绝" }).click();
   await expect(page.locator("#toast")).toContainText("已拒绝写入");
 
   await page.setViewportSize({ width: 390, height: 844 });

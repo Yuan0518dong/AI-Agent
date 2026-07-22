@@ -3,6 +3,15 @@ const AxeBuilder = require("@axe-core/playwright").default;
 
 const ORIGINAL_GOAL = "完成一周 AI Agent 学习计划";
 
+async function openVisibleNavigationView(page, view) {
+  const desktopItem = page.locator(`.desktop-nav [data-view=${view}]`);
+  if (await desktopItem.isVisible()) {
+    await desktopItem.click();
+    return;
+  }
+  await page.locator(`.mobile-bottom-nav [data-view=${view}]`).click();
+}
+
 test("UX-04 keeps the current agent action readable without generating a Decision or advancing on load", async ({ page }) => {
   const pageErrors = [];
   const consoleErrors = [];
@@ -27,8 +36,9 @@ test("UX-04 keeps the current agent action readable without generating a Decisio
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await page.locator("#demo-login").click();
+  await expect(page.locator("#app-shell")).toBeVisible();
 
-  await page.locator(".desktop-nav [data-view=memory]").click();
+  await openVisibleNavigationView(page, "memory");
   const quizForm = page.locator(".quiz-answer-form").first();
   await expect(quizForm).toBeVisible();
   await quizForm.locator("textarea[name=answer]").fill("香蕉");
@@ -36,7 +46,7 @@ test("UX-04 keeps the current agent action readable without generating a Decisio
   await expect(page.locator("#toast")).toContainText("AI 批改完成");
 
   recordAgentLoad = true;
-  await page.locator(".desktop-nav [data-view=agent]").click();
+  await openVisibleNavigationView(page, "agent");
   await expect(page.locator("#view-agent")).toHaveClass(/active/);
   await expect(page.locator("#agent-current-action")).toBeVisible();
   await expect(page.locator(".agent-run-details")).not.toHaveAttribute("open", "");
