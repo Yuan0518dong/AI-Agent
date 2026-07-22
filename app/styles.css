@@ -2003,6 +2003,64 @@ textarea {
   margin-bottom: 18px;
 }
 
+.agent-current-action-panel {
+  display: grid;
+  gap: 14px;
+  border-left: 4px solid var(--blue);
+  background: #f7faff;
+}
+
+.agent-current-action-card,
+.agent-current-action-deferred {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-current-action-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.agent-current-action-head h3 {
+  margin: 3px 0 0;
+  font-size: 19px;
+}
+
+.agent-current-action-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.agent-current-action-copy strong {
+  font-size: 13px;
+}
+
+.agent-current-action-copy p,
+.agent-current-action-copy ul,
+.agent-current-action-deferred p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.agent-current-action-copy ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 20px;
+}
+
+.agent-current-action-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agent-current-action-panel .agent-chip-row span {
+  color: #4b5563;
+}
+
 .agent-run-create {
   display: grid;
   grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 1.3fr) auto;
@@ -2949,6 +3007,10 @@ textarea {
   .agent-workbench-head,
   .agent-run-create {
     grid-template-columns: 1fr;
+  }
+
+  .agent-current-action-head {
+    display: grid;
   }
 
   .agent-workbench-head {
