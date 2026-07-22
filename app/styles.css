@@ -1180,7 +1180,7 @@ textarea {
   margin-top: 18px;
 }
 
-.workspace-shortcuts {
+.goal-shortcuts {
   display: grid;
   gap: 12px;
   margin: 18px 0;
@@ -1189,28 +1189,38 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
-.workspace-shortcuts h4,
-.workspace-shortcuts p {
+.goal-shortcuts h4,
+.goal-shortcuts p {
   margin: 0;
 }
 
-.workspace-shortcuts p,
-.scope-note {
+.goal-shortcuts p,
+.goal-scope-bar {
   color: var(--muted);
   font-size: 13px;
 }
 
-.scope-note {
+.goal-scope-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 4px 0 12px;
 }
 
-.workspace-shortcut-actions {
+.goal-scope-bar .ghost-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.goal-shortcut-actions {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
 }
 
-.workspace-shortcut-actions .ghost-button {
+.goal-shortcut-actions .ghost-button {
   min-height: 42px;
 }
 
@@ -2726,7 +2736,7 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .workspace-shortcut-actions {
+  .goal-shortcut-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

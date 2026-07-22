@@ -60,13 +60,14 @@ var activeCardIndex = 0;
 var editingGoalId = "";
 var editingMaterialId = "";
 var selectedGoalId = state.selectedGoalId || "";
+var activeGoalScopeId = "";
 var selectedTaskDate = todayString();
 var pendingChatMaterialId = "";
 var initialDataLoadPromise = null;
 
 const views = {
   today: "今日行动",
-  goals: "学习空间",
+  goals: "学习目标",
   materials: "成长资料",
   study: "成长问答",
   agent: "智能学习助手",
@@ -174,7 +175,15 @@ document.getElementById("sidebar-toggle").addEventListener("click", () => {
 
 document.querySelectorAll(".nav-item[data-view]").forEach((button) => {
   button.addEventListener("click", () => {
+    clearGoalViewScope();
     void switchView(button.dataset.view);
+  });
+});
+
+document.querySelectorAll("[data-clear-goal-scope]").forEach((button) => {
+  button.addEventListener("click", () => {
+    clearGoalViewScope();
+    render();
   });
 });
 
@@ -538,6 +547,7 @@ async function enterApp(user, { restoreLocalState = false } = {}) {
     resetLocalAppState();
   }
   selectedGoalId = state.selectedGoalId || "";
+  activeGoalScopeId = "";
   activeCardIndex = 0;
   setActiveView("today");
   renderAuth();
@@ -641,6 +651,7 @@ function resetLocalAppState() {
   localStorage.removeItem(STORAGE_KEY);
   state = normalizeState(structuredClone(defaultState));
   selectedGoalId = "";
+  activeGoalScopeId = "";
   activeCardIndex = 0;
   editingGoalId = "";
   editingMaterialId = "";
@@ -908,19 +919,28 @@ function render() {
   renderReviewDrafts();
   renderQuizzes();
   renderProgress();
-  renderScopeNotes();
+  renderGoalScopeBars();
 }
 
 function getCurrentGoalScope() {
-  return state.goals.find((goal) => goal.id === selectedGoalId)
-    || (state.selectedGoal?.id === selectedGoalId ? state.selectedGoal : null)
+  return state.goals.find((goal) => goal.id === activeGoalScopeId)
+    || (state.selectedGoal?.id === activeGoalScopeId ? state.selectedGoal : null)
     || null;
+}
+
+function setGoalViewScope(goalId) {
+  activeGoalScopeId = goalId || "";
+  activeCardIndex = 0;
+}
+
+function clearGoalViewScope() {
+  setGoalViewScope("");
 }
 
 function getScopedItems(items, goalIdForItem) {
   const list = Array.isArray(items) ? items : [];
-  if (!selectedGoalId) return list;
-  return list.filter((item) => goalIdForItem(item) === selectedGoalId);
+  if (!activeGoalScopeId) return list;
+  return list.filter((item) => goalIdForItem(item) === activeGoalScopeId);
 }
 
 function getScopedGoals() {
@@ -947,19 +967,20 @@ function getScopedQuizzes() {
 
 function getScopedQuizAttempts() {
   const materialIds = new Set(getScopedMaterials().map((material) => material.id));
-  if (!selectedGoalId) return state.quizAttempts || {};
+  if (!activeGoalScopeId) return state.quizAttempts || {};
   return Object.fromEntries(
     Object.entries(state.quizAttempts || {}).filter(([materialId]) => materialIds.has(materialId))
   );
 }
 
-function renderScopeNotes() {
+function renderGoalScopeBars() {
   const goal = getCurrentGoalScope();
-  const label = goal ? `当前学习空间：${goal.name}` : "";
+  const label = goal ? `当前目标：${goal.name}` : "";
   ["materials-scope-note", "study-scope-note", "memory-scope-note", "progress-scope-note"].forEach((id) => {
-    const note = document.getElementById(id);
-    if (!note) return;
-    note.hidden = !label;
-    note.textContent = label;
+    const bar = document.getElementById(id);
+    if (!bar) return;
+    bar.hidden = !label;
+    const text = bar.querySelector("span");
+    if (text) text.textContent = label;
   });
 }

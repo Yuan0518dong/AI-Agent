@@ -1,6 +1,6 @@
 // goals module extracted from app.js.
 
-const WORKSPACE_DESTINATIONS = {
+const GOAL_SHORTCUT_DESTINATIONS = {
   materials: { view: "materials", selector: "#material-list" },
   study: { view: "study", selector: '#chat-form input[name="question"]' },
   quiz: { view: "memory", selector: "#quiz-list" },
@@ -54,13 +54,15 @@ function clearSelectedGoal() {
 }
 
 function setSelectedGoalId(goalId) {
-  selectedGoalId = goalId || "";
+  const nextGoalId = goalId || "";
+  if (nextGoalId !== selectedGoalId) clearGoalViewScope();
+  selectedGoalId = nextGoalId;
   state.selectedGoalId = selectedGoalId;
   saveState();
 }
 
-async function openWorkspaceDestination(destinationName, triggerButton = null) {
-  const destination = WORKSPACE_DESTINATIONS[destinationName];
+async function openGoalDestination(destinationName, triggerButton = null) {
+  const destination = GOAL_SHORTCUT_DESTINATIONS[destinationName];
   const goalId = selectedGoalId;
   if (!destination || !goalId) {
     showError(new Error("请先选择一个学习目标"));
@@ -78,8 +80,9 @@ async function openWorkspaceDestination(destinationName, triggerButton = null) {
     if (state.selectedGoal?.id !== goalId) {
       await loadSelectedGoalFromApi(goalId);
     }
+    setGoalViewScope(goalId);
     if (await switchView(destination.view)) {
-      focusWorkspaceDestination(destination.selector);
+      focusGoalDestination(destination.selector);
     }
   } catch (error) {
     showError(error);
@@ -88,7 +91,7 @@ async function openWorkspaceDestination(destinationName, triggerButton = null) {
   }
 }
 
-function focusWorkspaceDestination(selector) {
+function focusGoalDestination(selector) {
   const target = document.querySelector(selector);
   if (!target) return;
   target.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -572,7 +575,7 @@ function renderGoalDetail() {
     detail.appendChild(emptyNode(
       state.goals.length ? "选择一个学习目标" : "先创建一个学习目标",
       state.goals.length
-        ? "从上方列表打开一个目标，资料、问答、测试、复习和进度会保持在该目标范围内。"
+        ? "从上方列表打开一个目标，再通过快捷入口进入对应的资料、问答、测试、复习和进度。"
         : "创建目标后，这里会成为资料、问答、测试、复习和进度的入口。"
     ));
     return;
@@ -627,17 +630,17 @@ function renderGoalDetail() {
         <span class="tag">每天 ${goal.dailyMinutes} 分钟</span>
         <span class="tag">截止 ${escapeHtml(goal.deadline)}</span>
       </div>
-      <section class="workspace-shortcuts" id="workspace-shortcuts" aria-label="当前学习目标快捷入口">
+      <section class="goal-shortcuts" id="goal-shortcuts" aria-label="当前学习目标快捷入口">
         <div>
           <h4>继续学习</h4>
-          <p>所有入口都会保持在“${escapeHtml(goal.name)}”范围内。</p>
+          <p>快捷入口会临时限定到“${escapeHtml(goal.name)}”，目标页面仍可直接查看全部内容。</p>
         </div>
-        <div class="workspace-shortcut-actions" role="group" aria-label="学习快捷入口">
-          <button class="ghost-button" data-workspace-destination="materials" type="button">资料</button>
-          <button class="ghost-button" data-workspace-destination="study" type="button">问答</button>
-          <button class="ghost-button" data-workspace-destination="quiz" type="button">测试</button>
-          <button class="ghost-button" data-workspace-destination="review" type="button">复习</button>
-          <button class="ghost-button" data-workspace-destination="progress" type="button">进度</button>
+        <div class="goal-shortcut-actions" role="group" aria-label="学习快捷入口">
+          <button class="ghost-button" data-goal-destination="materials" type="button">资料</button>
+          <button class="ghost-button" data-goal-destination="study" type="button">问答</button>
+          <button class="ghost-button" data-goal-destination="quiz" type="button">测试</button>
+          <button class="ghost-button" data-goal-destination="review" type="button">复习</button>
+          <button class="ghost-button" data-goal-destination="progress" type="button">进度</button>
         </div>
       </section>
       <div class="detail-grid">
@@ -662,9 +665,9 @@ function renderGoalDetail() {
       checkinTaskFromDetail(event.currentTarget.dataset.taskId, event.currentTarget.checked);
     });
   });
-  detail.querySelectorAll("[data-workspace-destination]").forEach((button) => {
+  detail.querySelectorAll("[data-goal-destination]").forEach((button) => {
     button.addEventListener("click", () => {
-      void openWorkspaceDestination(button.dataset.workspaceDestination, button);
+      void openGoalDestination(button.dataset.goalDestination, button);
     });
   });
   detail.querySelectorAll('[data-action="apply-agent-task-draft"]').forEach((button) => {

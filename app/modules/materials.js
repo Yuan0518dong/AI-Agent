@@ -45,8 +45,8 @@ function renderMaterials() {
 
   if (materials.length === 0) {
     list.appendChild(emptyNode(
-      selectedGoalId ? "当前学习空间暂无资料" : "暂无资料",
-      selectedGoalId ? "为当前学习目标添加资料后，会在这里继续整理。" : "粘贴一段文本、PDF 摘录或网页链接。"
+      activeGoalScopeId ? "当前目标暂无资料" : "暂无资料",
+      activeGoalScopeId ? "为当前学习目标添加资料后，会在这里继续整理。" : "粘贴一段文本、PDF 摘录或网页链接。"
     ));
     return;
   }
@@ -155,8 +155,8 @@ function renderSummaries() {
 
   if (materials.length === 0) {
     list.appendChild(emptyNode(
-      selectedGoalId ? "当前学习空间暂无资料" : "等待资料",
-      selectedGoalId ? "为当前学习目标添加资料后，整理结果会显示在这里。" : "资料整理结果会显示在这里。"
+      activeGoalScopeId ? "当前目标暂无资料" : "等待资料",
+      activeGoalScopeId ? "为当前学习目标添加资料后，整理结果会显示在这里。" : "资料整理结果会显示在这里。"
     ));
     return;
   }
@@ -792,8 +792,8 @@ function renderQuizzes() {
 
   if (quizzes.length === 0) {
     list.appendChild(emptyNode(
-      selectedGoalId ? "当前学习空间暂无测试题" : "暂无测试题",
-      selectedGoalId ? "当前目标有资料后，会在这里显示测试题。" : "添加资料后会自动生成测试题。"
+      activeGoalScopeId ? "当前目标暂无测试题" : "暂无测试题",
+      activeGoalScopeId ? "当前目标有资料后，会在这里显示测试题。" : "添加资料后会自动生成测试题。"
     ));
     return;
   }

@@ -1,115 +1,107 @@
-# 第 3 周学习闭环 UX 实施前评估
+# 第 3 周学习闭环 UX 实施评估与纠偏
 
-评估日期：2026-07-21
+初次评估日期：2026-07-21
+纠偏完成日期：2026-07-22
 
-评估结论：**实施前评估通过；`UX-01` 已完成本地验收，`UX-02` 至 `UX-04` 仍未开始。**
+评估结论：**原实施前评估结论撤回；`UX-01` 已按项目原生定位完成纠偏和本地验收，`UX-02` 至 `UX-04` 尚未开始，不得按原“学习空间/学习教练/恰好五项导航”合同继续实施。**
 
 ## 基线与授权边界
 
-- 目标仓库为 `Yuan0518dong/AI-Agent`。PR #5 `feature/learning-loop -> main` 已于 2026-07-21 合并，merge commit 为 `9d2c59f7ac71ec614bf71561d64fc6ab35ed1caf`。
-- `personal/main@9d2c59f` 的 GitHub Actions run `29807141471` 已通过 Reliability、PostgreSQL/pgvector（含最新迁移回滚）和 Playwright。
-- 本地 `git fetch personal main` 两次因 `Recv failure: Connection was reset` 失败；没有以旧分支近似替代。GitHub API 返回的已验证 commit payload、PGP signature、父提交和 tree 被本地重建并先计算 SHA，只有结果精确匹配 `9d2c59f` 后才写入对象、更新 `personal/main` 跟踪引用并新建 `feature/learning-loop-ux`。
-- `UX-01` 已在 `feature/learning-loop-ux` 实施并提交为 `e4b251e`；没有推送、PR、合并或部署。后端、数据库迁移、FSRS 参数和真实 Provider 均未改动。
+- 目标仓库为 `Yuan0518dong/AI-Agent`。PR #5 `feature/learning-loop -> main` 已于 2026-07-21 合并，精确基线为 `personal/main@9d2c59f7ac71ec614bf71561d64fc6ab35ed1caf`。
+- 基线 GitHub Actions run `29807141471` 已通过 Reliability、PostgreSQL/pgvector（含最新迁移回滚）和 Playwright。
+- `UX-01` 原代码提交为 `e4b251e`，原记录提交为 `a72aaaa`；均未推送、创建 PR、合并或部署。后端、数据库迁移、FSRS 参数和真实 Provider 未改动。
+- 原截图 `docs/images/ux01-learning-space-mobile.png` 与原测试记录继续保留，只作为被替代实现的历史证据，不覆盖、不改写为纠偏结果。
 
-## UX-01 实施记录
+## 复核发现
 
-- 学习空间保留 `goals` 视图 ID 和既有目标详情，只把页面标题、内容标题和空态改为学习空间语义；七项主导航未改，避免提前进入 `UX-02`。
-- 当前目标详情新增资料、问答、测试、复习、进度五个快捷入口。入口固定执行“校验目标 -> 保留 `selectedGoalId` -> 加载 -> 切换既有视图 -> 聚焦”的顺序；不创建 Agent Run、不提交问答、不生成资料，也不写入业务数据。
-- 资料、问答摘要、闪卡、测试和进度均按 `selectedGoalId` 过滤。会话恢复时保留选择值但清空远端视图加载标记，下一次打开学习空间必定从服务端重校验；目标无效时清除选择并显示重新选择空态。
-- 新增 `tests/browser/v7-ux01.spec.cjs`，使用两个目标与两份资料验证范围隔离、五入口、导航只读、刷新保持、失效选择和 390px 文档宽度。`npm.cmd run test:e2e` 为 `2 passed`，`python -m pytest backend/tests -q --tb=short`（Mock）为 `196 passed, 6 skipped in 137.35s`；Ruff、compileall、pip check、敏感扫描、前端语法与 `git diff --check` 均通过。
-- 移动截图为 `docs/images/ux01-learning-space-mobile.png`，已人工检查五个入口完整可见且无横向溢出。PostgreSQL/pgvector 未在此仅前端任务重跑，仍以 `9d2c59f` 主分支的已通过 CI 为基线；第 3 周整体收口时必须重新运行。
-
-## 当前架构结论
-
-| 能力 | 当前事实 | 评估 |
+| 等级 | 发现 | 纠偏决定 |
 |---|---|---|
-| 导航 | 桌面 7 项；移动 4 项加“更多”，内部视图为 `today/goals/materials/study/agent/memory/progress` | 可保留视图 ID，只重组五项主导航，风险可控 |
-| 目标状态 | `selectedGoalId` 已写入本地 state；目标、资料、Agent 都会读取它 | 有复用基础，但跨视图入口缺少统一的范围与聚焦顺序 |
-| 首屏 | 登录后只请求 Dashboard；目标、资料、Agent 通过 `ensureViewData` 延迟加载 | 已满足轻首屏，需要为今日多来源数据增加独立降级 |
-| Agent | `POST /agent/decide` 只由显式生成触发；进入 Agent 页只 GET Context/ActionLog/Run | 零 Provider 加载可保留，必须用自动化断言锁定 |
-| 今日数据 | Dashboard 只有摘要和今日任务；Agent Context 已有逾期、资料不足和部分复习上下文 | 无需新 Workspace API，可组合既有只读端点 |
-| 复习 | 后端已有 Queue、Weak Points 和四档 Rating；前端 API client 未暴露，界面仍调用两档兼容 PATCH | 第 3 周必须接入新 API，并处理并发冲突 |
-| 学习教练 | Run、Decision、Guard、Tool、Token 和 fallback 已有；主要内容整体藏在“运行详情”内 | 数据够用，需重新分层而非重写 Runtime |
-| 引用 | 已显示资料名、页码/标题路径、原文和分数 | 只缺两个范围安全的导航动作 |
-| 浏览器测试 | Batch 4 覆盖 Demo、目标、PDF、引用、确认/拒绝/取消、390px 和 axe | 未覆盖五项导航、今日排序、FSRS 四档、并发 409 和零 Provider 初始化 |
+| 高 | “学习空间”“学习教练”把对标项目词汇提升为本项目页面和模块名称，与“基于可控 Agent 的个人学习助手”定位不一致 | 恢复“学习目标”“智能助手”；对标词只描述机制，不替换业务对象或产品角色 |
+| 高 | 原 `UX-02` 强制桌面和移动都恰好五项，并把资料、问答移出桌面主导航，削弱 RAG 与带引用问答的可发现性 | 桌面保留七项；移动保留四项加“更多”；语义一致但不强制同构 |
+| 高 | 原 `UX-01` 直接使用持久化 `selectedGoalId` 过滤资料、问答摘要、闪卡、测试和进度，直接导航也会隐藏其他目标数据 | 拆分持久化目标选择和临时视图范围；快捷入口才设置范围，提供“查看全部”，直接主导航清除临时范围 |
+| 高 | 原 Today 方案首屏组合 Dashboard、完整 Agent Context、Drafts、Review Queue 和 Weak Points；Agent Context 会逐资料读取 chunks、问答、闪卡、测试和 attempts，并重复计算后三类 | 首屏只渲染 Dashboard；后续只允许有界 Today Actions 读取，不调用完整 Agent Context |
+| 高 | Agent Context 已在每目标、每资料和总结果层截断，不能支撑任务书声明的全量全局排序 | Today 排序在有界专用读取中完成，返回已排序投影及明确上限 |
+| 中高 | “资料不足”记录没有 `resolved` 状态，无法满足“只显示未解决项” | 本周不把资料不足作为长期 Today 待办，继续在问答或资料页面提示 |
+| 中高 | 原排序把待确认草稿放在逾期和今日学习任务之前，使首页偏向 Agent 工程待办 | 固定为逾期、今日、到期复习、薄弱点、待处理助手确认 |
+| 中高 | `apply_confirmed_draft` 只允许 accepted/rejected，不能持久化通用 later 状态 | 按动作合同展示按钮；“暂不处理”只能离开提示，不更新状态 |
+| 中 | 原合同把所有技术信息全部折叠，削弱可控、可观察、可恢复的作品集表达 | Run 状态、模式、Guard 结果紧凑可见；原始 Tool I/O、Token、JSON 和完整时间线折叠 |
 
-## 必须先补齐的合同
+## 项目原生口径
 
-### 1. 视图和状态
+```text
+产品品牌：成长学习助手
+项目定位：基于可控 Agent 的个人学习助手
+核心业务对象：学习目标
+Agent 功能模块：智能助手
+可使用的交互描述：教练式建议
+不得采用的替换命名：学习空间、学习教练、Workspace、Coach
+```
 
-主导航映射固定为 `今日=today`、`学习空间=goals`、`学习教练=agent`、`复习=memory`、`进度=progress`。`materials/study` 继续存在，但只能作为学习空间、今日项和引用动作的上下文目的地。
+借鉴 Open Notebook、AnythingLLM、Anki/Py-FSRS、RAGFlow、Khoj 和 Dify 时，只保留目标范围隔离、工具收缩、间隔复习、来源核对、确定性建议和运行可观察性，不复制导航数量、模块名称、产品角色或品牌表达。
 
-跨视图动作必须通过一个统一入口完成：验证目标归属并设置 `selectedGoalId`，加载目标相关数据，切换现有视图，最后按 material/run/task/quiz/flashcard ID 聚焦。不能先渲染旧目标再异步切范围，也不能在目标失效时静默选中其他目标。
+## UX-01 纠偏合同
 
-### 2. 今日页数据和排序
+1. 页面标题和详情标题保持“学习目标”“目标详情”。
+2. 目标详情保留资料、问答、测试、复习、进度五个快捷入口。
+3. `selectedGoalId` 继续持久化并在刷新后从服务端重校验，只表示用户选中的学习目标。
+4. 新增非持久化临时视图范围；只有目标快捷入口设置该范围，资料、复习和进度等直接主导航默认查看全部。
+5. 临时范围必须显示“当前目标：名称”和“查看全部”；清除范围不能清除用户选中的学习目标。
+6. 目标失效时同时清除目标选择和临时范围；不得回退到其他目标或用户数据。
+7. 入口只允许读取、切换和聚焦，不创建 Run、不提交问答、不生成资料、不执行评级或写业务数据。
 
-不创建大型聚合接口。计划使用以下现有读取：
+## 后续实施合同
 
-| 数据 | 读取来源 | 使用字段 |
-|---|---|---|
-| 摘要、今日任务 | `GET /api/dashboard?date=...` | `summary/todayTasks/primaryGoal` |
-| 逾期任务、资料不足 | `GET /api/agent/context` | `tasks[].overdueItems/qa.insufficiencies` |
-| 待确认草稿 | `GET /api/agent/drafts?status=proposed&limit=20` | `id/goalId/runId/draftType/createdAt` |
-| 到期闪卡 | `GET /api/review/queue?limit=100` | `flashcardId/materialId/goalId/dueAt` |
-| 未解决薄弱点 | `GET /api/review/weak-points` | `quizId/materialId/latestAttemptAt/resolved` |
+### 导航
 
-各请求独立 loading/error/empty，使用等价于 `Promise.allSettled` 的组合方式。成功数据不能因另一来源失败而消失；重试只重读失败来源。输入先过滤已完成任务、非 `proposed` 草稿、未来卡和已解决薄弱点，再按任务书中的六级优先顺序与 tie-break 排序。每类最多 3 条，总数最多 18 条。
+桌面继续使用 `today/goals/materials/study/agent/memory/progress` 七个视图，对应“今日、学习目标、资料、问答、智能助手、复习、进度”。移动端保留“今日、目标、资料、智能助手 + 更多”；“更多”继续提供问答、复习、进度和账号操作。
 
-### 3. 路由矩阵
+### 今日
 
-| 来源 | 目的地 | 必须携带 | 不得发生 |
-|---|---|---|---|
-| 待确认草稿 | 学习教练 | `goalId + runId` | 自动接受、拒绝或 advance |
-| 逾期/今日任务 | 学习空间 | `goalId + taskId` | 自动打卡或重排 |
-| 到期闪卡 | 复习 | `goalId + flashcardId` | 自动评级 |
-| 薄弱点 | 复习中的测试题 | `goalId + materialId + quizId` | 重新生成有历史的题目 |
-| 资料不足 | 继续提问 | `goalId + materialId + 原问题` | 自动提交问答或生成资料 |
-| 打开对应资料 | 资料 | `goalId + materialId` | 打开来源抽屉或伪造 PDF 查看 |
+认证后的首屏只请求并渲染 Dashboard。首屏完成后可读取 `GET /api/today/actions?limit=15`；该端点只返回逾期任务、今日任务、到期闪卡、未解决薄弱点和 `proposed` 助手草稿，不返回资料正文、chunks、完整 Agent Context 或历史时间线。
 
-### 4. 复习冲突和学习教练反馈
+每类最多 3 条、总数最多 15 条，顺序固定为：逾期任务、今日任务、到期闪卡、未解决薄弱点、待处理助手确认。时间无效时排在类末尾，再以稳定 ID 收口。Dashboard 与行动区分别处理 loading/error/empty；行动区失败不能清空 Dashboard。
 
-新复习界面只调用四档 Rating API。提交时锁定四个评级按钮；成功后合并返回的调度投影并重新读取队列。`flashcard_review_conflict` 表示当前显示已过期，只刷新，不自动重放用户评级；`flashcard_schedule_invalid` 不做客户端修复。
+### 复习与智能助手
 
-学习教练首层展示选中 Run 最新 Step 的行动、原因、依据与反馈。技术元数据继续存在，但默认折叠。“稍后”是安全暂停：对待确认写入不执行、不确认、不拒绝，保持 `proposed/waiting_confirmation`，因此可以在今日页再次找到；不能为了凑齐三个按钮而放宽 confirmed-draft 状态机。
+复习继续使用 Queue、Weak Points 和四档 Rating API；并发 `409` 只刷新、不重放评级，损坏调度不在客户端修复。
 
-### 5. Provider 0 的证明方式
+智能助手首层展示行动、原因、依据、Run 状态、模式和 Guard 结果。confirmed-draft 只允许接受/拒绝状态转换；暂不处理不写状态。Decision、Tool I/O、Token、fallback、Step 时间线和原始 JSON 保留在可展开技术详情中。
 
-“没有点击生成”不等于已经证明零调用。验收必须同时具备：
+### 引用动作
 
-1. 后端 Provider spy：认证完成后读取 Dashboard、Agent Context、Drafts、Review Queue 和 Weak Points，调用数仍为 0。
-2. Playwright 网络记录：Demo 登录完成后的今日加载、刷新和五项导航期间，没有 `/agent/decide`、`/agent/ask`、Run create/advance 或其他生成类请求；允许认证和明确列出的 GET。
-3. 确定性测试：同一 fixture 多次乱序输入仍产生完全相同的今日列表，不借助 LLM 补全标题、原因或排序。
+“打开对应资料”和“继续提问”继续保留。两者必须校验 `goalId + materialId`，后者只预填输入框，不自动提交或触发 Provider；资料不存在时显示失效来源，不跳转到无关资料。
 
-## 风险与处理
+## 验收重点
 
-| 等级 | 风险 | 处理 |
-|---|---|---|
-| 高 | 在已合并旧分支继续开发，导致 PR 基线和 CI 证据混乱 | 从 `personal/main@9d2c59f` 新建独立 UX 分支 |
-| 高 | 今日加载隐式触发 Agent/Provider | 只读端点白名单、Provider spy、Playwright 网络断言三重锁定 |
-| 高 | 四档评级并发覆盖或自动重试造成重复学习记录 | 409 只刷新不重放，后端条件更新保持不变 |
-| 中 | 改成五项导航后资料、问答、账号操作不可达 | 保留上下文入口和独立账号工具入口，并纳入桌面/移动 E2E |
-| 中 | `selectedGoalId` 与延迟加载竞态导致串目标 | 统一导航入口按范围、加载、视图、聚焦顺序执行 |
-| 中 | 一个读取失败使整个今日页空白 | 分来源状态和局部重试，禁止全页 catch 覆盖成功数据 |
-| 中 | “稍后”被误实现为接受或拒绝 | 断言刷新后仍为 pending，且正式实体计数不变 |
-| 低 | 技术详情搬动时丢失排查信息 | 保留现有快照字段并测试默认关闭、展开完整 |
+- `UX-01`：双目标、五入口、显式范围、查看全部、直接导航显示全部、刷新重校验、失效目标清除、入口只读、1440px/390px 无溢出。
+- `UX-02`：桌面七项和移动四项加“更多”均可访问；资料、问答、智能助手和账号操作可直接到达。
+- `UX-03`：Dashboard 轻首屏、Today Actions 有界读取、五类稳定排序、局部失败、五类路由、Provider 0。
+- `UX-04`：项目原生命名、动作合同匹配的按钮、紧凑运行证据、完整可展开技术详情、引用动作安全降级。
+- 最终门禁：全量 pytest、Ruff、compileall、pip check、敏感扫描、PostgreSQL/pgvector、桌面/390px Playwright、axe 和 `git diff --check`。
+
+## UX-01 纠偏验收结果
+
+| 门禁 | 结果 |
+|---|---|
+| 前端语法 | `npm.cmd run check` 通过 |
+| Playwright | `2 passed in 16.1s`；包含既有 Batch 4 黄金流程和纠偏后的 UX-01 |
+| UX-01 浏览器断言 | 双目标、五入口、快捷入口临时范围、查看全部、直接导航显示全部、刷新重校验、失效选择清除、只读请求和 390px 无溢出全部通过 |
+| 全量 Mock | `196 passed, 6 skipped in 133.17s` |
+| Ruff | 通过 |
+| compileall | 通过 |
+| pip check | `No broken requirements found` |
+| 敏感扫描 | 通过 |
+| `git diff --check` | 通过 |
+| PostgreSQL/pgvector | 本次仅前端和文档纠偏，未改后端、迁移或 FSRS，未重复运行；精确基线 `personal/main@9d2c59f` 已通过，第 3 周整体收口必须重跑 |
+
+新截图为 `docs/images/ux01-goal-shortcuts-mobile.png`。原截图 `docs/images/ux01-learning-space-mobile.png` 保留为被替代实现的历史证据，没有覆盖或伪造。纠偏期间 Provider 请求、Token 和成本均为 `0`。
 
 ## 实施顺序
 
-1. Preflight：同步 `personal/main@9d2c59f`，新建 `feature/learning-loop-ux`，核对干净工作区、现有 API、测试命令与无迁移要求。
-2. `UX-01`：先建立统一目标范围导航，改名学习空间并补五个快捷入口；验证刷新保持和失效目标。
-3. `UX-02`：收敛桌面/移动五项主导航，保留资料、问答和账号操作的上下文入口；完成 1440px/390px 导航断言。
-4. `UX-03`：接入 Review API，完成四档评级与 409；实现纯确定性 Today composer、局部失败和六类路由；加入 Provider 0 断言。
-5. `UX-04`：重排学习教练首层信息和安全的稍后语义；增加引用的打开资料/继续提问；技术详情保持折叠可核对。
-6. 收口：运行定向测试和全部门禁，保存桌面/390px 截图、axe、网络请求清单和失败证据，更新任务书/当前状态/UX 评估报告与新 PR 说明。
+1. 纠偏 `UX-01` 并重新验收，未通过前保持未勾选。
+2. `UX-03` 接入四档复习和有界 Today Actions，不调用完整 Agent Context。
+3. `UX-04` 重排智能助手信息层级与引用动作，不改名、不放宽状态机。
+4. `UX-02` 只修导航文案、选中状态和移动可达性，不隐藏资料与问答。
+5. 完成全部离线门禁、截图和网络断言后更新任务书、当前状态与 PR 说明；推送、PR、合并和部署继续等待明确授权。
 
-## 验收门
-
-只有同时满足下列条件才可勾选第 3 周：
-
-- `UX-01` 至 `UX-04` 的验收矩阵全部通过，且没有以静态文案代替真实路由或状态变化。
-- 全量 pytest、Ruff、compileall、pip check、敏感扫描、PostgreSQL/pgvector、桌面/390px Playwright、axe 和 `git diff --check` 全部通过。
-- 页面初始化 Provider 调用为 0；没有真实 Provider 评测，也不根据 Mock 宣称模型指标变化。
-- 没有数据库迁移、FSRS 参数调整、大型 Workspace API、来源抽屉、相邻片段、PDF 查看器、第 4 周功能或 Render 部署。
-- UX 实现形成独立提交和独立 PR；合并与部署继续等待用户明确授权。
-
-评估后不存在需要扩大范围解决的阻塞。下一步应只从同步后的主分支启动 `UX-01`，而不是同时改四个页面。
+本次复核不授权数据库迁移、FSRS 参数调整、真实 Provider 评测、来源抽屉、相邻片段、PDF 查看器、第 4 周功能、推送、合并或部署。
