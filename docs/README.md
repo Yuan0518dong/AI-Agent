@@ -40,6 +40,9 @@ docs/evaluation/第七版Batch4Agent真实模型评测报告.json
 docs/evaluation/agent-reliability-rel/corrected-real-provider-report.md
 docs/evaluation/learning-loop-ux/close02-golden-flow-validation-report.md
 docs/evaluation/learning-loop-ux/close03-role-acceptance-report.md
+docs/evaluation/release-v7.1.0/ship01-release-audit.md
+docs/evaluation/release-v7.1.0/pr-description.md
+docs/evaluation/release-v7.1.0/release-notes.md
 docs/evaluation/产品收口最终验收报告.md
 docs/status/第七版Batch1本地验收记录.md
 docs/status/第七版Batch2验收记录.md
