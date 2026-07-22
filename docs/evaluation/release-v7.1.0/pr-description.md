@@ -37,6 +37,8 @@ PR 基于 `personal/main@9d2c59f`，合入 `feature/learning-loop-ux` 的 14 个
 
 统一口径见 [产品收口最终验收报告](../产品收口最终验收报告.md)。
 
-## Remote boundary
+## Remote verification (2026-07-22)
 
-本 PR 草案不代表已经推送、创建 PR、合并、发布或部署。远程步骤必须在实际观察 CI 和部署结果后逐项更新，失败不得删除或改写。
+- 已将 `556be27` 推送到 `personal/feature/learning-loop-ux`，并创建 [PR #6](https://github.com/Yuan0518dong/AI-Agent/pull/6) 合入 `personal/main`。
+- Reliability checks、PostgreSQL pgvector integration 与 Playwright portfolio E2E 在 push 和 pull_request 两次触发中均通过。
+- PR 当前保持 `OPEN/CLEAN`，尚未合并；未创建标签、GitHub Release 或 Render 部署，且未触碰 `origin`。
