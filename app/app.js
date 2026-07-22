@@ -175,9 +175,12 @@ document.getElementById("sidebar-toggle").addEventListener("click", () => {
 });
 
 document.querySelectorAll(".nav-item[data-view]").forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     clearGoalViewScope();
-    void switchView(button.dataset.view);
+    const switched = await switchView(button.dataset.view);
+    if (switched && button.closest("#mobile-more-menu")) {
+      document.getElementById("mobile-more-toggle").focus();
+    }
   });
 });
 
@@ -463,6 +466,15 @@ document.getElementById("mobile-more-toggle").addEventListener("click", () => {
   const open = menu.hidden;
   menu.hidden = !open;
   toggle.setAttribute("aria-expanded", String(open));
+});
+
+document.getElementById("mobile-more-menu").addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const menu = document.getElementById("mobile-more-menu");
+  const toggle = document.getElementById("mobile-more-toggle");
+  menu.hidden = true;
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.focus();
 });
 
 document.getElementById("material-form").elements.type.addEventListener("change", updateMaterialInputMode);
@@ -894,8 +906,11 @@ async function switchView(name) {
 }
 
 function setActiveView(name) {
-  document.querySelectorAll(".nav-item").forEach((item) => {
-    item.classList.toggle("active", item.dataset.view === name);
+  document.querySelectorAll(".nav-item[data-view]").forEach((item) => {
+    const active = item.dataset.view === name;
+    item.classList.toggle("active", active);
+    if (active) item.setAttribute("aria-current", "page");
+    else item.removeAttribute("aria-current");
   });
   document.querySelectorAll(".view").forEach((view) => {
     view.classList.toggle("active", view.id === `view-${name}`);
@@ -903,8 +918,11 @@ function setActiveView(name) {
   document.getElementById("page-title").textContent = views[name];
   const moreMenu = document.getElementById("mobile-more-menu");
   const moreToggle = document.getElementById("mobile-more-toggle");
+  const isMoreView = ["study", "memory", "progress"].includes(name);
   moreMenu.hidden = true;
   moreToggle.setAttribute("aria-expanded", "false");
+  moreToggle.classList.toggle("active", isMoreView);
+  moreToggle.setAttribute("aria-label", isMoreView ? `更多导航，当前：${views[name]}` : "更多导航");
 }
 
 async function ensureViewData(name) {

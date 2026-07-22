@@ -2966,6 +2966,7 @@ textarea {
   }
 
   .mobile-bottom-nav .nav-item.active,
+  .mobile-more-toggle.active,
   .mobile-more-toggle[aria-expanded="true"] {
     color: var(--blue);
     background: #f2f6ff;

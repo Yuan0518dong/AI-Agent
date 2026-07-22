@@ -97,13 +97,13 @@
         </div>
 
         <nav class="nav desktop-nav" aria-label="主导航">
-          <button class="nav-item active" data-view="today"><span>⌂</span>今日</button>
-          <button class="nav-item" data-view="goals"><span>＋</span>目标</button>
-          <button class="nav-item" data-view="materials"><span>▣</span>资料</button>
-          <button class="nav-item" data-view="study"><span>?</span>学习</button>
-          <button class="nav-item" data-view="agent"><span>◎</span>智能助手</button>
-          <button class="nav-item" data-view="memory"><span>◇</span>记忆</button>
-          <button class="nav-item" data-view="progress"><span>▥</span>进度</button>
+          <button class="nav-item active" data-view="today" type="button" aria-current="page"><span>⌂</span>今日</button>
+          <button class="nav-item" data-view="goals" type="button"><span>＋</span>学习目标</button>
+          <button class="nav-item" data-view="materials" type="button"><span>▣</span>资料</button>
+          <button class="nav-item" data-view="study" type="button"><span>?</span>问答</button>
+          <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能助手</button>
+          <button class="nav-item" data-view="memory" type="button"><span>◇</span>复习</button>
+          <button class="nav-item" data-view="progress" type="button"><span>▥</span>进度</button>
         </nav>
       </aside>
 
@@ -661,13 +661,13 @@
     </div>
 
     <nav class="mobile-bottom-nav" aria-label="移动主导航" hidden>
-      <button class="nav-item active" data-view="today" type="button"><span>⌂</span>今日</button>
+      <button class="nav-item active" data-view="today" type="button" aria-current="page"><span>⌂</span>今日</button>
       <button class="nav-item" data-view="goals" type="button"><span>＋</span>目标</button>
       <button class="nav-item" data-view="materials" type="button"><span>▣</span>资料</button>
-      <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能任务</button>
-      <button class="mobile-more-toggle" id="mobile-more-toggle" type="button" aria-expanded="false"><span>•••</span>更多</button>
+      <button class="nav-item" data-view="agent" type="button"><span>◎</span>智能助手</button>
+      <button class="mobile-more-toggle" id="mobile-more-toggle" type="button" aria-controls="mobile-more-menu" aria-expanded="false" aria-label="更多导航"><span>•••</span>更多</button>
     </nav>
-    <div class="mobile-more-menu" id="mobile-more-menu" hidden>
+    <div class="mobile-more-menu" id="mobile-more-menu" aria-label="更多导航" hidden>
       <button class="nav-item" data-view="study" type="button">问答</button>
       <button class="nav-item" data-view="memory" type="button">复习</button>
       <button class="nav-item" data-view="progress" type="button">进度</button>
