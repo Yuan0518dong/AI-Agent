@@ -1,4 +1,4 @@
-# v7.1.0 Release Notes 草案
+# v7.1.0 Release Notes
 
 ## Highlights
 
@@ -24,13 +24,13 @@
 - 冲突资料没有来源权重或自动裁决。
 - 不支持 OCR、网页抓取、多智能体、MCP、通知或长期记忆。
 
-## 发布后待验证
+## 发布验证
 
-- [ ] `personal/main` 指向合并后的 `v7.1.0` 提交。
-- [ ] Reliability、PostgreSQL/pgvector 和 Playwright CI 全部通过。
-- [ ] `v7.1.0` 标签与 GitHub Release 创建成功。
-- [ ] Render 实际部署 commit 与标签一致。
-- [ ] Public Demo Smoke 通过。
-- [ ] Mock 公开主流程实际走通并记录结果。
+- [x] `personal/main` 的普通 merge commit [`09f6266`](https://github.com/Yuan0518dong/AI-Agent/commit/09f6266d1ffb32802106c92ec1a9370ea7e82f66) 合入 PR #6，父提交为 `9d2c59f` 与 `5b6f6a9`。
+- [x] 主分支 CI [run 29898589032](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29898589032) 的 Reliability checks、PostgreSQL pgvector integration 与 Playwright portfolio E2E 全部通过。
+- [x] [`v7.1.0` 标签与 GitHub Release](https://github.com/Yuan0518dong/AI-Agent/releases/tag/v7.1.0) 已创建并精确指向 `09f6266`。
+- [x] Render Deploy Hook 的部署 `dep-d9g7gubtqb8s73b65d9g` 已在服务 Events 中显示 `Live@09f6266`；后续公开 `https://ai-agent-v7-yuan0518dong.onrender.com/api/health` 实测 HTTP 200，响应 `status=ok`。
+- [x] [Public Demo Smoke run 29902464916](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29902464916) 成功，工作流 HEAD 为 `09f6266`。
+- [x] 公开 Mock 黄金流程完成：Demo 账户创建 1 个目标、1 份资料和 1 个来源片段；`decisionMode=rule-based`，等待工具为 `create_task_draft`，确认后精确创建 1 个草稿；FSRS `good` 后 `reviewCount=1`，队列从 `2 -> 1`，Today 到期闪卡从 `2 -> 1`、行动项从 `5 -> 4`。全程没有 Provider 调用。
 
-上述项目只有观察到远程结果后才能勾选。本草案当前不构成发布成功声明。
+首次手工复核曾因核验脚本传入不存在的 `flashcardId` 得到 404；按 API 契约改用闪卡 `id` 后重跑通过。该记录是核验过程证据，不是产品回归。

@@ -40,5 +40,5 @@ PR 基于 `personal/main@9d2c59f`，合入 `feature/learning-loop-ux` 的 14 个
 ## Remote verification (2026-07-22)
 
 - 已将 `556be27` 推送到 `personal/feature/learning-loop-ux`，并创建 [PR #6](https://github.com/Yuan0518dong/AI-Agent/pull/6) 合入 `personal/main`。
-- Reliability checks、PostgreSQL pgvector integration 与 Playwright portfolio E2E 在 push 和 pull_request 两次触发中均通过。
-- PR 当前保持 `OPEN/CLEAN`，尚未合并；未创建标签、GitHub Release 或 Render 部署，且未触碰 `origin`。
+- Reliability checks、PostgreSQL pgvector integration 与 Playwright portfolio E2E 在 push 和 pull_request 两次触发中均通过；合并后的主分支 [run 29898589032](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29898589032) 也全部成功。
+- PR #6 已以普通 merge commit `09f6266` 合入，父提交为 `9d2c59f` 与 `5b6f6a9`；[`v7.1.0` Release](https://github.com/Yuan0518dong/AI-Agent/releases/tag/v7.1.0) 指向同一提交。Render 已部署并由 Events 核验 `Live@09f6266`，Public Demo Smoke [run 29902464916](https://github.com/Yuan0518dong/AI-Agent/actions/runs/29902464916) 成功。未触碰 `origin`，未运行新的真实 Provider 评测。
