@@ -922,7 +922,7 @@ def list_weak_points_for_material(material_id: str, material_title: str = "") ->
 
 def list_weak_points_for_scope(goal_id: str | None, user_id: str | None) -> list[dict]:
     points = [
-        point
+        {**point, "goalId": material["goalId"]}
         for material in list_materials(goal_id=goal_id, user_id=user_id)
         for point in list_weak_points_for_material(material["id"], material["title"])
     ]

@@ -12,7 +12,7 @@ from fastapi.routing import APIRoute, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.app.routers import agent, auth, dashboard, goals, materials, progress, review, tasks
+from backend.app.routers import agent, auth, dashboard, goals, materials, progress, review, tasks, today
 from backend.app.services import (
     embedding_provider,
     flashcard_review_service,
@@ -217,6 +217,7 @@ include_api_router(review.router, prefix="/api/review", tags=["review"])
 include_api_router(agent.router, prefix="/api/agent", tags=["agent"])
 include_api_router(auth.router, prefix="/api/auth", tags=["auth"])
 include_api_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+include_api_router(today.router, prefix="/api/today", tags=["today"])
 
 
 @app.get("/")

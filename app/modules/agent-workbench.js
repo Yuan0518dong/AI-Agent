@@ -579,6 +579,7 @@ function renderAgentRunPanel() {
       const item = document.createElement("button");
       item.type = "button";
       item.className = `agent-run-row ${run.id === state.selectedAgentRunId ? "active" : ""}`;
+      item.dataset.runId = run.id;
       item.innerHTML = `
         <span class="agent-run-status ${escapeHtml(run.status || "decided")}">${escapeHtml(agentRunStatusLabel(run.status))}</span>
         <strong>${escapeHtml(run.objective || "未命名学习行动")}</strong>

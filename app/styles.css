@@ -801,6 +801,63 @@ h3 {
   text-decoration: line-through;
 }
 
+.today-actions-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.today-actions-panel .panel-head {
+  align-items: start;
+  margin: 0;
+}
+
+.today-actions-panel .muted-text {
+  margin: 6px 0 0;
+}
+
+.today-actions-list {
+  display: grid;
+  gap: 10px;
+}
+
+.today-action-item {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.today-action-kind {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #1746a2;
+  background: #eaf1ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.today-action-item h3,
+.today-action-item p {
+  margin: 0;
+}
+
+.today-action-item h3 {
+  line-height: 1.45;
+}
+
+.today-action-item p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .workspace {
   display: grid;
   gap: 18px;
@@ -980,7 +1037,7 @@ h3 {
 .today-focus-stats span,
 .today-focus-advice span {
   display: block;
-  color: var(--muted);
+  color: #4f5d6c;
   font-size: 12px;
 }
 

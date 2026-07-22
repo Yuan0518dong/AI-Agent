@@ -101,6 +101,85 @@ function focusGoalDestination(selector) {
   target.focus({ preventScroll: true });
 }
 
+async function openTodayAction(action, triggerButton = null) {
+  const goalId = action?.goalId;
+  const target = action?.target || {};
+  if (!goalId || !target.view) {
+    showError(new Error("这条行动缺少可安全打开的目标位置。"));
+    return;
+  }
+
+  setButtonLoading(triggerButton, true, "打开中");
+  try {
+    await loadSelectedGoalFromApi(goalId);
+    setGoalViewScope(goalId);
+
+    if (target.view === "goals") {
+      if (!state.selectedGoalTasks.some((task) => task.id === target.taskId)) {
+        throw new Error("该任务已不存在或不属于当前学习目标。" );
+      }
+      if (await switchView("goals")) {
+        focusTodayActionTarget(`#goal-detail [data-task-id="${cssEscape(target.taskId)}"]`);
+      }
+      return;
+    }
+
+    if (target.view === "memory") {
+      if (!(await switchView("memory"))) return;
+      if (target.flashcardId) {
+        const flashcards = getScopedFlashcards();
+        const index = flashcards.findIndex((flashcard) => flashcard.id === target.flashcardId);
+        if (index < 0) throw new Error("该闪卡已不存在或不属于当前学习目标。" );
+        activeCardIndex = index;
+        renderFlashcard();
+        focusTodayActionTarget("#flashcard");
+        return;
+      }
+      if (!getScopedQuizzes().some((quiz) => quiz.id === target.quizId)) {
+        throw new Error("该测试题已不存在或不属于当前学习目标。" );
+      }
+      focusTodayActionTarget(`[data-quiz-id="${cssEscape(target.quizId)}"]`);
+      return;
+    }
+
+    if (target.view === "agent") {
+      await loadAgentRuntimeData(goalId);
+      const run = state.agentRuns.find((item) => item.id === target.runId);
+      if (!run) throw new Error("该智能任务已不存在或不属于当前学习目标。" );
+      state.selectedAgentRunId = target.runId;
+      state.selectedAgentRun = await agentApi.getRun(target.runId);
+      state.loadedViews.agent = true;
+      saveState();
+      if (await switchView("agent")) {
+        focusTodayActionTarget(`[data-run-id="${cssEscape(target.runId)}"]`);
+      }
+      return;
+    }
+
+    throw new Error("这条行动的打开方式不受支持。" );
+  } catch (error) {
+    showError(error);
+  } finally {
+    setButtonLoading(triggerButton, false);
+  }
+}
+
+function focusTodayActionTarget(selector) {
+  requestAnimationFrame(() => {
+    const target = document.querySelector(selector);
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName)) {
+      target.tabIndex = -1;
+    }
+    target.focus({ preventScroll: true });
+  });
+}
+
+function cssEscape(value) {
+  return window.CSS?.escape ? window.CSS.escape(String(value)) : String(value).replace(/["\\\\]/g, "\\\\$&");
+}
+
 async function generatePlanForGoalApi(goalId, days = 7) {
   return goalApi.generatePlan(goalId, days);
 }
@@ -246,6 +325,16 @@ async function refreshGoalData(successMessage = "") {
     await loadAgentContextFromApi();
     render();
     if (successMessage) showSuccess(successMessage);
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function refreshTodayData(successMessage = "") {
+  try {
+    await loadDashboardDataFromApi();
+    const actions = await loadTodayActionsFromApi();
+    if (actions && successMessage) showSuccess(successMessage);
   } catch (error) {
     showError(error);
   }
@@ -470,6 +559,7 @@ function renderToday() {
   document.getElementById("today-date-filter").value = selectedTaskDate;
   list.innerHTML = "";
   renderTodayDashboard();
+  renderTodayActions();
 
   if (state.tasks.length === 0) {
     list.appendChild(emptyNode("还没有任务", `${selectedTaskDate} 暂无任务，可以创建目标或重新生成计划。`));
@@ -492,7 +582,7 @@ function renderToday() {
         try {
           await goalApi.checkinTask(task.id, checked);
           await loadGoalDataFromApi();
-          await loadAgentContextFromApi();
+          await loadTodayActionsFromApi();
           render();
           showSuccess(checked ? "任务已打卡" : "已取消打卡");
         } catch (error) {
@@ -503,6 +593,58 @@ function renderToday() {
       list.appendChild(item);
     });
   }
+}
+
+function renderTodayActions() {
+  const list = document.getElementById("today-actions-list");
+  const count = document.getElementById("today-actions-count");
+  if (!list || !count) return;
+
+  list.innerHTML = "";
+  if (todayActionsState.status === "loading" || todayActionsState.status === "idle") {
+    count.textContent = "加载中";
+    list.appendChild(emptyNode("正在读取当前行动", "Dashboard 已显示；行动区正在单独整理未完成事项。"));
+    return;
+  }
+
+  if (todayActionsState.status === "error") {
+    count.textContent = "读取失败";
+    const item = emptyNode("当前行动暂时无法读取", "不会影响上方 Dashboard。请单独重试。" );
+    const retryButton = document.createElement("button");
+    retryButton.type = "button";
+    retryButton.className = "ghost-button";
+    retryButton.textContent = "重试";
+    retryButton.addEventListener("click", () => void loadTodayActionsFromApi());
+    item.appendChild(retryButton);
+    list.appendChild(item);
+    return;
+  }
+
+  const actions = todayActionsState.data?.items || [];
+  count.textContent = `${actions.length} 项`;
+  if (!actions.length) {
+    list.appendChild(emptyNode("当前没有待处理行动", "逾期任务、今日任务、到期闪卡、薄弱点和待确认建议会在这里出现。"));
+    return;
+  }
+
+  actions.forEach((action) => {
+    const item = document.createElement("article");
+    item.className = "today-action-item";
+    item.innerHTML = `
+      <span class="today-action-kind">${escapeHtml(action.label)}</span>
+      <div>
+        <h3>${escapeHtml(action.title)}</h3>
+        <p>${escapeHtml(action.detail)}</p>
+      </div>
+    `;
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "ghost-button";
+    openButton.textContent = "查看";
+    openButton.addEventListener("click", () => void openTodayAction(action, openButton));
+    item.appendChild(openButton);
+    list.appendChild(item);
+  });
 }
 
 function renderGoals() {
@@ -597,7 +739,7 @@ function renderGoalDetail() {
   const taskDraftRows = renderAgentTaskDrafts(taskDrafts);
   const taskRows = tasks.length
     ? tasks.map((task) => `
-      <div class="task-row ${task.done ? "done" : ""}">
+      <div class="task-row ${task.done ? "done" : ""}" data-task-id="${escapeHtml(task.id)}">
         <span>${escapeHtml(task.date)}</span>
         <div>
           <strong>${escapeHtml(task.title)}</strong>

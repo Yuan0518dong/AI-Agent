@@ -187,12 +187,23 @@
             </div>
           </section>
 
+          <section class="panel today-actions-panel" aria-labelledby="today-actions-title">
+            <div class="panel-head">
+              <div>
+                <h2 id="today-actions-title">当前行动</h2>
+                <p class="muted-text">只展示尚未完成的学习行动，不会自动执行任何操作。</p>
+              </div>
+              <span class="panel-count" id="today-actions-count">加载中</span>
+            </div>
+            <div class="today-actions-list" id="today-actions-list" aria-live="polite"></div>
+          </section>
+
           <div class="workspace two-columns">
             <section class="panel task-panel">
               <div class="panel-head">
                 <h2>今日任务</h2>
                 <div class="inline-actions">
-                  <input class="compact-input" type="date" id="today-date-filter" />
+                  <input class="compact-input" type="date" id="today-date-filter" aria-label="选择任务日期" />
                   <button class="ghost-button" id="reset-today-date" type="button">今天</button>
                   <select class="compact-input" id="quick-plan-days" title="计划天数">
                     <option value="3">3 天</option>

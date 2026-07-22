@@ -770,9 +770,12 @@ function renderFlashcard() {
   }
 
   if (!flashcard) {
+    card.removeAttribute("data-flashcard-id");
     card.innerHTML = "<span>暂无闪卡</span><strong>添加资料后会自动生成记忆卡片</strong>";
     return;
   }
+
+  card.dataset.flashcardId = flashcard.id;
 
   card.innerHTML = `
     <div class="flashcard-meta">
@@ -801,6 +804,7 @@ function renderQuizzes() {
   quizzes.slice(0, 8).forEach((quiz) => {
     const item = document.createElement("article");
     item.className = "item";
+    item.dataset.quizId = quiz.id;
     const attempts = state.quizAttempts?.[quiz.materialId] || [];
     const latestAttempt = attempts.find((attempt) => attempt.quizId === quiz.id);
     const answerValue = getQuizAnswerValue(quiz.materialId, quiz.id, latestAttempt);

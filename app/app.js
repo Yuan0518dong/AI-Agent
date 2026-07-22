@@ -64,6 +64,7 @@ var activeGoalScopeId = "";
 var selectedTaskDate = todayString();
 var pendingChatMaterialId = "";
 var initialDataLoadPromise = null;
+var todayActionsState = { status: "idle", data: null, error: null };
 
 const views = {
   today: "今日行动",
@@ -273,13 +274,13 @@ document.getElementById("clear-goal-detail").addEventListener("click", () => {
 
 document.getElementById("today-date-filter").addEventListener("change", async (event) => {
   selectedTaskDate = event.currentTarget.value || todayString();
-  await refreshGoalData("任务日期已切换");
+  await refreshTodayData("任务日期已切换");
 });
 
 document.getElementById("reset-today-date").addEventListener("click", async () => {
   selectedTaskDate = todayString();
   document.getElementById("today-date-filter").value = selectedTaskDate;
-  await refreshGoalData("已回到今天");
+  await refreshTodayData("已回到今天");
 });
 
 document.getElementById("material-form").addEventListener("submit", async (event) => {
@@ -559,6 +560,7 @@ async function enterApp(user, { restoreLocalState = false } = {}) {
     if (initialDataLoadPromise === dataLoad) initialDataLoadPromise = null;
   }
   render();
+  void loadTodayActionsFromApi();
 }
 
 async function loadAppDataFromApi() {
@@ -570,6 +572,21 @@ async function loadDashboardDataFromApi() {
   state.dashboard = dashboard;
   state.tasks = (dashboard.todayTasks || []).map(taskFromApi);
   saveState();
+}
+
+async function loadTodayActionsFromApi() {
+  todayActionsState = { status: "loading", data: null, error: null };
+  render();
+  try {
+    const data = await todayApi.getActions(15);
+    todayActionsState = { status: "ready", data, error: null };
+    return data;
+  } catch (error) {
+    todayActionsState = { status: "error", data: null, error };
+    return null;
+  } finally {
+    render();
+  }
 }
 
 function renderAuth() {
@@ -656,6 +673,7 @@ function resetLocalAppState() {
   editingGoalId = "";
   editingMaterialId = "";
   pendingChatMaterialId = "";
+  todayActionsState = { status: "idle", data: null, error: null };
 }
 
 function removeLegacyAuthState() {
@@ -890,6 +908,9 @@ function setActiveView(name) {
 }
 
 async function ensureViewData(name) {
+  if (name === "today" && currentUser && todayActionsState.status !== "loading") {
+    void loadTodayActionsFromApi();
+  }
   if (["goals", "progress", "agent"].includes(name) && !state.loadedViews.goals) {
     await loadGoalDataFromApi();
   }
