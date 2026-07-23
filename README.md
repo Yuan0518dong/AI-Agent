@@ -2,7 +2,9 @@
 
 面向个人学习规划的可控学习智能体。项目将目标、资料摄取、带引用问答、错题/薄弱点、可确认的 Agent 运行、FSRS 复习与 Today Actions 串为一个可观察、可恢复的学习闭环。高风险写入必须经用户确认后才进入正式数据。
 
-项目已完成本地求职交付收口并进入维护状态。`v7.1.0` 本地发布候选已通过完整门禁，但尚未推送、合并、打标签或部署。当前对外指标、证据边界和冻结条件均以 [产品收口最终验收报告](docs/evaluation/产品收口最终验收报告.md) 为唯一汇总来源。
+这是维护者实习期间唯一持续开发的项目，也是可公开展示的个人作品。第一、二版采用双人协作，第三版按方向分工，第四版起由维护者独立推进新增架构、工程化、评测和发布；详细边界见 [个人贡献说明](docs/portfolio/个人贡献说明.md)。
+
+项目已完成求职交付收口并进入维护状态。`v7.1.0` 已合入 `personal/main`，完成 GitHub Release、Render 部署、健康检查、公开 Demo Smoke 和 Mock 黄金流程复验。当前对外指标、证据边界和冻结条件均以 [产品收口最终验收报告](docs/evaluation/产品收口最终验收报告.md) 为唯一汇总来源。
 
 ## 学习闭环
 
@@ -37,7 +39,7 @@ Browser (same-origin JavaScript)
 ## 演示与材料
 
 - 录屏：[91 秒本地视频](docs/videos/v7-batch4-90s-demo.webm) 和 [分镜/口播脚本](docs/portfolio/90秒演示脚本.md)。它使用隔离 SQLite 与 Mock Provider，不是实时真实模型演示。
-- 在线 Demo：[ai-agent-v7-yuan0518dong.onrender.com](https://ai-agent-v7-yuan0518dong.onrender.com)。本次收口未访问或复验该远程服务；公开 Demo 仅可按 Mock Provider 表述。
+- 在线 Demo：[ai-agent-v7-yuan0518dong.onrender.com](https://ai-agent-v7-yuan0518dong.onrender.com)。`SHIP-03` 已验证健康检查、公开 Demo Smoke 和 Mock 黄金流程；它仍只按 Mock Provider 演示表述，不代表在线真实模型能力。
 - 求职材料：[简历 Bullet](docs/portfolio/简历材料.md)、[20 秒/1 分钟/3 分钟面试稿](docs/planning/AI-Agent简历与面试讲解稿.md)、[个人贡献边界](docs/portfolio/个人贡献说明.md)。
 
 ## 本地运行
@@ -63,4 +65,4 @@ python backend/check_sensitive_content.py
 
 - 真实 Provider 的历史固定集未达到稳定能力宣传门槛；Guard `1.0` 仅为受控注入拦截验证。
 - 当前不包含 OCR、网页抓取、冲突资料自动裁决、多智能体、MCP、多模型比较、通知、长期记忆或个性化 FSRS。
-- 后续只处理 P0 与时间盒内的黄金流程 P1。新增功能、真实 Provider 评测、推送、PR、合并、部署和远程 Demo 操作均需单独授权。
+- 后续只处理 P0 与时间盒内的黄金流程 P1。新增功能、真实 Provider 评测以及新的推送、PR、合并、部署或远程 Demo 操作均需独立任务和明确授权。
