@@ -75,3 +75,91 @@ test("portfolio refresh keeps the auth portal and learning app accessible and re
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
+
+test("FE-01 design tokens expose semantic surfaces and focus styles", async ({ page }, testInfo) => {
+  const pageErrors = [];
+  const consoleErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await expect(page.locator("#auth-shell")).toBeVisible();
+
+  const tokens = await page.evaluate(() => {
+    const styles = getComputedStyle(document.documentElement);
+    const read = (name) => styles.getPropertyValue(name).trim();
+    return {
+      bg: read("--bg"),
+      surface: read("--surface"),
+      text: read("--text"),
+      textMuted: read("--text-muted"),
+      border: read("--border"),
+      primary: read("--primary"),
+      success: read("--success"),
+      warning: read("--warning"),
+      danger: read("--danger"),
+      focusRing: read("--focus-ring"),
+      radiusMd: read("--radius-md"),
+      mint: read("--mint")
+    };
+  });
+
+  expect(tokens.bg).toBeTruthy();
+  expect(tokens.surface.toLowerCase()).toMatch(/#fff|#ffffff|rgb\(255,\s*255,\s*255\)/i);
+  expect(tokens.text).toBeTruthy();
+  expect(tokens.textMuted).toBeTruthy();
+  expect(tokens.border).toBeTruthy();
+  expect(tokens.primary).toBeTruthy();
+  expect(tokens.success).toBeTruthy();
+  expect(tokens.warning).toBeTruthy();
+  expect(tokens.danger).toBeTruthy();
+  expect(tokens.focusRing).toBeTruthy();
+  expect(tokens.radiusMd).toBe("8px");
+  expect(tokens.mint.toLowerCase()).toBe("#0f766e");
+
+  const demoButton = page.locator("#demo-login");
+  await demoButton.focus();
+  const focusOutline = await demoButton.evaluate((el) => getComputedStyle(el).outlineStyle);
+  expect(focusOutline).not.toBe("none");
+
+  await page.locator("#auth-shell").screenshot({
+    path: "docs/images/fe01-auth-portal-desktop.png"
+  });
+
+  await demoButton.click();
+  await expect(page.locator("#app-shell")).toBeVisible();
+  await expect(page.locator("#view-today")).toHaveClass(/active/);
+
+  const primaryButton = page.locator(".primary-button:visible").first();
+  await expect(primaryButton).toBeVisible();
+  const primaryStyles = await primaryButton.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return {
+      color: s.color,
+      backgroundImage: s.backgroundImage,
+      minHeight: s.minHeight,
+      borderRadius: s.borderRadius
+    };
+  });
+  expect(primaryStyles.backgroundImage).toMatch(/linear-gradient/i);
+  expect(Number.parseFloat(primaryStyles.minHeight)).toBeGreaterThanOrEqual(36);
+
+  await primaryButton.focus();
+  const primaryOutline = await primaryButton.evaluate((el) => getComputedStyle(el).outlineStyle);
+  expect(primaryOutline).not.toBe("none");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: "docs/images/fe01-today-mobile.png"
+  });
+  await assertNoDocumentOverflow(page);
+  await assertNoSeriousAccessibilityViolations(page);
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
