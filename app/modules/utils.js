@@ -5,12 +5,15 @@ function showError(error) {
 
   if (status === 401) {
     const sessionEnded = typeof handleUnauthorizedSession === "function" && handleUnauthorizedSession();
-    showToast(sessionEnded ? "登录状态已失效，请重新登录。" : "邮箱或密码不正确，请重试。", "error");
+    const message = sessionEnded ? "登录状态已失效，请重新登录。" : "邮箱或密码不正确，请重试。";
+    showToast(message, "error");
     return;
   }
 
   if (status === 403) {
-    showToast("当前操作未被允许，请刷新页面后重试。", "error");
+    const message = "当前操作未被允许，请刷新页面后重试。";
+    showAppFeedback(message);
+    showToast(message, "error");
     return;
   }
 
@@ -19,16 +22,35 @@ function showError(error) {
     const waitMessage = Number.isFinite(retryAfter) && retryAfter > 0
       ? `请求过于频繁，请在 ${retryAfter} 秒后重试。`
       : "请求过于频繁，请稍后重试。";
+    showAppFeedback(waitMessage);
     showToast(waitMessage, "error");
     return;
   }
 
-  console.error(error);
-  showToast(error?.message || "操作失败，请确认服务连接后重试。", "error");
+  const message = error?.message || "操作失败，请确认服务连接后重试。";
+  showAppFeedback(message);
+  showToast(message, "error");
 }
 
 function showSuccess(message) {
+  clearAppFeedback();
   showToast(message, "success");
+}
+
+function showAppFeedback(message) {
+  const feedback = document.getElementById("app-feedback");
+  const text = document.getElementById("app-feedback-message");
+  if (!feedback || !text) return;
+  text.textContent = message;
+  feedback.hidden = false;
+}
+
+function clearAppFeedback() {
+  const feedback = document.getElementById("app-feedback");
+  const text = document.getElementById("app-feedback-message");
+  if (!feedback || !text) return;
+  feedback.hidden = true;
+  text.textContent = "";
 }
 
 function showToast(message, type = "success") {
@@ -48,19 +70,26 @@ function setButtonLoading(button, loading, loadingText = "处理中") {
     button.dataset.originalText = button.textContent;
     button.textContent = loadingText;
     button.disabled = true;
+    button.setAttribute("aria-busy", "true");
     return;
   }
 
   button.textContent = button.dataset.originalText || button.textContent;
   button.disabled = false;
+  button.removeAttribute("aria-busy");
   delete button.dataset.originalText;
 }
 
-function emptyNode(title, body) {
+function emptyNode(title, body, { loading = false } = {}) {
   const template = document.getElementById("empty-template");
   const node = template.content.firstElementChild.cloneNode(true);
   node.querySelector("strong").textContent = title;
   node.querySelector("p").textContent = body;
+  if (loading) {
+    node.classList.add("is-loading-surface");
+    node.setAttribute("role", "status");
+    node.setAttribute("aria-busy", "true");
+  }
   return node;
 }
 

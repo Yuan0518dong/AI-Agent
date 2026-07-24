@@ -47,6 +47,20 @@ async function selectFlashcard(page, flashcardId, cardCount) {
   expect(await page.locator("#flashcard").getAttribute("data-flashcard-id")).toBe(flashcardId);
 }
 
+async function openResponsiveView(page, view, viewportWidth) {
+  if (viewportWidth <= 767) {
+    if (["today", "goals", "materials", "agent"].includes(view)) {
+      await page.locator(`.mobile-bottom-nav [data-view=${view}]`).click();
+    } else {
+      await page.locator("#mobile-more-toggle").click();
+      await page.locator(`#mobile-more-menu [data-view=${view}]`).click();
+    }
+  } else {
+    await page.locator(`.desktop-nav [data-view=${view}]`).click();
+  }
+  await expect(page.locator(`#view-${view}`)).toHaveClass(/active/);
+}
+
 
 test("portfolio refresh keeps the auth portal and learning app accessible and responsive", async ({ page }) => {
   const pageErrors = [];
@@ -412,4 +426,161 @@ test("FE-05 makes confirmation, review state, and progress changes explainable",
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
+});
+
+test("FE-06 keeps loading, failure recovery, keyboard navigation, and responsive views reliable", async ({ page }, testInfo) => {
+  const pageErrors = [];
+  const consoleErrors = [];
+  const reviewWrites = [];
+  let releaseTodayRequest;
+  let holdTodayRequest = true;
+  let failReviewOnce = true;
+
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "PATCH" && /\/api\/materials\/[^/]+\/flashcards\/[^/]+$/.test(path)) {
+      reviewWrites.push(path);
+    }
+  });
+  await page.addInitScript(() => {
+    const signals = { longTasks: [], layoutShifts: [] };
+    window.__fe06PerformanceSignals = signals;
+    if (!("PerformanceObserver" in window)) return;
+    try {
+      new PerformanceObserver((entries) => {
+        entries.getEntries().forEach((entry) => signals.longTasks.push(entry.duration));
+      }).observe({ type: "longtask", buffered: true });
+    } catch {
+      // Browsers without Long Tasks support still expose the request-level checks below.
+    }
+    try {
+      new PerformanceObserver((entries) => {
+        entries.getEntries().forEach((entry) => {
+          if (!entry.hadRecentInput) {
+            signals.layoutShifts.push({
+              value: entry.value,
+              sources: (entry.sources || []).map((source) => source.node?.id || source.node?.className || source.node?.tagName || "unknown")
+            });
+          }
+        });
+      }).observe({ type: "layout-shift", buffered: true });
+    } catch {
+      // Layout Shift is optional in browser engines used by the local test matrix.
+    }
+  });
+  await page.route("**/api/today/actions**", async (route) => {
+    if (holdTodayRequest) await new Promise((resolve) => { releaseTodayRequest = resolve; });
+    await route.continue();
+  });
+  await page.route("**/api/materials/*/flashcards/*", async (route) => {
+    if (!failReviewOnce || route.request().method() !== "PATCH") return route.continue();
+    failReviewOnce = false;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: { message: "评分服务暂时不可用，请重试。" } })
+    });
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator("#show-login").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator("#show-register")).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator("#show-login")).toBeFocused();
+  await page.locator("#demo-login").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#app-shell")).toBeVisible();
+  await expect(page.locator("#today-actions-list")).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator("#today-actions-list .is-loading-surface")).toHaveAttribute("role", "status");
+  await expect(page.locator("#today-actions-list .is-loading-surface")).toHaveAttribute("aria-busy", "true");
+  await page.screenshot({ path: testInfo.outputPath("fe06-loading-desktop.png") });
+
+  releaseTodayRequest();
+  holdTodayRequest = false;
+  await expect(page.locator("#today-actions-count")).not.toHaveText("加载中");
+  await expect(page.locator("#today-actions-list")).toHaveAttribute("aria-busy", "false");
+  const initialPerformance = await page.evaluate(() => {
+    const apiPaths = performance.getEntriesByType("resource")
+      .map((entry) => new URL(entry.name).pathname)
+      .filter((path) => path.startsWith("/api/"));
+    return {
+      dashboardRequests: apiPaths.filter((path) => path === "/api/dashboard").length,
+      todayActionRequests: apiPaths.filter((path) => path === "/api/today/actions").length,
+      longTasks: window.__fe06PerformanceSignals?.longTasks || [],
+      layoutShifts: window.__fe06PerformanceSignals?.layoutShifts || []
+    };
+  });
+  expect(initialPerformance.dashboardRequests).toBe(1);
+  expect(initialPerformance.todayActionRequests).toBe(1);
+  expect(initialPerformance.longTasks.filter((duration) => duration >= 200)).toEqual([]);
+  const layoutShift = initialPerformance.layoutShifts.reduce((sum, entry) => sum + entry.value, 0);
+  expect(layoutShift, JSON.stringify(initialPerformance.layoutShifts)).toBeLessThanOrEqual(0.1);
+
+  await openResponsiveView(page, "memory", 1440);
+  await expect(page.locator("#flashcard")).toHaveAttribute("data-flashcard-id", /.+/);
+  const reviewButton = page.locator("#card-review");
+  await reviewButton.click();
+  await expect(page.locator("#app-feedback")).toBeVisible();
+  await expect(page.locator("#app-feedback-message")).toContainText("评分服务暂时不可用");
+  await expect(reviewButton).toBeEnabled();
+  await expect(reviewButton).not.toHaveAttribute("aria-busy");
+  expect(reviewWrites).toHaveLength(1);
+  await page.screenshot({ path: testInfo.outputPath("fe06-recoverable-error-desktop.png") });
+  await page.locator("#app-feedback-dismiss").click();
+  await expect(page.locator("#app-feedback")).toBeHidden();
+  await reviewButton.click();
+  await expect(page.locator("#toast")).toContainText("已加入复习队列");
+  expect(reviewWrites).toHaveLength(2);
+
+  for (const viewport of [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 900 }
+  ]) {
+    await page.setViewportSize(viewport);
+    for (const view of ["today", "goals", "materials", "study", "agent", "memory", "progress"]) {
+      await openResponsiveView(page, view, viewport.width);
+      await assertNoDocumentOverflow(page);
+    }
+    if (viewport.width === 768) {
+      const navBounds = await page.locator(".desktop-nav .nav-item").evaluateAll((items) => items.map((item) => {
+        const rect = item.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, width: rect.width, viewport: window.innerWidth };
+      }));
+      navBounds.forEach((bounds) => {
+        expect(bounds.width).toBeGreaterThan(0);
+        expect(bounds.left).toBeGreaterThanOrEqual(0);
+        expect(bounds.right).toBeLessThanOrEqual(bounds.viewport);
+      });
+    }
+    await page.screenshot({ path: testInfo.outputPath(`fe06-${viewport.width}x${viewport.height}.png`) });
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#mobile-more-toggle").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#mobile-more-menu")).toBeVisible();
+  await page.locator("#mobile-more-menu [data-view=study]").focus();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#mobile-more-menu")).toBeHidden();
+  await expect(page.locator("#mobile-more-toggle")).toBeFocused();
+  await assertNoSeriousAccessibilityViolations(page);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const view of ["today", "agent", "memory"]) {
+    await openResponsiveView(page, view, 1440);
+    await assertNoSeriousAccessibilityViolations(page);
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const motion = await page.locator("#toast").evaluate((node) => getComputedStyle(node).transitionDuration);
+  expect(Number.parseFloat(motion)).toBeLessThanOrEqual(0.01);
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors.filter((message) => !message.includes("status of 503 (Service Unavailable)"))).toEqual([]);
 });

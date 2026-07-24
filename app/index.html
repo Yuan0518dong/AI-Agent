@@ -165,6 +165,14 @@
           </div>
         </header>
 
+        <section class="app-feedback" id="app-feedback" role="alert" aria-live="assertive" hidden>
+          <div>
+            <strong>操作未完成</strong>
+            <p id="app-feedback-message"></p>
+          </div>
+          <button class="ghost-button" id="app-feedback-dismiss" type="button">知道了</button>
+        </section>
+
         <section class="view active" id="view-today">
           <section class="getting-started" id="getting-started" hidden aria-label="开始使用">
             <div>
@@ -197,6 +205,45 @@
               <strong id="metric-cards">0</strong>
             </article>
           </div>
+
+          <section class="panel accent-panel today-focus-panel">
+            <div class="panel-head">
+              <h2>主线目标</h2>
+              <span class="panel-count" id="focus-status">未开始</span>
+            </div>
+            <div class="today-focus-card">
+              <div class="today-focus-head">
+                <div class="today-focus-badge" id="focus-badge" aria-hidden="true">目</div>
+                <div>
+                  <h3 id="focus-title">先创建一个成长目标</h3>
+                  <p id="focus-text">设置目标后，系统会根据资料和截止时间生成学习计划。</p>
+                </div>
+              </div>
+              <div class="today-focus-stats">
+                <div>
+                  <span>整体进度</span>
+                  <strong id="focus-rate">0%</strong>
+                </div>
+                <div>
+                  <span>剩余时间</span>
+                  <strong id="focus-remaining">-</strong>
+                </div>
+                <div>
+                  <span>今日任务</span>
+                  <strong id="focus-today">0/0</strong>
+                </div>
+              </div>
+              <div class="today-focus-advice">
+                <span>今日建议</span>
+                <p id="focus-advice">先建立一个目标，再生成行动计划。</p>
+              </div>
+              <div class="inline-actions today-focus-actions">
+                <button class="ghost-button" id="focus-view-goal" type="button">查看目标</button>
+                <button class="ghost-button" id="focus-view-progress" type="button">看进度</button>
+                <button class="primary-button" id="focus-generate-plan" type="button">生成计划</button>
+              </div>
+            </div>
+          </section>
 
           <section class="today-dashboard" aria-label="今日学习看板">
             <div class="today-hero">
@@ -242,7 +289,7 @@
             <div class="today-actions-list" id="today-actions-list" aria-live="polite"></div>
           </section>
 
-          <div class="workspace two-columns">
+          <div class="workspace">
             <section class="panel task-panel">
               <div class="panel-head">
                 <h2>今日任务</h2>
@@ -258,45 +305,6 @@
                 </div>
               </div>
               <div class="list" id="today-task-list"></div>
-            </section>
-
-            <section class="panel accent-panel today-focus-panel">
-              <div class="panel-head">
-                <h2>主线目标</h2>
-                <span class="panel-count" id="focus-status">未开始</span>
-              </div>
-              <div class="today-focus-card">
-                <div class="today-focus-head">
-                  <div class="today-focus-badge" id="focus-badge" aria-hidden="true">目</div>
-                  <div>
-                    <h3 id="focus-title">先创建一个成长目标</h3>
-                    <p id="focus-text">设置目标后，系统会根据资料和截止时间生成学习计划。</p>
-                  </div>
-                </div>
-                <div class="today-focus-stats">
-                  <div>
-                    <span>整体进度</span>
-                    <strong id="focus-rate">0%</strong>
-                  </div>
-                  <div>
-                    <span>剩余时间</span>
-                    <strong id="focus-remaining">-</strong>
-                  </div>
-                  <div>
-                    <span>今日任务</span>
-                    <strong id="focus-today">0/0</strong>
-                  </div>
-                </div>
-                <div class="today-focus-advice">
-                  <span>今日建议</span>
-                  <p id="focus-advice">先建立一个目标，再生成行动计划。</p>
-                </div>
-                <div class="inline-actions today-focus-actions">
-                  <button class="ghost-button" id="focus-view-goal" type="button">查看目标</button>
-                  <button class="ghost-button" id="focus-view-progress" type="button">看进度</button>
-                  <button class="primary-button" id="focus-generate-plan" type="button">生成计划</button>
-                </div>
-              </div>
             </section>
           </div>
           </div>

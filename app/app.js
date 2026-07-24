@@ -177,6 +177,8 @@ document.getElementById("logout-button").addEventListener("click", async (event)
   }
 });
 
+document.getElementById("app-feedback-dismiss").addEventListener("click", () => clearAppFeedback());
+
 document.getElementById("sidebar-toggle").addEventListener("click", () => {
   const shell = document.getElementById("app-shell");
   const collapsed = !shell.classList.contains("sidebar-collapsed");

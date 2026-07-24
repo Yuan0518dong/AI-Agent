@@ -11,7 +11,7 @@
   --blue-soft: #edf2ff;
   --mint: #0f766e;
   --mint-soft: #e9f8f4;
-  --amber: #d97706;
+  --amber: #825500;
   --rose: #d92d4f;
   --shadow: 0 14px 38px rgba(24, 42, 78, 0.07);
   --shadow-strong: 0 28px 80px rgba(20, 39, 76, 0.16);
@@ -947,6 +947,32 @@ h3 {
   color: var(--rose);
 }
 
+.app-feedback {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 860px;
+  margin: -8px 0 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--danger-border);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--ink);
+}
+
+.app-feedback strong,
+.app-feedback p {
+  margin: 0;
+}
+
+.app-feedback p {
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1396,6 +1422,7 @@ h3 {
 .today-focus-panel {
   display: flex;
   flex-direction: column;
+  margin-bottom: 18px;
 }
 
 .today-focus-card {
@@ -3396,6 +3423,24 @@ textarea {
 
   .progress-advice-item {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 980px) {
+  .nav {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .nav-item {
+    min-width: 0;
+    gap: 5px;
+    padding: 0 6px;
+    font-size: 13px;
+  }
+
+  .nav-item span {
+    width: 16px;
   }
 }
 
