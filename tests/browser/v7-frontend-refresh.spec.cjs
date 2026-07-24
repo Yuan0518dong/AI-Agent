@@ -220,3 +220,60 @@ test("FE-03 puts the current goal before Today actions for a demo learner", asyn
   })).toBe(true);
   await page.screenshot({ path: "docs/images/fe03-today-demo-desktop.png" });
 });
+
+test("FE-04 keeps goals, materials, and cited answers in one learning workspace", async ({ page }) => {
+  const pageErrors = [];
+  const consoleErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator("#demo-login").click();
+
+  for (const [view, heading] of [["goals", "学习目标"], ["materials", "成长资料"], ["study", "成长问答"]]) {
+    await page.locator(`.desktop-nav [data-view=${view}]`).click();
+    await expect(page.locator(`#view-${view} .workspace-intro h2`)).toHaveText(heading);
+    await expect(page.locator(`#${view}-workspace-current-goal`)).toContainText("当前目标：");
+  }
+
+  await page.locator(".desktop-nav [data-view=goals]").click();
+  await page.locator("#goal-list .item").first().getByRole("button", { name: "详情" }).click();
+  await expect(page.locator("#goal-detail")).not.toBeEmpty();
+  await expect(page.locator("#goals-workspace-current-goal")).not.toContainText("未选择");
+  await page.screenshot({ path: "docs/images/fe04-goals-desktop.png" });
+
+  await page.locator(".desktop-nav [data-view=materials]").click();
+  await page.locator("#material-form [name=title]").fill("FE-04 检索资料");
+  await page.locator("#material-form [name=type]").selectOption("upload");
+  await page.locator("#material-form [name=file]").setInputFiles({
+    name: "fe04.md", mimeType: "text/markdown", buffer: Buffer.from("# 检索设计\n\n问题：混合检索如何排序？\n答案：混合检索结合关键词和向量检索，并使用 RRF 排序。\n\n## 证据边界\n\n没有充分资料引用时必须明确回答资料不足。")
+  });
+  await page.locator("#material-submit-button").click();
+  await expect(page.locator("#material-list")).toContainText("完成");
+  await page.screenshot({ path: "docs/images/fe04-material-complete.png" });
+
+  await page.locator(".desktop-nav [data-view=study]").click();
+  await expect(page.locator("#summary-list .summary-card").filter({ hasText: "FE-04 检索资料" })).toBeVisible();
+  await page.locator("#summary-list .summary-card").filter({ hasText: "FE-04 检索资料" }).getByRole("button", { name: "围绕此资料提问" }).click();
+  await expect(page.locator("#chat-form [name=question]")).toBeFocused();
+  await page.locator("#chat-form [name=question]").fill("混合检索如何排序？");
+  await page.locator("#chat-form button[type=submit]").click();
+  await expect(page.locator(".message-reference-chunks")).toBeVisible();
+  await page.screenshot({ path: "docs/images/fe04-cited-answer.png" });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#chat-form [name=question]").fill("量子纠缠的贝尔不等式是什么？");
+  await page.locator("#chat-form button[type=submit]").click();
+  const latestAgentMessage = page.locator("#chat-log .message.agent").last();
+  await expect(latestAgentMessage).toContainText("当前资料不足以直接回答这个问题");
+  await expect(latestAgentMessage).toContainText("grounded-refusal");
+  await expect(latestAgentMessage.locator(".message-reference-chunks")).toHaveCount(0);
+  await expect(page.locator(".message-reference-chunks")).toHaveCount(1);
+  await page.screenshot({ path: "docs/images/fe04-insufficient-mobile.png", fullPage: true });
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});

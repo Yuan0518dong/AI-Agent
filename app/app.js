@@ -1024,6 +1024,17 @@ function render() {
   renderQuizzes();
   renderProgress();
   renderGoalScopeBars();
+  renderWorkspaceIntroContexts();
+}
+
+function renderWorkspaceIntroContexts() {
+  const selectedGoal = state.goals.find((goal) => goal.id === selectedGoalId)
+    || state.selectedGoal;
+  const label = selectedGoal ? `当前目标：${selectedGoal.name}` : "当前目标：未选择";
+  ["goals-workspace-current-goal", "materials-workspace-current-goal", "study-workspace-current-goal"].forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = label;
+  });
 }
 
 function getCurrentGoalScope() {
