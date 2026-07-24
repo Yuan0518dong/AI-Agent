@@ -479,6 +479,17 @@ summary:focus-visible {
   font-size: 14px;
 }
 
+.auth-feedback {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-md);
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;

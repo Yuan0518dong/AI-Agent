@@ -75,6 +75,7 @@
             </button>
             <p id="demo-cold-start-note"><span aria-hidden="true">◷</span> 在线服务闲置后会休眠，首次访问可能需要约 1 分钟唤醒。</p>
           </div>
+          <div class="auth-feedback" id="auth-feedback" role="alert" aria-live="assertive" hidden></div>
           <div class="auth-divider"><span>或使用账号</span></div>
           <div class="auth-tabs" role="tablist" aria-label="登录注册切换">
             <button class="active" id="show-login" type="button" role="tab" aria-selected="true" aria-controls="login-form">登录</button>
@@ -84,11 +85,11 @@
           <form class="auth-form active" id="login-form" role="tabpanel" aria-labelledby="show-login">
             <label>
               邮箱
-              <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+              <input id="login-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" aria-describedby="auth-feedback" />
             </label>
             <label>
               密码
-              <input name="password" type="password" required autocomplete="current-password" placeholder="至少 6 位" />
+              <input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="至少 6 位" aria-describedby="auth-feedback" />
             </label>
             <button class="primary-button" id="login-submit" type="submit">登录</button>
           </form>
@@ -96,19 +97,19 @@
           <form class="auth-form" id="register-form" role="tabpanel" aria-labelledby="show-register" hidden>
             <label>
               昵称
-              <input name="name" required autocomplete="name" placeholder="例如：陈" />
+              <input id="register-name" name="name" required autocomplete="name" placeholder="例如：陈" aria-describedby="auth-feedback" />
             </label>
             <label>
               邮箱
-              <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+              <input id="register-email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" aria-describedby="auth-feedback" />
             </label>
             <label>
               密码
-              <input name="password" type="password" required autocomplete="new-password" placeholder="至少 6 位" />
+              <input id="register-password" name="password" type="password" required autocomplete="new-password" placeholder="至少 6 位" aria-describedby="auth-feedback" />
             </label>
             <label>
               确认密码
-              <input name="confirmPassword" type="password" required autocomplete="new-password" placeholder="再次输入密码" />
+              <input id="register-confirm-password" name="confirmPassword" type="password" required autocomplete="new-password" placeholder="再次输入密码" aria-describedby="auth-feedback" />
             </label>
             <button class="primary-button" id="register-submit" type="submit">创建账号</button>
           </form>

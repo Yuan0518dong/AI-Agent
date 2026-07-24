@@ -163,3 +163,45 @@ test("FE-01 design tokens expose semantic surfaces and focus styles", async ({ p
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);
 });
+
+test("FE-02 keeps authentication feedback actionable and preserves form state", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.screenshot({ path: "docs/images/fe02-login-desktop.png" });
+
+  await page.locator("#show-login").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator("#register-form")).toBeVisible();
+  await expect(page.locator("#show-register")).toBeFocused();
+  await page.locator("#show-login").click();
+  await expect(page.locator("#login-email")).toBeFocused();
+  await page.locator("#show-register").click();
+  await expect(page.locator("#register-name")).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: "docs/images/fe02-register-mobile.png" });
+
+  await page.locator("#show-login").click();
+  await page.locator("#login-email").fill("learner@example.com");
+  await page.locator("#login-password").fill("not-the-password");
+  await page.route("**/api/auth/login", (route) => route.fulfill({
+    status: 401,
+    contentType: "application/json",
+    body: JSON.stringify({ detail: { message: "invalid credentials" } })
+  }));
+  await page.locator("#login-submit").click();
+
+  await expect(page.locator("#auth-feedback")).toBeVisible();
+  await expect(page.locator("#auth-feedback")).toContainText("邮箱或密码不正确");
+  await expect(page.locator("#login-email")).toHaveValue("learner@example.com");
+  await expect(page.locator("#login-password")).toHaveValue("not-the-password");
+  await expect(page.locator("#login-submit")).toBeEnabled();
+  await expect(page.locator("#login-email")).toHaveAttribute("aria-describedby", "auth-feedback");
+
+  await page.unroute("**/api/auth/login");
+  await page.route("**/api/auth/demo", (route) => route.abort("failed"));
+  await page.locator("#demo-login").click();
+  await expect(page.locator("#auth-feedback")).toContainText("无法连接本地服务");
+  await expect(page.locator("#demo-login")).toBeEnabled();
+  await page.screenshot({ path: "docs/images/fe02-demo-error-mobile.png" });
+});

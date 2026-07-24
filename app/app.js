@@ -76,8 +76,8 @@ const views = {
   progress: "成长进度"
 };
 
-document.getElementById("show-login").addEventListener("click", () => switchAuthMode("login"));
-document.getElementById("show-register").addEventListener("click", () => switchAuthMode("register"));
+document.getElementById("show-login").addEventListener("click", () => switchAuthMode("login", { focusFirstField: true }));
+document.getElementById("show-register").addEventListener("click", () => switchAuthMode("register", { focusFirstField: true }));
 document.querySelector(".auth-tabs").addEventListener("keydown", (event) => {
   if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
   event.preventDefault();
@@ -87,6 +87,7 @@ document.querySelector(".auth-tabs").addEventListener("keydown", (event) => {
 });
 document.getElementById("demo-login").addEventListener("click", async (event) => {
   const button = event.currentTarget;
+  clearAuthFeedback();
   setButtonLoading(button, true, "正在准备演示");
 
   try {
@@ -95,7 +96,7 @@ document.getElementById("demo-login").addEventListener("click", async (event) =>
     await enterApp(user);
     showSuccess("已进入独立演示环境");
   } catch (error) {
-    showError(error);
+    showAuthError(error);
   } finally {
     setButtonLoading(button, false);
   }
@@ -107,6 +108,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
   const submitButton = document.getElementById("login-submit");
   const data = new FormData(form);
 
+  clearAuthFeedback();
   setButtonLoading(submitButton, true, "登录中");
 
   try {
@@ -119,7 +121,7 @@ document.getElementById("login-form").addEventListener("submit", async (event) =
     form.reset();
     showSuccess("登录成功");
   } catch (error) {
-    showError(error);
+    showAuthError(error);
   } finally {
     setButtonLoading(submitButton, false);
   }
@@ -133,8 +135,10 @@ document.getElementById("register-form").addEventListener("submit", async (event
   const password = data.get("password");
   const confirmPassword = data.get("confirmPassword");
 
+  clearAuthFeedback();
+
   if (password !== confirmPassword) {
-    showError(new Error("两次输入的密码不一致"));
+    setAuthFeedback("两次输入的密码不一致，请确认后重试。", "error");
     return;
   }
 
@@ -151,7 +155,7 @@ document.getElementById("register-form").addEventListener("submit", async (event
     form.reset();
     showSuccess("注册成功");
   } catch (error) {
-    showError(error);
+    showAuthError(error);
   } finally {
     setButtonLoading(submitButton, false);
   }
@@ -624,7 +628,7 @@ function renderAuth() {
   }
 }
 
-function switchAuthMode(mode) {
+function switchAuthMode(mode, { focusFirstField = false } = {}) {
   const isLogin = mode === "login";
   const loginTab = document.getElementById("show-login");
   const registerTab = document.getElementById("show-register");
@@ -649,6 +653,41 @@ function switchAuthMode(mode) {
   document.getElementById("auth-panel-subtitle").textContent = isLogin
     ? "登录后读取目标、资料和复习进度"
     : "创建账号后，从第一条学习目标开始";
+
+  clearAuthFeedback();
+  if (focusFirstField) {
+    window.requestAnimationFrame(() => {
+      document.getElementById(isLogin ? "login-email" : "register-name")?.focus();
+    });
+  }
+}
+
+function clearAuthFeedback() {
+  const feedback = document.getElementById("auth-feedback");
+  feedback.hidden = true;
+  feedback.textContent = "";
+  feedback.className = "auth-feedback";
+}
+
+function setAuthFeedback(message, type = "error") {
+  const feedback = document.getElementById("auth-feedback");
+  feedback.textContent = message;
+  feedback.hidden = false;
+  feedback.className = `auth-feedback ${type}`;
+}
+
+function showAuthError(error) {
+  const status = Number(error?.status || 0);
+  const message = status === 401
+    ? "邮箱或密码不正确，请检查后重试。"
+    : status === 403
+      ? "当前操作未被允许，请刷新页面后重试。"
+      : status === 429
+        ? "请求过于频繁，请稍后再试；已填写内容不会丢失。"
+        : status === 0
+          ? "当前无法连接本地服务，请确认服务已启动后重试。"
+          : "暂时无法完成请求，请稍后重试；已填写内容不会丢失。";
+  setAuthFeedback(message, "error");
 }
 
 function clearAuthenticatedState() {
