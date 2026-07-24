@@ -556,6 +556,11 @@ function renderToday() {
   gettingStarted.hidden = goalTotal > 0;
   dashboardContent.hidden = goalTotal === 0;
   if (goalTotal === 0) return;
+  const focusPanel = document.querySelector(".today-focus-panel");
+  const todayDashboard = dashboardContent.querySelector(".today-dashboard");
+  if (focusPanel && todayDashboard && focusPanel.nextElementSibling !== todayDashboard) {
+    dashboardContent.insertBefore(focusPanel, todayDashboard);
+  }
   document.getElementById("today-date-filter").value = selectedTaskDate;
   list.innerHTML = "";
   renderTodayDashboard();

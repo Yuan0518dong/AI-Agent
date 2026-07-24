@@ -205,3 +205,18 @@ test("FE-02 keeps authentication feedback actionable and preserves form state", 
   await expect(page.locator("#demo-login")).toBeEnabled();
   await page.screenshot({ path: "docs/images/fe02-demo-error-mobile.png" });
 });
+
+test("FE-03 puts the current goal before Today actions for a demo learner", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator("#demo-login").click();
+  await expect(page.locator("#view-today .today-focus-panel")).toBeVisible();
+  await expect.poll(() => page.locator("#dashboard-content").evaluate((container) => {
+    const order = [...container.children].map((child) => [...child.classList]);
+    const focusIndex = order.findIndex((classes) => classes.includes("today-focus-panel"));
+    const summaryIndex = order.findIndex((classes) => classes.includes("summary-grid"));
+    const dashboardIndex = order.findIndex((classes) => classes.includes("today-dashboard"));
+    return focusIndex > summaryIndex && focusIndex < dashboardIndex;
+  })).toBe(true);
+  await page.screenshot({ path: "docs/images/fe03-today-demo-desktop.png" });
+});
