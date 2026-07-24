@@ -19,7 +19,7 @@ async function assertNoSeriousAccessibilityViolations(page) {
 }
 
 async function createIsolatedAccount(page) {
-  await page.getByRole("button", { name: "注册" }).click();
+  await page.locator("#show-register").click();
   await page.locator("#register-form [name=name]").fill("Golden Flow Browser");
   await page.locator("#register-form [name=email]").fill(`close02-${Date.now()}@example.com`);
   await page.locator("#register-form [name=password]").fill("close02-password");

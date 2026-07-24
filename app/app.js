@@ -78,6 +78,13 @@ const views = {
 
 document.getElementById("show-login").addEventListener("click", () => switchAuthMode("login"));
 document.getElementById("show-register").addEventListener("click", () => switchAuthMode("register"));
+document.querySelector(".auth-tabs").addEventListener("keydown", (event) => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+  event.preventDefault();
+  const mode = event.key === 'ArrowLeft' ? 'login' : 'register';
+  switchAuthMode(mode);
+  document.getElementById(mode === 'login' ? 'show-login' : 'show-register').focus();
+});
 document.getElementById("demo-login").addEventListener("click", async (event) => {
   const button = event.currentTarget;
   setButtonLoading(button, true, "正在准备演示");
@@ -619,10 +626,29 @@ function renderAuth() {
 
 function switchAuthMode(mode) {
   const isLogin = mode === "login";
-  document.getElementById("show-login").classList.toggle("active", isLogin);
-  document.getElementById("show-register").classList.toggle("active", !isLogin);
-  document.getElementById("login-form").classList.toggle("active", isLogin);
-  document.getElementById("register-form").classList.toggle("active", !isLogin);
+  const loginTab = document.getElementById("show-login");
+  const registerTab = document.getElementById("show-register");
+  const loginForm = document.getElementById("login-form");
+  const registerForm = document.getElementById("register-form");
+
+  loginTab.classList.toggle("active", isLogin);
+  loginTab.setAttribute("aria-selected", String(isLogin));
+  loginTab.tabIndex = isLogin ? 0 : -1;
+  registerTab.classList.toggle("active", !isLogin);
+  registerTab.setAttribute("aria-selected", String(!isLogin));
+  registerTab.tabIndex = isLogin ? -1 : 0;
+
+  loginForm.classList.toggle("active", isLogin);
+  loginForm.hidden = !isLogin;
+  registerForm.classList.toggle("active", !isLogin);
+  registerForm.hidden = isLogin;
+
+  document.getElementById("auth-panel-title").textContent = isLogin
+    ? "继续你的学习闭环"
+    : "建立你的学习档案";
+  document.getElementById("auth-panel-subtitle").textContent = isLogin
+    ? "登录后读取目标、资料和复习进度"
+    : "创建账号后，从第一条学习目标开始";
 }
 
 function clearAuthenticatedState() {

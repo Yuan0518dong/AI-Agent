@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>成长学习助手</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./styles.css?v=v7-auth-demo-20260716" />
+    <link rel="stylesheet" href="./styles.css?v=portfolio-refresh-20260723" />
   </head>
   <body>
-    <section class="auth-shell" id="auth-shell">
+    <section class="auth-shell" id="auth-shell" aria-label="成长学习助手账号入口">
       <div class="auth-card">
         <div class="auth-copy">
           <div class="auth-brand">
@@ -17,33 +17,71 @@
               <span></span>
             </div>
             <div>
-              <p class="eyebrow">智能学习助手</p>
+              <p class="eyebrow">AI-Agent · 智能学习助手</p>
               <h1>成长学习助手</h1>
             </div>
           </div>
-          <p>把目标、资料、计划和 AI 问答放在一个学习工作台里，登录后继续你的成长路径。</p>
+
+          <div class="auth-hero-copy">
+            <p class="auth-kicker">可控 · 可观察 · 可恢复</p>
+            <h2>让资料真正变成<br />下一步学习行动</h2>
+            <p>从带引用问答到智能任务，再到需要你确认的复习计划，每一步都有依据，也保留最终决定权。</p>
+          </div>
+
+          <div class="auth-loop" aria-label="学习闭环：资料、引用问答、受控执行、间隔复习">
+            <span>资料</span>
+            <span>引用问答</span>
+            <span>受控执行</span>
+            <span>间隔复习</span>
+          </div>
+
+          <article class="auth-runtime-preview" aria-label="智能助手运行示意">
+            <div class="auth-runtime-head">
+              <div>
+                <span class="auth-runtime-pulse" aria-hidden="true"></span>
+                当前行动
+              </div>
+              <span class="auth-runtime-status">等待确认</span>
+            </div>
+            <strong>根据资料生成 3 张复习卡</strong>
+            <p>已找到相关引用，写入正式复习队列前需要你的确认。</p>
+            <div class="auth-runtime-meta">
+              <span>引用 3 条</span>
+              <span>Guard 通过</span>
+              <span>可在原任务恢复</span>
+            </div>
+          </article>
+
           <div class="auth-highlights" aria-label="核心能力">
-            <span>目标管理</span>
-            <span>资料理解</span>
-            <span>进度追踪</span>
+            <span><strong>RAG</strong> 带来源回答</span>
+            <span><strong>Agent</strong> 多步运行</span>
+            <span><strong>FSRS</strong> 复习调度</span>
           </div>
         </div>
 
         <div class="auth-panel">
           <div class="auth-panel-head">
-            <h2>账号入口</h2>
-            <p>使用邮箱注册或登录</p>
+            <p class="eyebrow">开始使用</p>
+            <h2 id="auth-panel-title">继续你的学习闭环</h2>
+            <p id="auth-panel-subtitle">登录后读取目标、资料和复习进度</p>
           </div>
           <div class="auth-demo">
-            <button class="ghost-button" id="demo-login" type="button" aria-describedby="demo-cold-start-note">一键试用</button>
-            <p id="demo-cold-start-note">服务闲置 15 分钟后会休眠，首次访问可能需要约 1 分钟唤醒服务。</p>
+            <button class="auth-demo-button" id="demo-login" type="button" aria-describedby="demo-cold-start-note">
+              <span>
+                <strong>一键试用</strong>
+                <small>免账号进入，使用独立演示数据</small>
+              </span>
+              <span class="auth-demo-arrow" aria-hidden="true">→</span>
+            </button>
+            <p id="demo-cold-start-note"><span aria-hidden="true">◷</span> 在线服务闲置后会休眠，首次访问可能需要约 1 分钟唤醒。</p>
           </div>
+          <div class="auth-divider"><span>或使用账号</span></div>
           <div class="auth-tabs" role="tablist" aria-label="登录注册切换">
-            <button class="active" id="show-login" type="button">登录</button>
-            <button id="show-register" type="button">注册</button>
+            <button class="active" id="show-login" type="button" role="tab" aria-selected="true" aria-controls="login-form">登录</button>
+            <button id="show-register" type="button" role="tab" aria-selected="false" aria-controls="register-form" tabindex="-1">注册</button>
           </div>
 
-          <form class="auth-form active" id="login-form">
+          <form class="auth-form active" id="login-form" role="tabpanel" aria-labelledby="show-login">
             <label>
               邮箱
               <input name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
@@ -55,7 +93,7 @@
             <button class="primary-button" id="login-submit" type="submit">登录</button>
           </form>
 
-          <form class="auth-form" id="register-form">
+          <form class="auth-form" id="register-form" role="tabpanel" aria-labelledby="show-register" hidden>
             <label>
               昵称
               <input name="name" required autocomplete="name" placeholder="例如：陈" />
@@ -74,6 +112,11 @@
             </label>
             <button class="primary-button" id="register-submit" type="submit">创建账号</button>
           </form>
+
+          <div class="auth-assurance" aria-label="账号与演示说明">
+            <span>HttpOnly 安全会话</span>
+            <span>演示数据相互隔离</span>
+          </div>
         </div>
       </div>
     </section>
@@ -689,7 +732,7 @@
     <script src="./modules/materials.js?v=ux01-goal-shortcuts-20260721"></script>
     <script src="./modules/goals.js?v=ux01-goal-shortcuts-20260721"></script>
     <script src="./modules/progress.js?v=ux01-goal-shortcuts-20260721"></script>
-    <script src="./app.js?v=ux01-goal-shortcuts-20260721"></script>
+    <script src="./app.js?v=portfolio-refresh-20260723"></script>
   </body>
 </html>
 

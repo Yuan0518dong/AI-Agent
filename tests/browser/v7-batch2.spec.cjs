@@ -18,7 +18,7 @@ test("Batch 2 interactive runtime, responsive navigation, and account data flow"
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
-  await page.getByRole("button", { name: "注册" }).click();
+  await page.locator("#show-register").click();
   await page.locator("#register-form [name=name]").fill("Batch 2 Browser");
   await page.locator("#register-form [name=email]").fill(`batch2-${Date.now()}@example.com`);
   await page.locator("#register-form [name=password]").fill("batch2-password");

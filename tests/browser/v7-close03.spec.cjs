@@ -12,7 +12,7 @@ async function apiData(page, requestPath) {
 
 async function registerRoleAccount(page, role) {
   accountSequence += 1;
-  await page.getByRole("button", { name: "注册" }).click();
+  await page.locator("#show-register").click();
   await page.locator("#register-form [name=name]").fill(role);
   await page.locator("#register-form [name=email]").fill(`close03-${Date.now()}-${accountSequence}@example.com`);
   await page.locator("#register-form [name=password]").fill("close03-password");
@@ -105,8 +105,15 @@ test("CLOSE-03 weak-answer role completes confirmation, FSRS, and Today changes"
   await page.locator(".desktop-nav [data-view=memory]").click();
   await selectFlashcard(page, formalCard.id, cardsAfterConfirmation.length);
   await page.locator("#card-known").click();
-  const ratedCard = (await apiData(page, `/api/materials/${material.id}/flashcards`)).find((card) => card.id === formalCard.id);
-  expect(ratedCard).toEqual(expect.objectContaining({ reviewCount: 1, lastRating: "good", status: "known" }));
+  await expect.poll(async () => {
+    const cards = await apiData(page, `/api/materials/${material.id}/flashcards`);
+    const card = cards.find((item) => item.id === formalCard.id);
+    return card && {
+      reviewCount: card.reviewCount,
+      lastRating: card.lastRating,
+      status: card.status
+    };
+  }).toEqual({ reviewCount: 1, lastRating: "good", status: "known" });
   const today = await apiData(page, "/api/today/actions");
   expect(today.items).not.toEqual(expect.arrayContaining([
     expect.objectContaining({ kind: "due_flashcard", id: formalCard.id })
