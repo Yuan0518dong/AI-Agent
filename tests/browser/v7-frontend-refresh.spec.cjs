@@ -21,6 +21,32 @@ async function assertNoDocumentOverflow(page) {
   expect(widths.body).toBeLessThanOrEqual(widths.viewport);
 }
 
+async function apiData(page, path) {
+  return page.evaluate(async (requestPath) => {
+    const response = await fetch(requestPath);
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.detail || `Request failed: ${response.status}`);
+    return payload.data;
+  }, path);
+}
+
+async function listFlashcardsForMaterials(page) {
+  const materials = await apiData(page, "/api/materials");
+  const cardsByMaterial = await Promise.all(materials.map(async (material) => ({
+    materialId: material.id,
+    cards: await apiData(page, `/api/materials/${material.id}/flashcards`)
+  })));
+  return cardsByMaterial.flatMap(({ materialId, cards }) => cards.map((card) => ({ ...card, materialId })));
+}
+
+async function selectFlashcard(page, flashcardId, cardCount) {
+  for (let index = 0; index < cardCount; index += 1) {
+    if (await page.locator("#flashcard").getAttribute("data-flashcard-id") === flashcardId) return;
+    await page.locator("#shuffle-cards").click();
+  }
+  expect(await page.locator("#flashcard").getAttribute("data-flashcard-id")).toBe(flashcardId);
+}
+
 
 test("portfolio refresh keeps the auth portal and learning app accessible and responsive", async ({ page }) => {
   const pageErrors = [];
@@ -273,6 +299,116 @@ test("FE-04 keeps goals, materials, and cited answers in one learning workspace"
   await expect(latestAgentMessage.locator(".message-reference-chunks")).toHaveCount(0);
   await expect(page.locator(".message-reference-chunks")).toHaveCount(1);
   await page.screenshot({ path: "docs/images/fe04-insufficient-mobile.png", fullPage: true });
+
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});
+
+test("FE-05 makes confirmation, review state, and progress changes explainable", async ({ page }) => {
+  const pageErrors = [];
+  const consoleErrors = [];
+  const rejectedFormalWrites = [];
+  const acceptedConfirmationRequests = [];
+  let observeRejectedFormalWrites = false;
+  let observeAcceptedConfirmation = false;
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (observeRejectedFormalWrites && !["GET", "HEAD", "OPTIONS"].includes(request.method()) && /\/(goals|materials|flashcards|tasks|quiz)/.test(path)) {
+      rejectedFormalWrites.push(`${request.method()} ${path}`);
+    }
+    if (observeAcceptedConfirmation && !["GET", "HEAD", "OPTIONS"].includes(request.method()) && /^\/api\/agent\/(action-logs\/[^/]+|runs\/[^/]+\/advance)$/.test(path)) {
+      acceptedConfirmationRequests.push({ method: request.method(), path, body: request.postData() });
+    }
+  });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+  await page.locator("#demo-login").click();
+
+  await page.locator(".desktop-nav [data-view=memory]").click();
+  await expect(page.locator("#flashcard")).toHaveAttribute("data-flashcard-id", /.+/);
+  await page.screenshot({ path: "docs/images/fe05-flashcard-before.png" });
+  await page.locator("#card-review").click();
+  await expect(page.locator("#toast")).toContainText("已加入复习队列");
+  await expect(page.locator("#flashcard-status-note")).toContainText("FSRS 队列与 Today 会在最终状态返回后同步");
+  await page.screenshot({ path: "docs/images/fe05-flashcard-after.png" });
+  const quizForm = page.locator(".quiz-answer-form").first();
+  await quizForm.locator("textarea[name=answer]").fill("错误答案");
+  await quizForm.getByRole("button", { name: "提交批改" }).click();
+  await expect(page.locator("#toast")).toContainText("AI 批改完成");
+
+  await page.locator(".desktop-nav [data-view=agent]").click();
+  await page.locator("#agent-goal-select").selectOption({ label: "完成一周 AI Agent 学习计划" });
+  await page.locator("#agent-run-objective").fill("基于当前错题生成复习闪卡草稿。");
+  await page.locator("#agent-run-start").click();
+  const currentAction = page.locator("#agent-current-action");
+  await currentAction.getByRole("button", { name: "执行下一步" }).click();
+  await expect(currentAction.locator(".agent-confirmation-boundary")).toContainText("尚未写入正式任务、资料或复习数据");
+  await expect(currentAction.getByRole("button", { name: "接受" })).toBeVisible();
+  await expect(currentAction.getByRole("button", { name: "拒绝" })).toBeVisible();
+  await page.screenshot({ path: "docs/images/fe05-agent-waiting-desktop.png" });
+
+  const details = page.locator(".agent-run-details");
+  if (!(await details.evaluate((node) => node.open))) await details.locator(":scope > summary").click();
+  await expect(page.locator("#agent-run-detail")).toContainText("执行过程");
+  await page.screenshot({ path: "docs/images/fe05-agent-run-details-desktop.png", fullPage: true });
+
+  observeRejectedFormalWrites = true;
+  await currentAction.getByRole("button", { name: "拒绝" }).click();
+  await expect(page.locator("#toast")).toContainText("已拒绝写入");
+  observeRejectedFormalWrites = false;
+  expect(rejectedFormalWrites).toEqual([]);
+
+  const cardsBeforeAcceptance = await listFlashcardsForMaterials(page);
+  await page.locator("#agent-run-objective").fill("根据当前错题生成第二份待确认复习闪卡草稿。");
+  await page.locator("#agent-run-start").click();
+  await expect(page.locator("#toast")).toContainText("已完成第一步");
+  await currentAction.getByRole("button", { name: "执行下一步" }).click();
+  await expect(currentAction.getByRole("button", { name: "接受" })).toBeVisible();
+  observeAcceptedConfirmation = true;
+  await currentAction.getByRole("button", { name: "接受" }).click();
+  await expect(page.locator("#toast")).toContainText("已确认当前步骤");
+  observeAcceptedConfirmation = false;
+  expect(acceptedConfirmationRequests.filter((request) => request.method === "PATCH" && /\/action-logs\//.test(request.path))).toEqual([
+    expect.objectContaining({ body: '{"status":"accepted"}' })
+  ]);
+  expect(acceptedConfirmationRequests.filter((request) => request.method === "POST" && /\/advance$/.test(request.path))).toHaveLength(1);
+
+  await expect.poll(() => listFlashcardsForMaterials(page)).toHaveLength(cardsBeforeAcceptance.length + 1);
+  const cardsAfterAcceptance = await listFlashcardsForMaterials(page);
+  const formalCard = cardsAfterAcceptance.find((card) => !cardsBeforeAcceptance.some((before) => before.id === card.id));
+  expect(formalCard).toEqual(expect.objectContaining({ reviewCount: 0, lastRating: null }));
+
+  await page.locator(".desktop-nav [data-view=memory]").click();
+  await selectFlashcard(page, formalCard.id, cardsAfterAcceptance.length);
+  const reviewResponse = page.waitForResponse((response) => {
+    const path = new URL(response.url()).pathname;
+    return path === `/api/materials/${formalCard.materialId}/flashcards/${formalCard.id}`
+      && response.request().method() === "PATCH" && response.ok();
+  });
+  await page.locator("#card-known").click();
+  const reviewPayload = await (await reviewResponse).json();
+  expect(reviewPayload.data).toEqual(expect.objectContaining({
+    id: formalCard.id,
+    reviewCount: 1,
+    lastRating: "good",
+    status: "known"
+  }));
+  const todayAfterRating = await apiData(page, "/api/today/actions");
+  expect(todayAfterRating.items).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: "due_flashcard", id: formalCard.id })
+  ]));
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#mobile-more-toggle").click();
+  await page.locator("#mobile-more-menu [data-view=progress]").click();
+  await expect(page.locator("#progress-state-note")).toContainText("已汇总");
+  await assertNoDocumentOverflow(page);
+  await page.screenshot({ path: "docs/images/fe05-progress-mobile.png", fullPage: true });
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);

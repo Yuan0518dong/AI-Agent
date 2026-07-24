@@ -2546,6 +2546,26 @@ textarea {
   padding-left: 20px;
 }
 
+.agent-confirmation-boundary {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--amber-line, #e9c46a);
+  border-radius: var(--radius-md);
+  background: #fff8e8;
+}
+
+.agent-confirmation-boundary strong {
+  color: #825500;
+}
+
+.agent-confirmation-boundary p,
+.flashcard-status-note {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
 .agent-current-action-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3045,6 +3065,15 @@ textarea {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
+}
+
+.flashcard-status-note {
+  margin-top: 10px;
+  font-size: var(--font-size-sm);
+}
+
+.progress-workspace-intro {
+  margin-bottom: var(--space-3);
 }
 
 .flashcard span,

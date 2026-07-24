@@ -499,6 +499,7 @@
                 <span>暂无闪卡</span>
                 <strong>添加资料后会自动生成记忆卡片</strong>
               </div>
+              <p class="flashcard-status-note" id="flashcard-status-note" aria-live="polite">评分会基于现有 FSRS 状态更新复习队列。</p>
               <div class="segmented">
                 <button id="card-known">已掌握</button>
                 <button id="card-review">还要复习</button>
@@ -682,6 +683,11 @@
         </section>
 
         <section class="view" id="view-progress">
+          <header class="workspace-intro progress-workspace-intro">
+            <p class="eyebrow">学习状态</p>
+            <h2>学习进度</h2>
+            <p id="progress-state-note">这里只汇总已确认的任务、复习与测试结果；可从下方返回对应学习路径。</p>
+          </header>
           <div class="goal-scope-bar" id="progress-scope-note" hidden>
             <span></span>
             <button class="ghost-button" data-clear-goal-scope type="button">查看全部</button>

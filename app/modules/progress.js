@@ -219,6 +219,12 @@ function renderProgressGoals() {
 
 function renderProgress() {
   const stats = getProgressStats();
+  const stateNote = document.getElementById("progress-state-note");
+  if (stateNote) {
+    stateNote.textContent = stats.totalTasks
+      ? `已汇总 ${stats.completedTasks}/${stats.totalTasks} 项任务、${stats.reviewCards.length} 张待复习闪卡和 ${stats.quizCoverage}% 测试覆盖；下方可返回对应目标继续处理。`
+      : "这里只汇总已确认的任务、复习与测试结果；创建计划或完成评分后会显示最终状态。";
+  }
   renderProgressOverview(stats);
   renderProgressAdvice(stats);
   renderProgressGoals();

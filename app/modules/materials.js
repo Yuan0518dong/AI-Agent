@@ -759,6 +759,7 @@ function buildAgentSampleQuestion(sampleKey, material) {
 function renderFlashcard() {
   const card = document.getElementById("flashcard");
   const count = document.getElementById("flashcard-count");
+  const statusNote = document.getElementById("flashcard-status-note");
   const flashcards = getScopedFlashcards();
   if (activeCardIndex >= flashcards.length) activeCardIndex = 0;
   const flashcard = flashcards[activeCardIndex];
@@ -772,6 +773,7 @@ function renderFlashcard() {
   if (!flashcard) {
     card.removeAttribute("data-flashcard-id");
     card.innerHTML = "<span>暂无闪卡</span><strong>添加资料后会自动生成记忆卡片</strong>";
+    if (statusNote) statusNote.textContent = "添加资料后会进入现有复习队列；评分不会创建新的学习记录。";
     return;
   }
 
@@ -785,6 +787,9 @@ function renderFlashcard() {
     <strong>${escapeHtml(flashcard.front)}</strong>
     <p>${escapeHtml(flashcard.back)}</p>
   `;
+  if (statusNote) {
+    statusNote.textContent = `${getFlashcardStatusLabel(flashcard.status)}：选择“已掌握”或“还要复习”后，现有 FSRS 队列与 Today 会在最终状态返回后同步。`;
+  }
 }
 
 function renderQuizzes() {

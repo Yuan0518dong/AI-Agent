@@ -951,6 +951,16 @@ function renderAgentCurrentActionPanel() {
     </div>
   `;
 
+  if (waitingForConfirmation) {
+    const boundary = document.createElement("section");
+    boundary.className = "agent-confirmation-boundary";
+    boundary.innerHTML = `
+      <strong>确认边界</strong>
+      <p>这是待确认建议，尚未写入正式任务、资料或复习数据。只有选择“接受”后，智能任务才会继续执行对应写入。</p>
+    `;
+    card.appendChild(boundary);
+  }
+
   const actions = document.createElement("div");
   actions.className = "agent-current-action-actions";
   if (waitingForConfirmation) {
